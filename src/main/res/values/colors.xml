@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the beige background baked into the logo artwork. -->
+    <color name="ic_launcher_background">#EADDBC</color>
+</resources>
