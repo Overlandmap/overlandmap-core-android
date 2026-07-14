@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -105,6 +106,9 @@ fun PackDetailScreen(
     packId: String,
     onBack: () -> Unit,
     onOpenSignIn: () -> Unit,
+    // When set, a Settings action appears in the top bar. The tab-less
+    // single-pack app uses it to reach Settings while this is the root screen.
+    onOpenSettings: (() -> Unit)? = null,
     viewModel: PackDetailViewModel = viewModel(key = packId) {
         PackDetailViewModel(overlandApp(), packId)
     },
@@ -146,6 +150,16 @@ fun PackDetailScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        }
+                    },
+                    actions = {
+                        onOpenSettings?.let { open ->
+                            IconButton(onClick = open) {
+                                Icon(
+                                    Icons.Filled.Settings,
+                                    contentDescription = stringResource(R.string.tab_settings),
+                                )
+                            }
                         }
                     },
                 )

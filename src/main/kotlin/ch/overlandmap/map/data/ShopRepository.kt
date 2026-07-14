@@ -43,6 +43,18 @@ class ShopRepository(
         return doc.data?.let { TrackPack.fromFirestore(doc.id, it) }
     }
 
+    /** The online pack with this exact name, for single-track-pack apps. */
+    suspend fun trackPackByName(name: String): TrackPack? {
+        auth.awaitUser()
+        return db.collection("track_pack")
+            .whereEqualTo("name", name)
+            .limit(1)
+            .get().await()
+            .documents
+            .firstOrNull()
+            ?.let { TrackPack.fromFirestore(it.id, it.data ?: emptyMap()) }
+    }
+
     suspend fun itineraries(trackPackId: String): List<Itinerary> {
         auth.awaitUser()
         return db.collection("itinerary")
