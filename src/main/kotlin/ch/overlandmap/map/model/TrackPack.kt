@@ -3,6 +3,7 @@ package ch.overlandmap.map.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import ch.overlandmap.map.AppConfig
+import ch.overlandmap.map.AppMode
 
 /**
  * A purchasable pack of itineraries. Kotlin port of the Flutter app's
@@ -56,8 +57,15 @@ data class TrackPack(
      */
     val needsUpdate: Boolean = false,
 ) {
-    /** Play Store product ID used to purchase this pack. */
-    val productId: String? get() = baseProductId
+    /**
+     * Play Store product ID used to purchase this pack. A single-track-pack app
+     * buys a distinct product: the base ID with a `_single` suffix (e.g.
+     * `ladakh` → `ladakh_single`). This flows through to the price query, the
+     * buy flow, and the price lookup, since they all read [productId].
+     */
+    val productId: String? get() = baseProductId?.let {
+        if (AppMode.singleTrackPack) "${it}_single" else it
+    }
 
     val titlePhotoUrl: String?
         get() = localPhotoPath?.let { "file://$it" } ?: titlePhotoId?.let(AppConfig::photoUrl)
