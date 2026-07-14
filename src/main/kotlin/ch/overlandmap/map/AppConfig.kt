@@ -1,9 +1,6 @@
 package ch.overlandmap.map
 
 object AppConfig {
-    const val MAPBOX_ACCESS_TOKEN =
-        "REDACTED_MAPBOX_TOKEN"
-
     private const val CLOUDFLARE_IMAGE_BASE_URL = "https://imagedelivery.net/kLFoGYyvldGdieKRrzQmRQ"
 
     /** Remote photo URL for a Cloudflare Images photo ID. */
