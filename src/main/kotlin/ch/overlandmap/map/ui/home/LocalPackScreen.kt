@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.AlertDialog
@@ -93,6 +94,10 @@ fun LocalPackScreen(
     onBack: () -> Unit,
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenShopPack: (packId: String) -> Unit,
+    // When set, a Settings action appears in the top bar. The tab-less
+    // single-pack app uses it to reach Settings; the multi-pack app leaves it
+    // null and reaches Settings through its bottom tab.
+    onOpenSettings: (() -> Unit)? = null,
     viewModel: LocalPackViewModel = viewModel(key = "local-$packId") {
         LocalPackViewModel(overlandApp(), packId)
     },
@@ -157,6 +162,14 @@ fun LocalPackScreen(
                         }
                     },
                     actions = {
+                        onOpenSettings?.let { open ->
+                            IconButton(onClick = open) {
+                                Icon(
+                                    Icons.Filled.Settings,
+                                    contentDescription = stringResource(R.string.tab_settings),
+                                )
+                            }
+                        }
                         state.pack?.let { pack ->
                             IconButton(onClick = { menuOpen = true }) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = null)
