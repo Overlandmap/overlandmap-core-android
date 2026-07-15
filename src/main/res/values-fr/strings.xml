@@ -104,6 +104,7 @@
     <string name="download_channel">Téléchargements</string>
     <string name="purchase_for">Acheter %1$s pour %2$s</string>
     <string name="purchase_not_available">Achat non disponible</string>
+    <string name="purchase_all_itineraries_for">Acheter tous les itinéraires pour %1$s</string>
     <string name="buy_the_pack">Acheter le track pack %1$s</string>
     <string name="not_in_free_sample">Non disponible dans l\'exemple gratuit. Achetez le pack complet</string>
     <string name="zoom_to_object">Zoomer</string>

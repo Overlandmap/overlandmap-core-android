@@ -104,6 +104,7 @@
     <string name="download_channel">Downloads</string>
     <string name="purchase_for">Purchase %1$s for %2$s</string>
     <string name="purchase_not_available">Purchase not available</string>
+    <string name="purchase_all_itineraries_for">Purchase all itineraries for %1$s</string>
     <string name="buy_the_pack">Buy the %1$s pack</string>
     <string name="not_in_free_sample">Not available in the free sample. Buy the full pack</string>
     <string name="zoom_to_object">Zoom to</string>

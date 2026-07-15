@@ -1,6 +1,8 @@
 package ch.overlandmap.map.ui.home
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -33,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
@@ -96,6 +100,9 @@ fun LocalPackScreen(
     // single-pack app uses it to reach Settings; the multi-pack app leaves it
     // null and reaches Settings through its bottom tab.
     onOpenSettings: (() -> Unit)? = null,
+    // Reached when the user taps "purchase" on a free sample without a real
+    // account signed in.
+    onOpenSignIn: () -> Unit = {},
     viewModel: LocalPackViewModel = viewModel(key = "local-$packId") {
         LocalPackViewModel(overlandApp(), packId)
     },
@@ -105,8 +112,14 @@ fun LocalPackScreen(
     val selectedItineraryId by viewModel.selectedItineraryId.collectAsState()
     val updateCheck by viewModel.updateCheck.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val owned by viewModel.owned.collectAsState()
+    val signedIn by viewModel.signedIn.collectAsState()
+    val prices by viewModel.prices.collectAsState()
+    val purchasing by viewModel.purchasing.collectAsState()
+    val purchaseError by viewModel.purchaseError.collectAsState()
     val lang = currentLanguage()
     val context = LocalContext.current
+    val activity = context.findActivity()
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var openSidebar by remember { mutableStateOf<Sidebar?>(null) }
@@ -114,6 +127,7 @@ fun LocalPackScreen(
     var popup by remember { mutableStateOf<MapPopupState?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showSignInDialog by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     // Snackbar for the "check for update" outcome.
@@ -243,6 +257,25 @@ fun LocalPackScreen(
                                 .padding(12.dp),
                         )
                     }
+                    // A free sample offers to buy (or, once purchased, download)
+                    // the full pack, right on the map.
+                    if (pack.isFreeSample) {
+                        SamplePurchaseActions(
+                            owned = owned,
+                            price = prices[pack.productId],
+                            purchasing = purchasing,
+                            purchaseError = purchaseError,
+                            downloading = downloadProgress != null,
+                            onBuy = {
+                                if (signedIn) activity?.let(viewModel::buy)
+                                else showSignInDialog = true
+                            },
+                            onDownloadPack = viewModel::downloadPack,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 16.dp),
+                        )
+                    }
                 }
             },
             bottom = {
@@ -320,6 +353,85 @@ fun LocalPackScreen(
             },
         )
     }
+    if (showSignInDialog) {
+        AlertDialog(
+            onDismissRequest = { showSignInDialog = false },
+            title = { Text(stringResource(R.string.sign_in)) },
+            text = { Text(stringResource(R.string.sign_in_to_purchase)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSignInDialog = false
+                    onOpenSignIn()
+                }) { Text(stringResource(android.R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignInDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+/**
+ * The buy / download button riding on a free sample's map. "Download" once the
+ * pack is purchased; otherwise "Purchase all itineraries for {price}" (disabled
+ * as "Purchase not available" when Play returns no price). A spinner replaces
+ * them while a purchase is processed; the download overlay covers downloading.
+ */
+@Composable
+private fun SamplePurchaseActions(
+    owned: Boolean,
+    price: String?,
+    purchasing: Boolean,
+    purchaseError: String?,
+    downloading: Boolean,
+    onBuy: () -> Unit,
+    onDownloadPack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier,
+    ) {
+        purchaseError?.let {
+            Surface(shape = MaterialTheme.shapes.small, tonalElevation = 3.dp) {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+        }
+        when {
+            downloading -> Unit // the progress overlay is already showing
+            purchasing -> CircularProgressIndicator()
+            owned -> Button(onClick = onDownloadPack) {
+                Text(stringResource(R.string.download))
+            }
+            price.isNullOrBlank() -> Button(onClick = {}, enabled = false) {
+                Text(stringResource(R.string.purchase_not_available))
+            }
+            else -> Button(onClick = onBuy) {
+                Text(stringResource(R.string.purchase_all_itineraries_for, price))
+            }
+        }
+    }
+}
+
+/**
+ * The hosting Activity behind a Compose `LocalContext`, unwrapping the
+ * `ContextWrapper` chain — the Play billing flow needs the real Activity.
+ */
+private fun Context.findActivity(): Activity? {
+    var context: Context? = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
 }
 
 /**

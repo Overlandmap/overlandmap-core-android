@@ -104,6 +104,7 @@
     <string name="download_channel">Загрузки</string>
     <string name="purchase_for">Купить %1$s за %2$s</string>
     <string name="purchase_not_available">Покупка недоступна</string>
+    <string name="purchase_all_itineraries_for">Купить все маршруты за %1$s</string>
     <string name="buy_the_pack">Купить трек-пак %1$s</string>
     <string name="not_in_free_sample">Недоступно в бесплатном образце. Купите полный пакет</string>
     <string name="zoom_to_object">Приблизить</string>

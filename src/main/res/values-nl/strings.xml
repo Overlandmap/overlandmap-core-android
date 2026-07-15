@@ -104,6 +104,7 @@
     <string name="download_channel">Downloads</string>
     <string name="purchase_for">Koop %1$s voor %2$s</string>
     <string name="purchase_not_available">Aankoop niet beschikbaar</string>
+    <string name="purchase_all_itineraries_for">Koop alle routes voor %1$s</string>
     <string name="buy_the_pack">Koop het track pack %1$s</string>
     <string name="not_in_free_sample">Niet beschikbaar in het gratis voorbeeld. Koop het volledige pack</string>
     <string name="zoom_to_object">Zoomen</string>

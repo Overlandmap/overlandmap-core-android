@@ -78,6 +78,7 @@ fun SingleTrackPackRoot(
                     onOpenItinerary = onOpenItinerary,
                     onOpenShopPack = onOpenShopPack,
                     onOpenSettings = onOpenSettings,
+                    onOpenSignIn = onOpenSignIn,
                 )
                 false -> PackDetailScreen(
                     packId = r.trackPackId,

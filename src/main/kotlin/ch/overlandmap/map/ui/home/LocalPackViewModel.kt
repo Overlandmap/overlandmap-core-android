@@ -1,16 +1,20 @@
 package ch.overlandmap.map.ui.home
 
+import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.overlandmap.map.OverlandApp
+import ch.overlandmap.map.billing.PurchaseOutcome
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.TrackPack
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -32,8 +36,34 @@ class LocalPackViewModel(
 ) : ViewModel() {
 
     private val library = app.libraryRepository
+    private val shop = app.shopRepository
 
     val state = MutableStateFlow(LocalPackState())
+
+    /** True when a real account is signed in (the anonymous session doesn't count). */
+    val signedIn: StateFlow<Boolean> = app.authRepository.userFlow
+        .map { it != null && !it.isAnonymous }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            app.authRepository.currentUser?.isAnonymous == false,
+        )
+
+    /** True once this pack is purchased (real-time from `users/{uid}/purchases`). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val owned: StateFlow<Boolean> = app.authRepository.userFlow
+        .flatMapLatest { shop.purchasesFlow() }
+        .map { purchases -> purchases.any { it.covers(packId) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Product ID → localized Play price, for the "purchase all itineraries" button. */
+    val prices = app.billingManager.prices
+
+    /** True while a purchase is being processed; the button shows a spinner. */
+    val purchasing = MutableStateFlow(false)
+
+    /** Error of the last purchase attempt, shown under the button. */
+    val purchaseError = MutableStateFlow<String?>(null)
 
     /** The `itineraryId` slug of the itinerary picked on the map or in the list. */
     val selectedItineraryId = MutableStateFlow<String?>(null)
@@ -55,6 +85,23 @@ class LocalPackViewModel(
 
     init {
         load()
+        // Stop the purchase spinner when Play cancels/fails, and once the
+        // validated purchase lands in Firestore (owned flips true).
+        viewModelScope.launch {
+            app.billingManager.outcomes.collect { outcome ->
+                when (outcome) {
+                    is PurchaseOutcome.Cancelled -> purchasing.value = false
+                    is PurchaseOutcome.Failed -> {
+                        purchasing.value = false
+                        purchaseError.value = outcome.message
+                    }
+                    is PurchaseOutcome.Validated -> Unit
+                }
+            }
+        }
+        viewModelScope.launch {
+            owned.collect { if (it) purchasing.value = false }
+        }
         // Refresh the comment cache; offline the cache keeps its content.
         viewModelScope.launch {
             runCatching { library.refreshComments(packId) }
@@ -67,13 +114,35 @@ class LocalPackViewModel(
 
     private fun load() {
         viewModelScope.launch {
+            val pack = library.trackPack(packId)
             state.value = LocalPackState(
                 loading = false,
-                pack = library.trackPack(packId),
+                pack = pack,
                 itineraries = library.itinerariesOf(packId).sortedForGrid(),
                 sidebars = library.sidebars(packId),
             )
+            // A free sample offers to buy the full pack, so resolve its price.
+            if (pack?.isFreeSample == true) {
+                pack.productId?.let { app.billingManager.loadProducts(listOf(it)) }
+            }
         }
+    }
+
+    /** Starts the Play purchase of the full pack; requires a signed-in user. */
+    fun buy(activity: Activity) {
+        val productId = state.value.pack?.productId ?: return
+        purchaseError.value = null
+        if (app.billingManager.buy(activity, productId)) {
+            purchasing.value = true
+        } else {
+            purchaseError.value = "Product not available"
+        }
+    }
+
+    /** Downloads the full (purchased) pack, replacing the local sample. */
+    fun downloadPack() {
+        val pack = state.value.pack ?: return
+        app.packDownloadManager.startFullPack(packId, pack.name)
     }
 
     /** Deletes the pack's database rows and downloaded photos. */
