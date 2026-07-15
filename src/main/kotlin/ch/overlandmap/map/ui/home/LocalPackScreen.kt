@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.AlertDialog
@@ -57,11 +56,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ch.overlandmap.map.AppMode
 import ch.overlandmap.map.R
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.ui.MapObjectPopup
+import ch.overlandmap.map.ui.MapSettingsButton
 import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.PhotoGridTile
@@ -139,6 +140,9 @@ fun LocalPackScreen(
 
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // In single-track-pack mode this is the root screen: no title bar, no back
+    // button. Settings moves to a button floating on the map (see below).
+    val singleMode = AppMode.singleTrackPack
 
     val onLink = rememberMarkupLinkHandler(
         trackPackId = packId,
@@ -153,7 +157,7 @@ fun LocalPackScreen(
         contentWindowInsets = WindowInsets(0),
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            if (!landscape) {
+            if (!landscape && !singleMode) {
                 TopAppBar(
                     title = { Text(state.pack?.name(lang) ?: "") },
                     navigationIcon = {
@@ -162,14 +166,6 @@ fun LocalPackScreen(
                         }
                     },
                     actions = {
-                        onOpenSettings?.let { open ->
-                            IconButton(onClick = open) {
-                                Icon(
-                                    Icons.Filled.Settings,
-                                    contentDescription = stringResource(R.string.tab_settings),
-                                )
-                            }
-                        }
                         state.pack?.let { pack ->
                             IconButton(onClick = { menuOpen = true }) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = null)
@@ -239,6 +235,14 @@ fun LocalPackScreen(
                                 }
                             },
                         )
+                    }
+                    if (singleMode) {
+                        onOpenSettings?.let { open ->
+                            MapSettingsButton(
+                                onClick = open,
+                                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                            )
+                        }
                     }
                 }
             },

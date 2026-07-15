@@ -28,7 +28,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -66,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ch.overlandmap.map.AppMode
 import ch.overlandmap.map.R
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PackDownloadProgress
@@ -73,6 +73,7 @@ import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryDifficulty
 import ch.overlandmap.map.model.TrackPack
+import ch.overlandmap.map.ui.MapSettingsButton
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.markup.MarkupText
@@ -136,30 +137,23 @@ fun PackDetailScreen(
 
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // In single-track-pack mode this is the root screen: no title bar, no back
+    // button. Settings moves to a button floating on the map (see below).
+    val singleMode = AppMode.singleTrackPack
 
-    // This screen owns the full display height: in landscape the app bar is
-    // dropped entirely so the map reaches the top edge. In portrait the app
-    // bar keeps its status-bar inset — under the status bar its back arrow
-    // would be untappable (the system owns touches in that strip).
+    // This screen owns the full display height: in landscape (and single-pack
+    // mode) the app bar is dropped so the map reaches the top edge. In portrait
+    // multi-pack it keeps its status-bar inset — under the status bar the back
+    // arrow would be untappable (the system owns touches in that strip).
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            if (!landscape) {
+            if (!landscape && !singleMode) {
                 TopAppBar(
                     title = { Text(state.pack?.name(lang) ?: "") },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                        }
-                    },
-                    actions = {
-                        onOpenSettings?.let { open ->
-                            IconButton(onClick = open) {
-                                Icon(
-                                    Icons.Filled.Settings,
-                                    contentDescription = stringResource(R.string.tab_settings),
-                                )
-                            }
                         }
                     },
                 )
@@ -208,6 +202,14 @@ fun PackDetailScreen(
                                 .align(Alignment.BottomCenter)
                                 .padding(bottom = 16.dp),
                         )
+                        if (singleMode) {
+                            onOpenSettings?.let { open ->
+                                MapSettingsButton(
+                                    onClick = open,
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                                )
+                            }
+                        }
                     }
                 },
                 bottom = {
