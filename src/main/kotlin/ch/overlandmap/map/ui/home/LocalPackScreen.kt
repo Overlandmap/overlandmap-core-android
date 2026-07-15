@@ -7,11 +7,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
@@ -56,7 +56,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import ch.overlandmap.map.AppMode
 import ch.overlandmap.map.R
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Sidebar
@@ -75,9 +74,7 @@ import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.shop.CommentsTab
 import ch.overlandmap.map.ui.shop.DownloadOverlay
-import ch.overlandmap.map.ui.shop.InfoChip
 import ch.overlandmap.map.ui.shop.PackTracksMap
-import ch.overlandmap.map.ui.shop.packInfoChips
 import ch.overlandmap.map.ui.shop.zoomToPack
 import java.text.DateFormat
 import java.util.Date
@@ -140,9 +137,10 @@ fun LocalPackScreen(
 
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    // In single-track-pack mode this is the root screen: no title bar, no back
-    // button. Settings moves to a button floating on the map (see below).
-    val singleMode = AppMode.singleTrackPack
+    // Root of a single-track-pack app when Settings is wired in (only the
+    // single-pack root passes it): no title bar, no back button, map full-bleed
+    // to the top edge, Settings floated on the map instead (see below).
+    val isRoot = onOpenSettings != null
 
     val onLink = rememberMarkupLinkHandler(
         trackPackId = packId,
@@ -157,7 +155,7 @@ fun LocalPackScreen(
         contentWindowInsets = WindowInsets(0),
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            if (!landscape && !singleMode) {
+            if (!landscape && !isRoot) {
                 TopAppBar(
                     title = { Text(state.pack?.name(lang) ?: "") },
                     navigationIcon = {
@@ -236,13 +234,14 @@ fun LocalPackScreen(
                             },
                         )
                     }
-                    if (singleMode) {
-                        onOpenSettings?.let { open ->
-                            MapSettingsButton(
-                                onClick = open,
-                                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
-                            )
-                        }
+                    onOpenSettings?.let { open ->
+                        MapSettingsButton(
+                            onClick = open,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(12.dp),
+                        )
                     }
                 }
             },
@@ -403,18 +402,11 @@ private fun LocalDescriptionTab(
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            packInfoChips(state.itineraries).forEach { InfoChip(it) }
-        }
         pack.description(lang)?.let {
             MarkupText(
                 it,
                 style = MaterialTheme.typography.bodyMedium,
                 onLinkClick = onLink,
-                modifier = Modifier.padding(top = 12.dp),
             )
         }
     }

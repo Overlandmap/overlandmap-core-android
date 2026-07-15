@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,13 +65,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import ch.overlandmap.map.AppMode
 import ch.overlandmap.map.R
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PackDownloadProgress
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
-import ch.overlandmap.map.model.ItineraryDifficulty
 import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.ui.MapSettingsButton
 import ch.overlandmap.map.ui.VerticalSplit
@@ -137,18 +135,19 @@ fun PackDetailScreen(
 
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    // In single-track-pack mode this is the root screen: no title bar, no back
-    // button. Settings moves to a button floating on the map (see below).
-    val singleMode = AppMode.singleTrackPack
+    // Root of a single-track-pack app when Settings is wired in (only the
+    // single-pack root passes it): no title bar, no back button, map full-bleed
+    // to the top edge, Settings floated on the map instead (see below).
+    val isRoot = onOpenSettings != null
 
-    // This screen owns the full display height: in landscape (and single-pack
-    // mode) the app bar is dropped so the map reaches the top edge. In portrait
-    // multi-pack it keeps its status-bar inset — under the status bar the back
+    // This screen owns the full display height: in landscape (and as a
+    // single-pack root) the app bar is dropped so the map reaches the top edge.
+    // In portrait it keeps its status-bar inset — under the status bar the back
     // arrow would be untappable (the system owns touches in that strip).
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            if (!landscape && !singleMode) {
+            if (!landscape && !isRoot) {
                 TopAppBar(
                     title = { Text(state.pack?.name(lang) ?: "") },
                     navigationIcon = {
@@ -202,13 +201,14 @@ fun PackDetailScreen(
                                 .align(Alignment.BottomCenter)
                                 .padding(bottom = 16.dp),
                         )
-                        if (singleMode) {
-                            onOpenSettings?.let { open ->
-                                MapSettingsButton(
-                                    onClick = open,
-                                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
-                                )
-                            }
+                        onOpenSettings?.let { open ->
+                            MapSettingsButton(
+                                onClick = open,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .statusBarsPadding()
+                                    .padding(12.dp),
+                            )
                         }
                     }
                 },
@@ -424,66 +424,17 @@ private fun DescriptionTab(
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            packInfoChips(state.itineraries).forEach { InfoChip(it) }
-        }
-
         // The shop has nothing local to route links to, so they stay inert.
         pack.description(lang)?.let {
             MarkupText(
                 it,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 12.dp),
             )
         }
 
         state.error?.let {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
-    }
-}
-
-/** Pack-level facts aggregated from its itineraries, in display order. */
-@Composable
-internal fun packInfoChips(itineraries: List<Itinerary>): List<String> {
-    if (itineraries.isEmpty()) return emptyList()
-    val chips = mutableListOf<String>()
-    val totalKm = itineraries.sumOf { it.lengthKM }
-    if (totalKm > 0) chips += "%.0f km".format(totalKm)
-    val totalDays = itineraries.sumOf { it.lengthDays }
-    if (totalDays > 0) chips += stringResource(R.string.length_days, totalDays)
-    itineraries.mapNotNull { it.fuelRange }.maxOrNull()?.let {
-        chips += stringResource(R.string.fuel_range, it)
-    }
-    val hardest = itineraries.maxBy { ItineraryDifficulty.fromRaw(it.difficulty).ordinal }
-    chips += stringResource(difficultyLabel(ItineraryDifficulty.fromRaw(hardest.difficulty)))
-    itineraries.mapNotNull { it.offroadPercent }.maxOrNull()?.let {
-        chips += stringResource(R.string.offroad_percent, it)
-    }
-    return chips
-}
-
-internal fun difficultyLabel(difficulty: ItineraryDifficulty): Int = when (difficulty) {
-    ItineraryDifficulty.EASY -> R.string.difficulty_easy
-    ItineraryDifficulty.NORMAL -> R.string.difficulty_normal
-    ItineraryDifficulty.HARD -> R.string.difficulty_hard
-    ItineraryDifficulty.EXTREME -> R.string.difficulty_extreme
-}
-
-@Composable
-internal fun InfoChip(text: String) {
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-        )
     }
 }
 
