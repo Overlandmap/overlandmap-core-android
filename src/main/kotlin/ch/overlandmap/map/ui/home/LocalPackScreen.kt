@@ -290,7 +290,14 @@ fun LocalPackScreen(
     }
 
     openSidebar?.let { sidebar ->
-        SidebarDialog(sidebar, lang, onLink, onDismiss = { openSidebar = null })
+        SidebarDialog(
+            sidebar,
+            lang,
+            trackPackId = packId,
+            onOpenItinerary = onOpenItinerary,
+            onOpenShopPack = onOpenShopPack,
+            onDismiss = { openSidebar = null },
+        )
     }
     openBuyable?.let { itinerary ->
         BuyableItineraryDialog(itinerary, lang, onLink, onDismiss = { openBuyable = null })

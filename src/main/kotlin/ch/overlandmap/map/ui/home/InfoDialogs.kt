@@ -1,11 +1,9 @@
 package ch.overlandmap.map.ui.home
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -38,6 +36,7 @@ import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
+import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
 import coil.compose.AsyncImage
 
 /**
@@ -46,15 +45,28 @@ import coil.compose.AsyncImage
  * MarkupLinkHost's handler as [onLink].
  */
 
-/** Full-screen reader for one sidebar article. */
+/**
+ * Full-screen reader for one sidebar article. It owns its own markup link
+ * handler so the popups its description's links open (itinerary, waypoint,
+ * nested sidebar) render inside this dialog's window — on top — rather than in
+ * the host composition behind it.
+ */
 @Composable
 fun SidebarDialog(
     sidebar: Sidebar,
     lang: String,
-    onLink: ((MarkupLink, String) -> Unit)? = null,
+    trackPackId: String,
+    onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
+    onOpenShopPack: ((packId: String) -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val onLink = rememberMarkupLinkHandler(
+            trackPackId = trackPackId,
+            sourceItineraryId = null,
+            onOpenItinerary = onOpenItinerary,
+            onOpenShopPack = onOpenShopPack,
+        )
         Scaffold(
             topBar = {
                 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +84,10 @@ fun SidebarDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    // Bottom inset on the scroll viewport itself, so a fixed
+                    // gap stays visible above the screen edge (padding inside
+                    // the scrolled content would scroll out of view).
+                    .padding(bottom = 16.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
                 sidebar.titlePhotoUrl?.let {
@@ -90,8 +106,6 @@ fun SidebarDialog(
                         modifier = Modifier.padding(16.dp),
                     )
                 }
-                // Breathing room so the last line clears the bottom edge.
-                Spacer(Modifier.height(16.dp))
             }
         }
     }

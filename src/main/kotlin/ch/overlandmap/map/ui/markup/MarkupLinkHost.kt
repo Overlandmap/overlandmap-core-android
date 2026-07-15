@@ -116,7 +116,14 @@ fun rememberMarkupLinkHandler(
         )
     }
     sidebar?.let {
-        SidebarDialog(it, lang, onLink = ::handleLink, onDismiss = { sidebar = null })
+        SidebarDialog(
+            it,
+            lang,
+            trackPackId = trackPackId,
+            onOpenItinerary = onOpenItinerary,
+            onOpenShopPack = onOpenShopPack,
+            onDismiss = { sidebar = null },
+        )
     }
     waypoint?.let {
         WaypointDialog(it, lang, onLink = ::handleLink, onDismiss = { waypoint = null })
