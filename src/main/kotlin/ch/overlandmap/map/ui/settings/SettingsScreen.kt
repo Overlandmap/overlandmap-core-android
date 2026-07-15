@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
@@ -75,6 +76,7 @@ fun SettingsScreen(
     onOpenProfile: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenUnits: () -> Unit,
+    onOpenDownloads: () -> Unit,
     viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
 ) {
     val user by viewModel.user.collectAsState()
@@ -163,6 +165,12 @@ fun SettingsScreen(
             icon = Icons.Filled.Straighten,
             label = stringResource(R.string.settings_units),
             onClick = onOpenUnits,
+        )
+        HorizontalDivider()
+        SubmenuRow(
+            icon = Icons.Filled.Download,
+            label = stringResource(R.string.downloads),
+            onClick = onOpenDownloads,
         )
         HorizontalDivider()
     }

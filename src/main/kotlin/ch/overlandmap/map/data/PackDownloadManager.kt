@@ -76,6 +76,21 @@ class PackDownloadManager(
         return File(File(context.filesDir, dir), "${packId}_$name.$extension")
     }
 
+    /** True when this map asset's file is already on disk. */
+    fun hasMapAsset(packId: String, kind: PackAssetKind, asset: Asset): Boolean =
+        kind != PackAssetKind.FREE_ITINERARY && mapFile(packId, kind, asset).isFile
+
+    /** On-disk size of a downloaded map asset, or 0 when absent. */
+    fun mapAssetBytes(packId: String, kind: PackAssetKind, asset: Asset): Long =
+        mapFile(packId, kind, asset).takeIf { it.isFile }?.length() ?: 0L
+
+    /** Removes a downloaded map asset and any partial transfer. */
+    fun deleteMapAsset(packId: String, kind: PackAssetKind, asset: Asset) {
+        val file = mapFile(packId, kind, asset)
+        file.delete()
+        File(file.path + ".part").delete()
+    }
+
     /**
      * Enqueues the download of a whole purchased pack: the worker asks the
      * `downloadTrackPackUrl` cloud function for the zip's temporary URL and

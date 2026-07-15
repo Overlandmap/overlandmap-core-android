@@ -45,6 +45,8 @@
     <string name="not_available">Non disponibile</string>
     <string name="total_download_size">Download totale: %1$s</string>
     <string name="free_space_on_device">Spazio libero sul dispositivo: %1$s</string>
+    <string name="app_storage_used">Spazio usato dall\'app: %1$s</string>
+    <string name="downloads">Download</string>
     <string name="installing">Installazione…</string>
     <string name="comments">Commenti</string>
     <string name="no_comments">Ancora nessun commento</string>

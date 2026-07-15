@@ -45,6 +45,8 @@
     <string name="not_available">Недоступно</string>
     <string name="total_download_size">Всего для загрузки: %1$s</string>
     <string name="free_space_on_device">Свободно на устройстве: %1$s</string>
+    <string name="app_storage_used">Занято приложением: %1$s</string>
+    <string name="downloads">Загрузки</string>
     <string name="installing">Установка…</string>
     <string name="comments">Комментарии</string>
     <string name="no_comments">Пока нет комментариев</string>

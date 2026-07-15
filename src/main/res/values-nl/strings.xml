@@ -45,6 +45,8 @@
     <string name="not_available">Niet beschikbaar</string>
     <string name="total_download_size">Totale download: %1$s</string>
     <string name="free_space_on_device">Vrije ruimte op apparaat: %1$s</string>
+    <string name="app_storage_used">Gebruikte app-opslag: %1$s</string>
+    <string name="downloads">Downloads</string>
     <string name="installing">Installeren…</string>
     <string name="comments">Reacties</string>
     <string name="no_comments">Nog geen reacties</string>
