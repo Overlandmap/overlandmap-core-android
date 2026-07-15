@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.model.PackAsset
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Track
 import ch.overlandmap.map.model.TrackPack
@@ -124,6 +125,15 @@ interface LibraryDao {
         insertComments(comments)
     }
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPackAssets(assets: List<PackAsset>)
+
+    @Query("SELECT * FROM pack_asset WHERE trackPackId = :trackPackId")
+    suspend fun packAssets(trackPackId: String): List<PackAsset>
+
+    @Query("DELETE FROM pack_asset WHERE trackPackId = :trackPackId")
+    suspend fun deletePackAssets(trackPackId: String)
+
     @Query("DELETE FROM track_pack WHERE documentId = :trackPackId")
     suspend fun deleteTrackPack(trackPackId: String)
 
@@ -149,6 +159,7 @@ interface LibraryDao {
         deleteTracks(trackPackId)
         deleteWaypoints(trackPackId)
         deleteSidebars(trackPackId)
+        deletePackAssets(trackPackId)
         deleteTrackPack(trackPackId)
     }
 }

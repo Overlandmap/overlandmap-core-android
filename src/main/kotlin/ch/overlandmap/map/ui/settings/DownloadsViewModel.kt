@@ -92,40 +92,57 @@ class DownloadsViewModel(private val app: OverlandApp) : ViewModel() {
     private suspend fun itemsFor(
         pack: TrackPack,
         progress: ch.overlandmap.map.data.PackDownloadProgress?,
-    ): List<DownloadItem> = buildList {
-        // Itineraries (the full-pack zip): downloaded when real itineraries are
-        // in the local library (buyable teasers don't count).
-        val zip = pack.trackPackZip?.let { assetDoc(it) }
+    ): List<DownloadItem> {
+        // The persisted catalogue (written when a pack is downloaded) is the
+        // source of truth; a purchased pack's refs are the fallback.
+        val recorded = library.packAssets(pack.documentId).associateBy { it.kind }
         val hasItineraries = library.itinerariesOf(pack.documentId).any { !it.isBuyable }
-        add(
-            DownloadItem(
-                kind = DownloadKind.ITINERARIES,
-                assetKind = null,
-                asset = zip,
-                sizeBytes = zip?.fileSizeBytes ?: 0L,
-                status = status(pack.documentId, DownloadKind.ITINERARIES, progress, hasItineraries, 0L),
+        val itinSize = recorded[PackAssetKind.FREE_ITINERARY.name]?.fileSizeBytes
+            ?: pack.trackPackZip?.let { assetDoc(it)?.fileSizeBytes } ?: 0L
+        return buildList {
+            add(
+                DownloadItem(
+                    kind = DownloadKind.ITINERARIES,
+                    assetKind = null,
+                    asset = null,
+                    sizeBytes = itinSize,
+                    status = status(pack.documentId, DownloadKind.ITINERARIES, progress, hasItineraries, 0L),
+                )
             )
-        )
-        mapItem(pack, DownloadKind.OFFLINE_MAP, PackAssetKind.OFFLINE_MAP, pack.pmtilesMap, progress)?.let(::add)
-        mapItem(pack, DownloadKind.HILLSHADE, PackAssetKind.HILLSHADE, pack.hillshade, progress)?.let(::add)
-        mapItem(pack, DownloadKind.CONTOUR, PackAssetKind.CONTOUR, pack.contour, progress)?.let(::add)
+            mapItem(pack, DownloadKind.OFFLINE_MAP, PackAssetKind.OFFLINE_MAP, pack.pmtilesMap, recorded, progress)?.let(::add)
+            mapItem(pack, DownloadKind.HILLSHADE, PackAssetKind.HILLSHADE, pack.hillshade, recorded, progress)?.let(::add)
+            mapItem(pack, DownloadKind.CONTOUR, PackAssetKind.CONTOUR, pack.contour, recorded, progress)?.let(::add)
+        }
     }
 
     private suspend fun mapItem(
         pack: TrackPack,
         kind: DownloadKind,
         assetKind: PackAssetKind,
-        assetId: String?,
+        refId: String?,
+        recorded: Map<String, ch.overlandmap.map.model.PackAsset>,
         progress: ch.overlandmap.map.data.PackDownloadProgress?,
     ): DownloadItem? {
-        val asset = assetId?.let { assetDoc(it) } ?: return null
+        val rec = recorded[assetKind.name]
+        // Build a minimal Asset from the record (name locates the file); fall
+        // back to fetching the pack's ref online for a not-yet-recorded pack.
+        val asset = when {
+            rec != null -> Asset(
+                documentId = rec.assetId,
+                name = rec.name,
+                fileSizeMb = (rec.fileSizeBytes / 1_000_000L).toInt(),
+            )
+            refId != null -> assetDoc(refId)
+            else -> null
+        } ?: return null
         val onDisk = downloads.hasMapAsset(pack.documentId, assetKind, asset)
         val actual = if (onDisk) downloads.mapAssetBytes(pack.documentId, assetKind, asset) else 0L
+        val declared = rec?.fileSizeBytes ?: asset.fileSizeBytes
         return DownloadItem(
             kind = kind,
             assetKind = assetKind,
             asset = asset,
-            sizeBytes = if (actual > 0) actual else asset.fileSizeBytes,
+            sizeBytes = if (actual > 0) actual else declared,
             status = status(pack.documentId, kind, progress, onDisk, actual),
         )
     }
@@ -148,10 +165,16 @@ class DownloadsViewModel(private val app: OverlandApp) : ViewModel() {
 
     fun download(pack: PackDownloads, item: DownloadItem) {
         inFlight[pack.packId] = item.kind
-        when {
-            item.kind == DownloadKind.ITINERARIES -> downloads.startFullPack(pack.packId, pack.packName)
-            item.assetKind != null && item.asset != null ->
-                downloads.start(pack.packId, mapOf(item.assetKind to item.asset))
+        if (item.kind == DownloadKind.ITINERARIES) {
+            downloads.startFullPack(pack.packId, pack.packName)
+            return
+        }
+        val assetKind = item.assetKind ?: return
+        val assetId = item.asset?.documentId ?: return
+        viewModelScope.launch {
+            // The recorded asset carries no URL; re-fetch for a fresh one.
+            val fresh = runCatching { shop.asset(assetId) }.getOrNull() ?: return@launch
+            downloads.start(pack.packId, mapOf(assetKind to fresh))
         }
     }
 

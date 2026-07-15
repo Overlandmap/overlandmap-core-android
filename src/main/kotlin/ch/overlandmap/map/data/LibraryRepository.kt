@@ -1,9 +1,11 @@
 package ch.overlandmap.map.data
 
 import ch.overlandmap.map.data.local.LibraryDao
+import ch.overlandmap.map.model.Asset
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.model.PackAsset
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Track
 import ch.overlandmap.map.model.TrackPack
@@ -36,6 +38,28 @@ class LibraryRepository(
     suspend fun itinerariesOf(trackPackId: String) = dao.itinerariesOf(trackPackId)
 
     suspend fun trackPack(id: String) = dao.trackPack(id)
+
+    /** The pack's asset catalogue (itinerary zip, offline map, hillshade, contour). */
+    suspend fun packAssets(trackPackId: String) = dao.packAssets(trackPackId)
+
+    /**
+     * Records the pack's assets so the Downloads screen can list every one —
+     * downloaded or not. Called when a download is started with the full set of
+     * fetched assets, regardless of which were selected.
+     */
+    suspend fun savePackAssets(trackPackId: String, assets: Map<PackAssetKind, Asset>) {
+        dao.insertPackAssets(
+            assets.map { (kind, asset) ->
+                PackAsset(
+                    trackPackId = trackPackId,
+                    kind = kind.name,
+                    assetId = asset.documentId,
+                    name = asset.name,
+                    fileSizeBytes = asset.fileSizeBytes,
+                )
+            }
+        )
+    }
 
     suspend fun itinerary(id: String) = dao.itinerary(id)
 

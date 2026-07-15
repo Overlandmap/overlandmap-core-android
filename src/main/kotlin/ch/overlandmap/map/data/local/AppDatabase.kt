@@ -13,6 +13,7 @@ import ch.overlandmap.map.model.Country
 import ch.overlandmap.map.model.CountryBorder
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.model.PackAsset
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Track
 import ch.overlandmap.map.model.TrackPack
@@ -26,9 +27,9 @@ import ch.overlandmap.map.model.Waypoint
     entities = [
         TrackPack::class, Itinerary::class, ItineraryStep::class,
         Track::class, Waypoint::class, Sidebar::class, Comment::class,
-        Country::class, CountryBorder::class, BorderPost::class,
+        Country::class, CountryBorder::class, BorderPost::class, PackAsset::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -48,11 +49,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v7: per-pack asset catalogue for the Downloads screen. */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS pack_asset (" +
+                        "trackPackId TEXT NOT NULL, kind TEXT NOT NULL, assetId TEXT NOT NULL, " +
+                        "name TEXT NOT NULL, fileSizeBytes INTEGER NOT NULL, " +
+                        "PRIMARY KEY(trackPackId, kind))"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, AppDatabase::class.java, "overlandmap.db")
-                    .addMigrations(MIGRATION_5_6)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

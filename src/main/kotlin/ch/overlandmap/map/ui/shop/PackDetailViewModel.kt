@@ -173,8 +173,13 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
 
     /** Hands the chosen assets to the app-scoped background downloader. */
     fun startAssetDownload(kinds: Set<PackAssetKind>) {
-        val selection = state.value.assets.filterKeys { it in kinds }
-        app.packDownloadManager.start(packId, selection)
+        val all = state.value.assets
+        viewModelScope.launch {
+            // Record every asset (selected or not) so the Downloads screen can
+            // list them all — the un-selected ones show as "not downloaded".
+            library.savePackAssets(packId, all)
+            app.packDownloadManager.start(packId, all.filterKeys { it in kinds })
+        }
     }
 
     /** Starts the Play purchase flow; requires a signed-in user. */
