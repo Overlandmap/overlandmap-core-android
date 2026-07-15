@@ -29,7 +29,7 @@ import ch.overlandmap.map.model.Waypoint
         Track::class, Waypoint::class, Sidebar::class, Comment::class,
         Country::class, CountryBorder::class, BorderPost::class, PackAsset::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -61,11 +61,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v8: the sidebar title-photo caption. */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sidebar ADD COLUMN titlePhotoCaption TEXT")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, AppDatabase::class.java, "overlandmap.db")
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

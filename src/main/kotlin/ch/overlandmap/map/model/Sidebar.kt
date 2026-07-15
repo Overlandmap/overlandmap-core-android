@@ -17,6 +17,7 @@ data class Sidebar(
     val description: String? = null,
     val translatedDesc: Map<String, String>? = null,
     val titlePhotoId: String? = null,
+    val titlePhotoCaption: String? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
     val localPhotoPath: String? = null,
 ) {
@@ -36,6 +37,7 @@ data class Sidebar(
             description = FS.str(data["description"]),
             translatedDesc = FS.stringMap(data["translatedDesc"]),
             titlePhotoId = FS.str(data["titlePhotoId"]),
+            titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
         )
     }
 }

@@ -105,10 +105,20 @@ fun SidebarDialog(
                 sidebar.titlePhotoUrl?.let {
                     AsyncImage(
                         model = it,
-                        contentDescription = null,
+                        contentDescription = sidebar.titlePhotoCaption,
                         modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f),
                         contentScale = ContentScale.Crop,
                     )
+                    sidebar.titlePhotoCaption?.let { caption ->
+                        MarkupText(
+                            caption,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                            onLinkClick = onLink,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 sidebar.description(lang)?.let {
                     MarkupText(

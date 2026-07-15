@@ -426,6 +426,10 @@ private fun LocalItinerariesTab(
     onOpenItinerary: (String) -> Unit,
     onOpenBuyable: (Itinerary) -> Unit,
 ) {
+    // The "free" banner only makes sense in a sample download, where the free
+    // itinerary is the single local one among buyable teasers. In a fully
+    // downloaded (purchased) pack every itinerary is local, so it's dropped.
+    val isSampleDownload = state.itineraries.count { !it.isBuyable } <= 1
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 150.dp),
         contentPadding = PaddingValues(8.dp),
@@ -438,7 +442,7 @@ private fun LocalItinerariesTab(
             PhotoGridTile(
                 photoUrl = itinerary.titlePhotoUrl,
                 label = itinerary.name(lang),
-                freeBanner = itinerary.isFree,
+                freeBanner = itinerary.isFree && isSampleDownload,
                 onClick = {
                     // A buyable teaser has no steps or tracks to show, so it
                     // gets a description popup instead of the full screen.
