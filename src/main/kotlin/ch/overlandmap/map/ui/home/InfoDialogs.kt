@@ -1,5 +1,8 @@
 package ch.overlandmap.map.ui.home
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,14 +24,19 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.Itinerary
@@ -61,6 +69,11 @@ fun SidebarDialog(
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // The dialog window doesn't report the system nav-bar inset to Compose,
+        // so read it from the host Activity and add a 16dp gap on top. Without
+        // this the last line sits under the nav bar (any height: ~24dp gesture,
+        // ~48dp 3-button) with no visible space.
+        val bottomGap = activityBottomInset() + 16.dp
         val onLink = rememberMarkupLinkHandler(
             trackPackId = trackPackId,
             sourceItineraryId = null,
@@ -84,11 +97,9 @@ fun SidebarDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    // The dialog draws under the system nav bar and doesn't
-                    // report its inset to Compose, so this fixed bottom padding
-                    // (on the scroll viewport) both clears the nav bar and
-                    // leaves a visible gap below the last line.
-                    .padding(bottom = 48.dp)
+                    // On the scroll viewport (not the content) so the gap stays
+                    // visible; sized to the nav bar + 16dp (see [bottomGap]).
+                    .padding(bottom = bottomGap)
                     .verticalScroll(rememberScrollState()),
             ) {
                 sidebar.titlePhotoUrl?.let {
@@ -110,6 +121,26 @@ fun SidebarDialog(
             }
         }
     }
+}
+
+/**
+ * The host Activity's bottom system-bar (navigation bar) inset, in dp. Read
+ * from the Activity window because a Dialog window reports its own insets as
+ * zero. Returns 0 if it can't be resolved.
+ */
+@Composable
+private fun activityBottomInset(): Dp {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val px = remember(context) {
+        var c: Context? = context
+        while (c is ContextWrapper && c !is Activity) c = c.baseContext
+        (c as? Activity)?.window?.decorView
+            ?.let { ViewCompat.getRootWindowInsets(it) }
+            ?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom
+            ?: 0
+    }
+    return with(density) { px.toDp() }
 }
 
 /** Description-only popup for an itinerary of the full pack not in the sample. */
