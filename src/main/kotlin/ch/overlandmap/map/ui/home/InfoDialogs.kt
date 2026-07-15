@@ -84,10 +84,11 @@ fun SidebarDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    // Bottom inset on the scroll viewport itself, so a fixed
-                    // gap stays visible above the screen edge (padding inside
-                    // the scrolled content would scroll out of view).
-                    .padding(bottom = 16.dp)
+                    // The dialog draws under the system nav bar and doesn't
+                    // report its inset to Compose, so this fixed bottom padding
+                    // (on the scroll viewport) both clears the nav bar and
+                    // leaves a visible gap below the last line.
+                    .padding(bottom = 48.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
                 sidebar.titlePhotoUrl?.let {
