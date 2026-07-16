@@ -22,12 +22,15 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
@@ -117,6 +120,7 @@ private fun AnnotatedString.Builder.appendLink(
 private fun stepBadge(stepId: Int) = InlineTextContent(
     Placeholder(20.sp, 20.sp, PlaceholderVerticalAlign.TextCenter)
 ) {
+    val size = if (stepId < 100) 10.sp else 8.sp
     Box(
         modifier = Modifier.fillMaxSize().background(LinkColor, CircleShape),
         contentAlignment = Alignment.Center,
@@ -124,7 +128,18 @@ private fun stepBadge(stepId: Int) = InlineTextContent(
         Text(
             stepId.toString(),
             color = Color.White,
-            fontSize = if (stepId < 100) 10.sp else 8.sp,
+            fontSize = size,
+            lineHeight = size,
+            textAlign = TextAlign.Center,
+            // Drop the font's built-in top/bottom padding and center the glyph
+            // in its line box, so the number sits centered in the circle.
+            style = TextStyle(
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.Both,
+                ),
+            ),
         )
     }
 }
