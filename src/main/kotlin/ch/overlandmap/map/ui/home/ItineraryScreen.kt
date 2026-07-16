@@ -103,9 +103,11 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import org.maplibre.android.maps.MapLibreMap
 import android.widget.Toast
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Help
@@ -115,11 +117,11 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import ch.overlandmap.map.model.ItineraryStep
-import kotlin.math.abs
 
 private val GREEN = Color(0xFF2E7D32)
 private val BLUE = Color(0xFF1976D2)
@@ -634,7 +636,12 @@ private fun StepsTab(
 
     if (openPhoto) {
         step.titlePhotoUrl?.let { url ->
-            ZoomablePhotoViewer(url, step.titlePhotoCaption, onLink) { openPhoto = false }
+            FullScreenPhotoViewer(
+                photos = listOf(ViewerPhoto(url, step.titlePhotoCaption)),
+                startIndex = 0,
+                onLink = onLink,
+                onDismiss = { openPhoto = false },
+            )
         }
     }
 }
@@ -736,101 +743,18 @@ private fun PoiIcon(icon: ImageVector, active: Boolean) {
     )
 }
 
-/**
- * Full-screen photo viewer. Starts letterboxed (black bars) with the caption;
- * a tap zooms in to fill the screen and enables pinch-to-zoom/pan, another tap
- * reverts. The X or a vertical swipe (while not zoomed) closes it.
- */
-@Composable
-private fun ZoomablePhotoViewer(
-    url: String,
-    caption: String?,
-    onLink: (MarkupLink, String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        var filled by remember { mutableStateOf(false) }
-        var scale by remember { mutableFloatStateOf(1f) }
-        var offset by remember { mutableStateOf(Offset.Zero) }
-
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            val gesture = if (filled) {
-                Modifier.pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 5f)
-                        offset += pan
-                    }
-                }
-            } else {
-                Modifier.pointerInput(Unit) {
-                    var drag = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { drag = 0f },
-                        onDragEnd = { if (abs(drag) > 200f) onDismiss() },
-                    ) { change, dy ->
-                        drag += dy
-                        change.consume()
-                    }
-                }
-            }
-            AsyncImage(
-                model = url,
-                contentDescription = caption,
-                contentScale = if (filled) ContentScale.Crop else ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(
-                        if (filled) {
-                            Modifier.graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                                translationX = offset.x
-                                translationY = offset.y
-                            }
-                        } else {
-                            Modifier
-                        },
-                    )
-                    .then(gesture)
-                    .pointerInput(Unit) {
-                        detectTapGestures(onTap = {
-                            filled = !filled
-                            scale = 1f
-                            offset = Offset.Zero
-                        })
-                    },
-            )
-            if (!filled && caption != null) {
-                MarkupText(
-                    caption,
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color.White),
-                    onLinkClick = onLink,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                        .padding(16.dp),
-                )
-            }
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-            ) {
-                Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White)
-            }
-        }
-    }
-}
-
 @Composable
 private fun PhotosTab(state: ItineraryState) {
-    // The itinerary's own photos followed by each step's title photo.
+    // The itinerary's own photos followed by each step's title photo (with its
+    // caption). Deduplicated by URL, keeping the first (captioned) occurrence.
     val photos = remember(state) {
         buildList {
-            state.itinerary?.titlePhotoUrl?.let(::add)
-            state.itinerary?.localOtherPhotoPaths?.forEach { add("file://$it") }
-            state.steps.forEach { step -> step.titlePhotoUrl?.let(::add) }
-        }.distinct()
+            state.itinerary?.titlePhotoUrl?.let { add(ViewerPhoto(it, null)) }
+            state.itinerary?.localOtherPhotoPaths?.forEach { add(ViewerPhoto("file://$it", null)) }
+            state.steps.forEach { step ->
+                step.titlePhotoUrl?.let { add(ViewerPhoto(it, step.titlePhotoCaption)) }
+            }
+        }.distinctBy { it.url }
     }
     var openedIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -850,7 +774,7 @@ private fun PhotosTab(state: ItineraryState) {
     ) {
         items(photos.size) { index ->
             AsyncImage(
-                model = photos[index],
+                model = photos[index].url,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -866,20 +790,104 @@ private fun PhotosTab(state: ItineraryState) {
     }
 }
 
+/** A photo shown in the full-screen viewer, with its optional caption. */
+data class ViewerPhoto(val url: String, val caption: String?)
+
+/**
+ * Full-screen photo viewer: letterboxed black, pinch-to-zoom (and pan) always
+ * enabled, browsing between [photos] by horizontal swipe when not zoomed. The
+ * caption shows below the photo and a tap toggles its visibility; the X closes.
+ */
 @Composable
-private fun FullScreenPhotoViewer(photos: List<String>, startIndex: Int, onDismiss: () -> Unit) {
+private fun FullScreenPhotoViewer(
+    photos: List<ViewerPhoto>,
+    startIndex: Int,
+    onLink: ((MarkupLink, String) -> Unit)? = null,
+    onDismiss: () -> Unit,
+) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        var captionVisible by remember { mutableStateOf(true) }
+        val pagerState = rememberPagerState(
+            initialPage = startIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0)),
+        ) { photos.size }
+        var scale by remember { mutableFloatStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+        // Zoom belongs to one page at a time: reset it when the page changes.
+        LaunchedEffect(pagerState.currentPage) {
+            scale = 1f
+            offset = Offset.Zero
+        }
+
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            val pagerState = rememberPagerState(initialPage = startIndex) { photos.size }
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                AsyncImage(
-                    model = photos[page],
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
+            HorizontalPager(
+                state = pagerState,
+                // Once zoomed, the pager releases horizontal drags so they pan.
+                userScrollEnabled = scale <= 1f,
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                val current = page == pagerState.currentPage
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(page) {
+                            // Two-finger gestures always pinch/pan; a single
+                            // finger pans only while zoomed, otherwise it's left
+                            // for the pager (browse) or a tap.
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val pressed = event.changes.count { it.pressed }
+                                    if (pressed >= 2) {
+                                        scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                                        if (scale > 1f) offset += event.calculatePan()
+                                        event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                    } else if (scale > 1f) {
+                                        offset += event.calculatePan()
+                                        event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                    }
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
+                        .pointerInput(page) {
+                            detectTapGestures(onTap = { captionVisible = !captionVisible })
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AsyncImage(
+                        model = photos[page].url,
+                        contentDescription = photos[page].caption,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                if (current) {
+                                    scaleX = scale
+                                    scaleY = scale
+                                    translationX = offset.x
+                                    translationY = offset.y
+                                }
+                            },
+                    )
+                }
+            }
+            val caption = photos.getOrNull(pagerState.currentPage)?.caption
+            if (captionVisible && !caption.isNullOrBlank()) {
+                MarkupText(
+                    caption,
+                    style = MaterialTheme.typography.bodySmall.copy(color = Color.White),
+                    onLinkClick = onLink,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .padding(16.dp),
                 )
             }
-            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            ) {
                 Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White)
             }
         }
