@@ -431,17 +431,20 @@ private fun SamplePurchaseActions(
                 )
             }
         }
-        val buttonColors = mapActionButtonColors()
         when {
             downloading -> Unit // the progress overlay is already showing
             purchasing -> CircularProgressIndicator()
-            owned -> Button(onClick = onDownloadPack, colors = buttonColors) {
+            owned -> Button(onClick = onDownloadPack) {
                 Text(stringResource(R.string.download))
             }
-            price.isNullOrBlank() -> Button(onClick = {}, enabled = false, colors = buttonColors) {
+            price.isNullOrBlank() -> Button(
+                onClick = {},
+                enabled = false,
+                colors = mapActionButtonColors(),
+            ) {
                 Text(stringResource(R.string.purchase_not_available))
             }
-            else -> Button(onClick = onBuy, colors = buttonColors) {
+            else -> Button(onClick = onBuy) {
                 Text(stringResource(R.string.purchase_all_itineraries_for, price))
             }
         }

@@ -348,11 +348,10 @@ private fun MapActions(
                 )
             }
         }
-        val buttonColors = mapActionButtonColors()
         when {
             downloading -> Unit // the progress overlay is already showing
             purchasing -> CircularProgressIndicator()
-            owned && !state.isLocal -> Button(onClick = onDownloadPack, colors = buttonColors) {
+            owned && !state.isLocal -> Button(onClick = onDownloadPack) {
                 Text(stringResource(R.string.download))
             }
             !owned -> {
@@ -362,7 +361,7 @@ private fun MapActions(
                 val hasZip = PackAssetKind.FREE_ITINERARY in state.assets
                 if (sample != null && hasZip) {
                     val downloaded = sample.documentId in state.downloadedItineraryIds
-                    Button(onClick = onDownloadSample, enabled = !downloaded, colors = buttonColors) {
+                    Button(onClick = onDownloadSample, enabled = !downloaded) {
                         Text(
                             stringResource(
                                 if (downloaded) R.string.downloaded else R.string.download_sample
@@ -371,11 +370,11 @@ private fun MapActions(
                     }
                 }
                 if (price.isNullOrBlank()) {
-                    Button(onClick = {}, enabled = false, colors = buttonColors) {
+                    Button(onClick = {}, enabled = false, colors = mapActionButtonColors()) {
                         Text(stringResource(R.string.purchase_not_available))
                     }
                 } else {
-                    Button(onClick = onBuy, colors = buttonColors) {
+                    Button(onClick = onBuy) {
                         Text(stringResource(R.string.purchase_for, pack.name(lang), price))
                     }
                 }

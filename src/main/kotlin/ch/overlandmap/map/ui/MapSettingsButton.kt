@@ -18,17 +18,15 @@ import androidx.compose.ui.unit.dp
 import ch.overlandmap.map.R
 
 /**
- * The shared background for the action buttons that ride on a track pack's map
- * (Purchase, Download sample, …). A single plain light-gray so they all look
- * the same — including the disabled "Purchase not available", which keeps this
- * solid gray instead of going transparent.
+ * Colors for the disabled "Purchase not available" button on a track pack's
+ * map: a plain solid light-gray instead of the transparent default, so it
+ * stays readable over the map. The active buttons keep the normal filled
+ * (primary) style.
  */
 @Composable
 internal fun mapActionButtonColors(): ButtonColors {
     val gray = Color(0xFFE0E0E0)
     return ButtonDefaults.buttonColors(
-        containerColor = gray,
-        contentColor = Color(0xFF1C1B1F),
         disabledContainerColor = gray,
         disabledContentColor = Color(0xFF6E6E6E),
     )
