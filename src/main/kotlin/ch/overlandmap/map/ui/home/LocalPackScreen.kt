@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,7 +23,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.AlertDialog
@@ -65,7 +69,6 @@ import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.ui.MapObjectPopup
-import ch.overlandmap.map.ui.MapSettingsButton
 import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.PhotoGridTile
@@ -249,14 +252,37 @@ fun LocalPackScreen(
                             },
                         )
                     }
-                    onOpenSettings?.let { open ->
-                        MapSettingsButton(
-                            onClick = open,
+                    onOpenSettings?.let { openSettings ->
+                        Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .statusBarsPadding()
                                 .padding(12.dp),
-                        )
+                        ) {
+                            Surface(
+                                onClick = { menuOpen = true },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.size(44.dp),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Menu,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(10.dp),
+                                )
+                            }
+                            PackMenu(
+                                pack = pack,
+                                expanded = menuOpen,
+                                onDismiss = { menuOpen = false },
+                                onDelete = { confirmDelete = true },
+                                onCheckForUpdate = viewModel::checkForUpdate,
+                                onUpdate = viewModel::update,
+                                onShare = { sharePackLink(context, pack.documentId) },
+                                onSettings = openSettings,
+                            )
+                        }
                     }
                     // A free sample offers to buy (or, once purchased, download)
                     // the full pack, right on the map.
@@ -446,6 +472,9 @@ private fun PackMenu(
     onCheckForUpdate: () -> Unit,
     onUpdate: () -> Unit,
     onShare: () -> Unit,
+    // Single-pack app only: reaches Settings from here (the multi-pack app has a
+    // Settings tab, so it leaves this null and shows no Settings entry).
+    onSettings: (() -> Unit)? = null,
 ) {
     val dateFormat = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
@@ -494,6 +523,16 @@ private fun PackMenu(
                 onShare()
             },
         )
+        onSettings?.let { settings ->
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.tab_settings)) },
+                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                onClick = {
+                    onDismiss()
+                    settings()
+                },
+            )
+        }
     }
 }
 
