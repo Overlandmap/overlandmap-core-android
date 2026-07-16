@@ -21,6 +21,20 @@ data class Waypoint(
     val lon: Double? = null,
     val ele: Int? = null,
     val geohash: String? = null,
+    /** Point-of-interest flags (Firestore booleans, null = false). */
+    val hasFuel: Boolean = false,
+    val hasHotel: Boolean = false,
+    val isViewpoint: Boolean = false,
+    val isBivouac: Boolean = false,
+    val isPoliceCheckpoint: Boolean = false,
+    val isBorder: Boolean = false,
+    val isEmbassy: Boolean = false,
+    val isMountainPass: Boolean = false,
+    val isBridge: Boolean = false,
+    val isWaterCrossing: Boolean = false,
+    val isHistoricalSite: Boolean = false,
+    val isReligiousSite: Boolean = false,
+    val isHotSpring: Boolean = false,
 ) {
     fun name(lang: String): String = localized(name, translatedName, lang) ?: name
 
@@ -40,6 +54,19 @@ data class Waypoint(
             lon = FS.geoLon(data["location"]),
             ele = FS.int(data["ele"]),
             geohash = FS.str(data["geohash"]),
+            hasFuel = FS.bool(data["hasFuel"]),
+            hasHotel = FS.bool(data["hasHotel"]),
+            isViewpoint = FS.bool(data["isViewpoint"]),
+            isBivouac = FS.bool(data["isBivouac"]),
+            isPoliceCheckpoint = FS.bool(data["isPoliceCheckpoint"]),
+            isBorder = FS.bool(data["isBorder"]),
+            isEmbassy = FS.bool(data["isEmbassy"]),
+            isMountainPass = FS.bool(data["isMountainPass"]),
+            isBridge = FS.bool(data["isBridge"]),
+            isWaterCrossing = FS.bool(data["isWaterCrossing"]),
+            isHistoricalSite = FS.bool(data["isHistoricalSite"]),
+            isReligiousSite = FS.bool(data["isReligiousSite"]),
+            isHotSpring = FS.bool(data["isHotSpring"]),
         )
     }
 }

@@ -29,7 +29,7 @@ import ch.overlandmap.map.model.Waypoint
         Track::class, Waypoint::class, Sidebar::class, Comment::class,
         Country::class, CountryBorder::class, BorderPost::class, PackAsset::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -80,11 +80,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v10: the remaining point-of-interest flags on steps, and the full set
+         * on waypoints (viewpoint, bivouac, border, embassy, mountain pass,
+         * bridge, water crossing, historical/religious site, hot spring).
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Steps already have hasFuel/hasHotel/isPoliceCheckpoint (v9).
+                val stepFlags = listOf(
+                    "isViewpoint", "isBivouac", "isBorder", "isEmbassy", "isMountainPass",
+                    "isBridge", "isWaterCrossing", "isHistoricalSite", "isReligiousSite",
+                    "isHotSpring",
+                )
+                val waypointFlags = listOf("hasFuel", "hasHotel", "isPoliceCheckpoint") + stepFlags
+                stepFlags.forEach {
+                    db.execSQL("ALTER TABLE itinerary_step ADD COLUMN $it INTEGER NOT NULL DEFAULT 0")
+                }
+                waypointFlags.forEach {
+                    db.execSQL("ALTER TABLE waypoint ADD COLUMN $it INTEGER NOT NULL DEFAULT 0")
+                }
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, AppDatabase::class.java, "overlandmap.db")
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(
+                        MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
+                    )
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
