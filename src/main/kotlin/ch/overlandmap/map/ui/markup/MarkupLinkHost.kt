@@ -16,11 +16,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.MapObjectPopup
 import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.home.SidebarPreviewDialog
 import ch.overlandmap.map.ui.home.WaypointDialog
 import ch.overlandmap.map.ui.zoomToPopupObject
 import kotlinx.coroutines.launch
@@ -58,6 +60,7 @@ fun rememberMarkupLinkHandler(
         MarkupRouter(app.libraryRepository, trackPackId, sourceItineraryId)
     }
     var waypoint by remember { mutableStateOf<Waypoint?>(null) }
+    var sidebarPreview by remember { mutableStateOf<Sidebar?>(null) }
     var unavailable by remember { mutableStateOf<String?>(null) }
     var popup by remember { mutableStateOf<LinkPopup?>(null) }
 
@@ -91,7 +94,7 @@ fun rememberMarkupLinkHandler(
                         MapPopupKind.Buy(packId, packName = null, notInSample = true),
                     ) { onOpenShopPack?.invoke(packId) }
                 }
-                is MarkupDestination.ShowSidebar -> onOpenSidebar(destination.sidebar.documentId)
+                is MarkupDestination.ShowSidebar -> sidebarPreview = destination.sidebar
                 is MarkupDestination.ShowWaypoint -> {
                     val target = destination.waypoint
                     popup = LinkPopup(MapPopupKind.OfWaypoint(target)) { waypoint = target }
@@ -115,6 +118,17 @@ fun rememberMarkupLinkHandler(
     }
     waypoint?.let {
         WaypointDialog(it, lang, onLink = ::handleLink, onDismiss = { waypoint = null })
+    }
+    sidebarPreview?.let { sb ->
+        SidebarPreviewDialog(
+            sidebar = sb,
+            lang = lang,
+            onOpen = {
+                sidebarPreview = null
+                onOpenSidebar(sb.documentId)
+            },
+            onDismiss = { sidebarPreview = null },
+        )
     }
     unavailable?.let { title ->
         AlertDialog(

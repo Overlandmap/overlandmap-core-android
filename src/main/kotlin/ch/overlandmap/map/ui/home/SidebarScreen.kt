@@ -1,10 +1,15 @@
 package ch.overlandmap.map.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.verticalScroll
@@ -16,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -23,13 +29,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.markup.Markup
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
 import coil.compose.AsyncImage
@@ -124,6 +133,59 @@ fun SidebarScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             onLinkClick = onLink,
                             modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tap-preview shown when a markup link points to a sidebar: a very small
+ * title-photo thumbnail on the left, the name and first lines on the right.
+ * Tapping anywhere opens the full [SidebarScreen].
+ */
+@Composable
+fun SidebarPreviewDialog(
+    sidebar: Sidebar,
+    lang: String,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 6.dp,
+            modifier = Modifier.clickable(onClick = onOpen),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+            ) {
+                sidebar.titlePhotoUrl?.let { url ->
+                    AsyncImage(
+                        model = url,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(56.dp).clip(MaterialTheme.shapes.small),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        sidebar.name(lang),
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    sidebar.description(lang)?.let { desc ->
+                        Text(
+                            Markup.plainText(desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
