@@ -74,6 +74,7 @@ import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.PhotoGridTile
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.mapActionButtonColors
 import ch.overlandmap.map.ui.zoomToPopupObject
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
@@ -299,8 +300,8 @@ fun LocalPackScreen(
                             },
                             onDownloadPack = viewModel::downloadPack,
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 16.dp),
+                                .align(Alignment.BottomStart)
+                                .padding(start = 16.dp, bottom = 16.dp),
                         )
                     }
                 }
@@ -416,7 +417,7 @@ private fun SamplePurchaseActions(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier,
     ) {
@@ -430,16 +431,17 @@ private fun SamplePurchaseActions(
                 )
             }
         }
+        val buttonColors = mapActionButtonColors()
         when {
             downloading -> Unit // the progress overlay is already showing
             purchasing -> CircularProgressIndicator()
-            owned -> Button(onClick = onDownloadPack) {
+            owned -> Button(onClick = onDownloadPack, colors = buttonColors) {
                 Text(stringResource(R.string.download))
             }
-            price.isNullOrBlank() -> Button(onClick = {}, enabled = false) {
+            price.isNullOrBlank() -> Button(onClick = {}, enabled = false, colors = buttonColors) {
                 Text(stringResource(R.string.purchase_not_available))
             }
-            else -> Button(onClick = onBuy) {
+            else -> Button(onClick = onBuy, colors = buttonColors) {
                 Text(stringResource(R.string.purchase_all_itineraries_for, price))
             }
         }

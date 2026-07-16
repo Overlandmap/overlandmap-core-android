@@ -74,6 +74,7 @@ import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.ui.MapSettingsButton
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.mapActionButtonColors
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.overlandApp
 import coil.compose.AsyncImage
@@ -198,8 +199,8 @@ fun PackDetailScreen(
                             onDownloadPack = viewModel::downloadPack,
                             onDownloadSample = { showDownloadDialog = true },
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 16.dp),
+                                .align(Alignment.BottomStart)
+                                .padding(start = 16.dp, bottom = 16.dp),
                         )
                         onOpenSettings?.let { open ->
                             MapSettingsButton(
@@ -333,7 +334,7 @@ private fun MapActions(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier,
     ) {
@@ -347,10 +348,11 @@ private fun MapActions(
                 )
             }
         }
+        val buttonColors = mapActionButtonColors()
         when {
             downloading -> Unit // the progress overlay is already showing
             purchasing -> CircularProgressIndicator()
-            owned && !state.isLocal -> Button(onClick = onDownloadPack) {
+            owned && !state.isLocal -> Button(onClick = onDownloadPack, colors = buttonColors) {
                 Text(stringResource(R.string.download))
             }
             !owned -> {
@@ -360,7 +362,7 @@ private fun MapActions(
                 val hasZip = PackAssetKind.FREE_ITINERARY in state.assets
                 if (sample != null && hasZip) {
                     val downloaded = sample.documentId in state.downloadedItineraryIds
-                    Button(onClick = onDownloadSample, enabled = !downloaded) {
+                    Button(onClick = onDownloadSample, enabled = !downloaded, colors = buttonColors) {
                         Text(
                             stringResource(
                                 if (downloaded) R.string.downloaded else R.string.download_sample
@@ -369,11 +371,11 @@ private fun MapActions(
                     }
                 }
                 if (price.isNullOrBlank()) {
-                    Button(onClick = {}, enabled = false) {
+                    Button(onClick = {}, enabled = false, colors = buttonColors) {
                         Text(stringResource(R.string.purchase_not_available))
                     }
                 } else {
-                    Button(onClick = onBuy) {
+                    Button(onClick = onBuy, colors = buttonColors) {
                         Text(stringResource(R.string.purchase_for, pack.name(lang), price))
                     }
                 }
