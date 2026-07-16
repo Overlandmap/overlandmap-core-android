@@ -86,6 +86,8 @@ class LibraryRepository(
     suspend fun sidebarByName(trackPackId: String, name: String) =
         dao.sidebarByName(trackPackId, name)
 
+    suspend fun sidebarById(documentId: String) = dao.sidebarById(documentId)
+
     /**
      * Removes the pack from the device: its rows (pack, itineraries, steps,
      * tracks, waypoints, sidebars) and the photos its zips had unpacked.

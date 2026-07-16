@@ -92,6 +92,9 @@ interface LibraryDao {
     )
     suspend fun sidebarByName(trackPackId: String, name: String): Sidebar?
 
+    @Query("SELECT * FROM sidebar WHERE documentId = :documentId LIMIT 1")
+    suspend fun sidebarById(documentId: String): Sidebar?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrackPack(pack: TrackPack)
 

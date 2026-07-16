@@ -96,6 +96,7 @@ fun LocalPackScreen(
     onBack: () -> Unit,
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenShopPack: (packId: String) -> Unit,
+    onOpenSidebar: (sidebarId: String) -> Unit,
     // When set, a Settings action appears in the top bar. The tab-less
     // single-pack app uses it to reach Settings; the multi-pack app leaves it
     // null and reaches Settings through its bottom tab.
@@ -122,7 +123,6 @@ fun LocalPackScreen(
     val activity = context.findActivity()
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var openSidebar by remember { mutableStateOf<Sidebar?>(null) }
     var openBuyable by remember { mutableStateOf<Itinerary?>(null) }
     var popup by remember { mutableStateOf<MapPopupState?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -160,6 +160,7 @@ fun LocalPackScreen(
         trackPackId = packId,
         sourceItineraryId = null,
         onOpenItinerary = onOpenItinerary,
+        onOpenSidebar = onOpenSidebar,
         onOpenShopPack = onOpenShopPack,
         mapProvider = { map },
     )
@@ -317,7 +318,7 @@ fun LocalPackScreen(
                         1 -> LocalItinerariesTab(state, lang, { onOpenItinerary(it, null) }) {
                             openBuyable = it
                         }
-                        2 -> SidebarsTab(state.sidebars, lang) { openSidebar = it }
+                        2 -> SidebarsTab(state.sidebars, lang) { onOpenSidebar(it.documentId) }
                         3 -> CommentsTab(comments, lang)
                     }
                 }
@@ -330,16 +331,6 @@ fun LocalPackScreen(
         }
     }
 
-    openSidebar?.let { sidebar ->
-        SidebarDialog(
-            sidebar,
-            lang,
-            trackPackId = packId,
-            onOpenItinerary = onOpenItinerary,
-            onOpenShopPack = onOpenShopPack,
-            onDismiss = { openSidebar = null },
-        )
-    }
     openBuyable?.let { itinerary ->
         BuyableItineraryDialog(itinerary, lang, onLink, onDismiss = { openBuyable = null })
     }

@@ -38,6 +38,7 @@ fun SingleTrackPackRoot(
     trackPackName: String,
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenShopPack: (packId: String) -> Unit,
+    onOpenSidebar: (sidebarId: String) -> Unit,
     onOpenSignIn: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -77,6 +78,7 @@ fun SingleTrackPackRoot(
                     onBack = {},
                     onOpenItinerary = onOpenItinerary,
                     onOpenShopPack = onOpenShopPack,
+                    onOpenSidebar = onOpenSidebar,
                     onOpenSettings = onOpenSettings,
                     onOpenSignIn = onOpenSignIn,
                 )

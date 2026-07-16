@@ -121,6 +121,7 @@ fun ItineraryScreen(
     onBack: () -> Unit,
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenPack: (packId: String) -> Unit,
+    onOpenSidebar: (sidebarId: String) -> Unit,
     initialStepId: Int? = null,
     viewModel: ItineraryViewModel = viewModel(key = itineraryId) {
         ItineraryViewModel(overlandApp(), itineraryId)
@@ -189,6 +190,7 @@ fun ItineraryScreen(
             trackPackId = itinerary.trackPackId,
             sourceItineraryId = itinerary.itineraryId.ifEmpty { null },
             onOpenItinerary = onOpenItinerary,
+            onOpenSidebar = onOpenSidebar,
             onJumpToStep = ::jumpToStep,
             onOpenShopPack = onOpenPack,
             mapProvider = { map },

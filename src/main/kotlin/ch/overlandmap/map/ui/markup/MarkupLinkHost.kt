@@ -16,13 +16,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
-import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.MapObjectPopup
 import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.currentLanguage
-import ch.overlandmap.map.ui.home.SidebarDialog
 import ch.overlandmap.map.ui.home.WaypointDialog
 import ch.overlandmap.map.ui.zoomToPopupObject
 import kotlinx.coroutines.launch
@@ -47,6 +45,7 @@ fun rememberMarkupLinkHandler(
     trackPackId: String,
     sourceItineraryId: String?,
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
+    onOpenSidebar: (sidebarId: String) -> Unit,
     onJumpToStep: ((stepId: Int) -> Unit)? = null,
     onOpenShopPack: ((packId: String) -> Unit)? = null,
     mapProvider: () -> MapLibreMap? = { null },
@@ -58,7 +57,6 @@ fun rememberMarkupLinkHandler(
     val router = remember(trackPackId, sourceItineraryId) {
         MarkupRouter(app.libraryRepository, trackPackId, sourceItineraryId)
     }
-    var sidebar by remember { mutableStateOf<Sidebar?>(null) }
     var waypoint by remember { mutableStateOf<Waypoint?>(null) }
     var unavailable by remember { mutableStateOf<String?>(null) }
     var popup by remember { mutableStateOf<LinkPopup?>(null) }
@@ -93,7 +91,7 @@ fun rememberMarkupLinkHandler(
                         MapPopupKind.Buy(packId, packName = null, notInSample = true),
                     ) { onOpenShopPack?.invoke(packId) }
                 }
-                is MarkupDestination.ShowSidebar -> sidebar = destination.sidebar
+                is MarkupDestination.ShowSidebar -> onOpenSidebar(destination.sidebar.documentId)
                 is MarkupDestination.ShowWaypoint -> {
                     val target = destination.waypoint
                     popup = LinkPopup(MapPopupKind.OfWaypoint(target)) { waypoint = target }
@@ -113,16 +111,6 @@ fun rememberMarkupLinkHandler(
             onDismiss = { popup = null },
             onZoom = { kind -> mapProvider()?.let { zoomToPopupObject(it, kind) } },
             onOpen = { current.open() },
-        )
-    }
-    sidebar?.let {
-        SidebarDialog(
-            it,
-            lang,
-            trackPackId = trackPackId,
-            onOpenItinerary = onOpenItinerary,
-            onOpenShopPack = onOpenShopPack,
-            onDismiss = { sidebar = null },
         )
     }
     waypoint?.let {
