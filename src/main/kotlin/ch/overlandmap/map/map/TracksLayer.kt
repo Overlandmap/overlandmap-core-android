@@ -6,7 +6,11 @@ import org.maplibre.android.style.expressions.Expression.linear
 import org.maplibre.android.style.expressions.Expression.stop
 import org.maplibre.android.style.expressions.Expression.zoom
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property.LINE_CAP_ROUND
+import org.maplibre.android.style.layers.Property.LINE_JOIN_ROUND
+import org.maplibre.android.style.layers.PropertyFactory.lineCap
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineJoin
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.android.style.sources.TileSet
@@ -37,6 +41,8 @@ fun ensureTracksLayer(style: Style) {
             setProperties(
                 lineColor("#0000FF"),
                 lineOpacity(0.8f),
+                lineJoin(LINE_JOIN_ROUND),
+                lineCap(LINE_CAP_ROUND),
                 lineWidth(
                     interpolate(
                         linear(), zoom(),

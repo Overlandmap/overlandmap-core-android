@@ -30,6 +30,10 @@ import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.Layer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property.ICON_ANCHOR_BOTTOM
+import org.maplibre.android.style.layers.Property.LINE_CAP_ROUND
+import org.maplibre.android.style.layers.Property.LINE_JOIN_ROUND
+import org.maplibre.android.style.layers.PropertyFactory.lineCap
+import org.maplibre.android.style.layers.PropertyFactory.lineJoin
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
@@ -112,8 +116,13 @@ fun LocalItineraryMap(
             style.getLayerAs<LineLayer>(STYLE_TRACKS_LAYER)?.apply {
                 setFilter(eq(get("trackPackId"), literal(trackPackId)))
                 // Unselected itineraries: thin blue, overriding the style's
-                // zoom-interpolated width.
-                setProperties(lineColor("#0000FF"), lineWidth(2f))
+                // zoom-interpolated width. Round joins/caps to smooth corners.
+                setProperties(
+                    lineColor("#0000FF"),
+                    lineWidth(2f),
+                    lineJoin(LINE_JOIN_ROUND),
+                    lineCap(LINE_CAP_ROUND),
+                )
             }
             addItineraryLayer(style, tracks)
             addWaypointLayer(context, style, waypoints)
@@ -150,6 +159,8 @@ private fun addItineraryLayer(style: Style, tracks: List<Track>) {
         LineLayer(SELECTED_TRACKS_LAYER, SELECTED_TRACKS_SOURCE).withProperties(
             lineColor("#FF0000"),
             lineWidth(4f),
+            lineJoin(LINE_JOIN_ROUND),
+            lineCap(LINE_CAP_ROUND),
         )
     )
 }

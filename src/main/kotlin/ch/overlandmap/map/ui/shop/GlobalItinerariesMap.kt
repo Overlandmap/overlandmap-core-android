@@ -28,7 +28,11 @@ import org.maplibre.android.style.expressions.Expression.literal
 import org.maplibre.android.style.expressions.Expression.stop
 import org.maplibre.android.style.expressions.Expression.zoom
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property.LINE_CAP_ROUND
+import org.maplibre.android.style.layers.Property.LINE_JOIN_ROUND
+import org.maplibre.android.style.layers.PropertyFactory.lineCap
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineJoin
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.geojson.Feature
 
@@ -159,6 +163,8 @@ private fun addSelectedTracksLayer(style: Style) {
         setFilter(literal(false))
         setProperties(
             lineColor("#FF0000"),
+            lineJoin(LINE_JOIN_ROUND),
+            lineCap(LINE_CAP_ROUND),
             lineWidth(
                 interpolate(
                     linear(), zoom(),
