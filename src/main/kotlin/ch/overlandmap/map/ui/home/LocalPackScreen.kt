@@ -279,7 +279,15 @@ fun LocalPackScreen(
                 }
             },
             bottom = {
-                Column(modifier = Modifier.fillMaxSize()) {
+                // In landscape the app bar is dropped and this content sits
+                // beside the map, so its tab row would fall under the status bar
+                // (where the system owns touches). Inset it so the tabs are
+                // tappable; portrait keeps the map above it, so no inset needed.
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (landscape) Modifier.statusBarsPadding() else Modifier),
+                ) {
                     ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                         Tab(
                             selected = tab == 0,

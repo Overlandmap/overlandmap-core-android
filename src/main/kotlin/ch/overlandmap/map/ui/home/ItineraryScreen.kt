@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -262,7 +263,13 @@ fun ItineraryScreen(
                 }
             },
             bottom = {
-                Column(modifier = Modifier.fillMaxSize()) {
+                // Landscape drops the app bar and puts this beside the map, so
+                // inset the tab row below the status bar to keep it tappable.
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (landscape) Modifier.statusBarsPadding() else Modifier),
+                ) {
                     ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                         Tab(
                             selected = tab == 0,

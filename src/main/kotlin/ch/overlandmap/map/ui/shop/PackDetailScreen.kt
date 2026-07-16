@@ -213,15 +213,22 @@ fun PackDetailScreen(
                     }
                 },
                 bottom = {
-                    DetailTabs(
-                        state = state,
-                        pack = pack,
-                        lang = lang,
-                        tab = tab,
-                        onTabChange = { tab = it },
-                        selectedItineraryId = selectedItineraryId,
-                        onSelectItinerary = viewModel::selectItinerary,
-                    )
+                    // Landscape drops the app bar and puts the tabs beside the
+                    // map, so inset them below the status bar (else the tab row
+                    // falls under it, where the system owns touches).
+                    Box(
+                        modifier = if (landscape) Modifier.statusBarsPadding() else Modifier,
+                    ) {
+                        DetailTabs(
+                            state = state,
+                            pack = pack,
+                            lang = lang,
+                            tab = tab,
+                            onTabChange = { tab = it },
+                            selectedItineraryId = selectedItineraryId,
+                            onSelectItinerary = viewModel::selectItinerary,
+                        )
+                    }
                 },
             )
             // The background download of this pack, visible whichever tab is
