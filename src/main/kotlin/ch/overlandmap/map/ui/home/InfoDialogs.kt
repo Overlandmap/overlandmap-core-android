@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -87,7 +87,7 @@ fun SidebarDialog(
                     title = { Text(sidebar.name(lang), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                            Icon(Icons.Filled.Close, contentDescription = null)
                         }
                     },
                 )
@@ -143,12 +143,25 @@ private fun activityBottomInset(): Dp {
     val context = LocalContext.current
     val density = LocalDensity.current
     val px = remember(context) {
+        // Prefer the live nav-bar inset from the host Activity window (a Dialog
+        // window reports its own insets as zero). That read can come back 0 if
+        // the window isn't fully laid out yet, so fall back to the platform's
+        // navigation_bar_height resource — always non-zero and enough to clear
+        // the bar. Without this the gap collapsed to just the 16dp margin,
+        // which the nav bar covered, so no space was visible.
         var c: Context? = context
         while (c is ContextWrapper && c !is Activity) c = c.baseContext
-        (c as? Activity)?.window?.decorView
+        val live = (c as? Activity)?.window?.decorView
             ?.let { ViewCompat.getRootWindowInsets(it) }
             ?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom
             ?: 0
+        if (live > 0) {
+            live
+        } else {
+            val res = context.resources
+            val id = res.getIdentifier("navigation_bar_height", "dimen", "android")
+            if (id > 0) res.getDimensionPixelSize(id) else 0
+        }
     }
     return with(density) { px.toDp() }
 }
