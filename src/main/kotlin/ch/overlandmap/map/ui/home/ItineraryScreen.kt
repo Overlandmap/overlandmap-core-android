@@ -102,6 +102,24 @@ import ch.overlandmap.map.ui.zoomToPopupObject
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import org.maplibre.android.maps.MapLibreMap
+import android.widget.Toast
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.LocalPolice
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import ch.overlandmap.map.model.ItineraryStep
+import kotlin.math.abs
 
 private val GREEN = Color(0xFF2E7D32)
 private val BLUE = Color(0xFF1976D2)
@@ -131,6 +149,7 @@ fun ItineraryScreen(
     val comments by viewModel.comments.collectAsState()
     val selectedStepIndex by viewModel.selectedStepIndex.collectAsState()
     val useMiles by viewModel.useMiles.collectAsState()
+    val useFeet by viewModel.useFeet.collectAsState()
     val lang = currentLanguage()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val context = LocalContext.current
@@ -323,7 +342,10 @@ fun ItineraryScreen(
                             },
                             onZoom = { map?.let { zoomToItinerary(it, itinerary) } },
                         )
-                        1 -> StepsTab(state, selectedStepIndex, lang, onLink, viewModel::selectStep)
+                        1 -> StepsTab(
+                            state, selectedStepIndex, lang, useMiles, useFeet,
+                            onLink, viewModel::selectStep,
+                        )
                         2 -> PhotosTab(state)
                         3 -> CommentsTab(comments, lang)
                     }
@@ -538,6 +560,8 @@ private fun StepsTab(
     state: ItineraryState,
     selectedStepIndex: Int,
     lang: String,
+    useMiles: Boolean,
+    useFeet: Boolean,
     onLink: (MarkupLink, String) -> Unit,
     onSelectStep: (Int) -> Unit,
 ) {
@@ -550,33 +574,28 @@ private fun StepsTab(
     }
     val index = selectedStepIndex.coerceIn(0, steps.lastIndex)
     val step = steps[index]
+    var openPhoto by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        ) {
-            IconButton(onClick = { onSelectStep(index - 1) }, enabled = index > 0) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
-            }
-            Text(
-                step.fullName(lang),
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = { onSelectStep(index + 1) }, enabled = index < steps.lastIndex) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-            }
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            StepHeader(step, lang, useMiles, useFeet)
+            step.description(lang)?.let {
+                MarkupText(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    onLinkClick = onLink,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+            // The title image goes at the end; tapping it opens the zoomable viewer.
             step.titlePhotoUrl?.let { url ->
                 AsyncImage(
                     model = url,
                     contentDescription = step.titlePhotoCaption,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(4f / 3f)
+                        .clickable { openPhoto = true },
                     contentScale = ContentScale.Crop,
                 )
                 step.titlePhotoCaption?.let {
@@ -590,13 +609,214 @@ private fun StepsTab(
                     )
                 }
             }
-            step.description(lang)?.let {
-                MarkupText(
-                    it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    onLinkClick = onLink,
-                    modifier = Modifier.padding(16.dp),
+            // Clears the floating prev/next bar so it never hides the last line.
+            Spacer(Modifier.height(56.dp))
+        }
+
+        // Prev/next arrows float over the scroll at the bottom, on a translucent
+        // white strip.
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.7f)),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { onSelectStep(index - 1) }, enabled = index > 0) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
+            }
+            IconButton(onClick = { onSelectStep(index + 1) }, enabled = index < steps.lastIndex) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            }
+        }
+    }
+
+    if (openPhoto) {
+        step.titlePhotoUrl?.let { url ->
+            ZoomablePhotoViewer(url, step.titlePhotoCaption, onLink) { openPhoto = false }
+        }
+    }
+}
+
+/** Decimal-degree coordinates of a step, or null when it has no position. */
+private fun ItineraryStep.coordText(): String? {
+    val la = lat ?: return null
+    val lo = lon ?: return null
+    return "%.5f, %.5f".format(la, lo)
+}
+
+/**
+ * The step's title block: bold "id.Name", tappable coordinates + altitude
+ * below (copies the coordinates), current distance at the top right, then a
+ * row with the point-of-interest flags on the left and action buttons on the
+ * right (actions TBD).
+ */
+@Composable
+private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, useFeet: Boolean) {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val coords = step.coordText()
+    val subtitle = listOfNotNull(
+        coords,
+        step.ele?.let { UserPreferences.formatElevationM(it, useFeet) },
+    ).joinToString("  ·  ")
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "${step.stepId}.${step.name(lang)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                 )
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .then(
+                                if (coords != null) {
+                                    Modifier.clickable {
+                                        clipboard.setText(AnnotatedString(coords))
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.copied_to_clipboard),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                    )
+                }
+            }
+            Text(
+                UserPreferences.formatDistanceKm(step.distanceKm, useMiles),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PoiIcon(Icons.Filled.LocalGasStation, step.hasFuel)
+            PoiIcon(Icons.Filled.Hotel, step.hasHotel)
+            PoiIcon(Icons.Filled.LocalPolice, step.isPoliceCheckpoint)
+            Spacer(Modifier.weight(1f))
+            // Meanings/actions TBD.
+            IconButton(onClick = {}) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = GREEN)
+            }
+            IconButton(onClick = {}) {
+                Icon(Icons.Filled.Help, contentDescription = null, tint = RED)
+            }
+            IconButton(onClick = {}) {
+                Icon(Icons.Filled.Search, contentDescription = null)
+            }
+            IconButton(onClick = {}) {
+                Icon(Icons.Filled.Share, contentDescription = null)
+            }
+        }
+    }
+}
+
+/** A point-of-interest flag icon: black when set, gray otherwise, no background. */
+@Composable
+private fun PoiIcon(icon: ImageVector, active: Boolean) {
+    Icon(
+        icon,
+        contentDescription = null,
+        tint = if (active) Color.Black else Color.Gray,
+        modifier = Modifier.padding(end = 12.dp).size(24.dp),
+    )
+}
+
+/**
+ * Full-screen photo viewer. Starts letterboxed (black bars) with the caption;
+ * a tap zooms in to fill the screen and enables pinch-to-zoom/pan, another tap
+ * reverts. The X or a vertical swipe (while not zoomed) closes it.
+ */
+@Composable
+private fun ZoomablePhotoViewer(
+    url: String,
+    caption: String?,
+    onLink: (MarkupLink, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        var filled by remember { mutableStateOf(false) }
+        var scale by remember { mutableFloatStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            val gesture = if (filled) {
+                Modifier.pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 5f)
+                        offset += pan
+                    }
+                }
+            } else {
+                Modifier.pointerInput(Unit) {
+                    var drag = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { drag = 0f },
+                        onDragEnd = { if (abs(drag) > 200f) onDismiss() },
+                    ) { change, dy ->
+                        drag += dy
+                        change.consume()
+                    }
+                }
+            }
+            AsyncImage(
+                model = url,
+                contentDescription = caption,
+                contentScale = if (filled) ContentScale.Crop else ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (filled) {
+                            Modifier.graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                                translationX = offset.x
+                                translationY = offset.y
+                            }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .then(gesture)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            filled = !filled
+                            scale = 1f
+                            offset = Offset.Zero
+                        })
+                    },
+            )
+            if (!filled && caption != null) {
+                MarkupText(
+                    caption,
+                    style = MaterialTheme.typography.bodySmall.copy(color = Color.White),
+                    onLinkClick = onLink,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .padding(16.dp),
+                )
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White)
             }
         }
     }

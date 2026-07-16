@@ -23,6 +23,10 @@ data class ItineraryStep(
     val lat: Double? = null,
     val lon: Double? = null,
     val ele: Int? = null,
+    /** Point-of-interest flags at this step (Firestore hasFuel/hasHotel/isPoliceCheckpoint). */
+    val hasFuel: Boolean = false,
+    val hasHotel: Boolean = false,
+    val isPoliceCheckpoint: Boolean = false,
     val titlePhotoId: String? = null,
     val titlePhotoCaption: String? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
@@ -52,6 +56,9 @@ data class ItineraryStep(
                 lat = FS.geoLat(data["location"]),
                 lon = FS.geoLon(data["location"]),
                 ele = FS.int(data["ele"]),
+                hasFuel = FS.bool(data["hasFuel"]),
+                hasHotel = FS.bool(data["hasHotel"]),
+                isPoliceCheckpoint = FS.bool(data["isPoliceCheckpoint"]),
                 titlePhotoId = FS.str(data["titlePhotoId"]),
                 titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
             )

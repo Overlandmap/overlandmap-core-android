@@ -43,6 +43,7 @@
     <string name="hillshade_map">Hillshade map</string>
     <string name="contour_map">Contour map</string>
     <string name="not_available">Not available</string>
+    <string name="copied_to_clipboard">Coordinates copied</string>
     <string name="total_download_size">Total download: %1$s</string>
     <string name="free_space_on_device">Free space on device: %1$s</string>
     <string name="app_storage_used">App storage used: %1$s</string>

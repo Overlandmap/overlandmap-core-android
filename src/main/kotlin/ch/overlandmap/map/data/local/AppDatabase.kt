@@ -29,7 +29,7 @@ import ch.overlandmap.map.model.Waypoint
         Track::class, Waypoint::class, Sidebar::class, Comment::class,
         Country::class, CountryBorder::class, BorderPost::class, PackAsset::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -68,11 +68,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v9: per-step point-of-interest flags (fuel, hotel, police checkpoint). */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE itinerary_step ADD COLUMN hasFuel INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE itinerary_step ADD COLUMN hasHotel INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    "ALTER TABLE itinerary_step ADD COLUMN isPoliceCheckpoint " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, AppDatabase::class.java, "overlandmap.db")
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
