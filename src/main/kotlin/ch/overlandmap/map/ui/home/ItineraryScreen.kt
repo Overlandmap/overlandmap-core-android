@@ -1,5 +1,8 @@
 package ch.overlandmap.map.ui.home
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -92,6 +95,7 @@ import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.markup.Markup
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
@@ -119,8 +123,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import ch.overlandmap.map.model.ItineraryStep
 
 private val GREEN = Color(0xFF2E7D32)
@@ -639,7 +647,6 @@ private fun StepsTab(
             FullScreenPhotoViewer(
                 photos = listOf(ViewerPhoto(url, step.titlePhotoCaption)),
                 startIndex = 0,
-                onLink = onLink,
                 onDismiss = { openPhoto = false },
             )
         }
@@ -802,7 +809,6 @@ data class ViewerPhoto(val url: String, val caption: String?)
 private fun FullScreenPhotoViewer(
     photos: List<ViewerPhoto>,
     startIndex: Int,
-    onLink: ((MarkupLink, String) -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -856,7 +862,7 @@ private fun FullScreenPhotoViewer(
                 ) {
                     AsyncImage(
                         model = photos[page].url,
-                        contentDescription = photos[page].caption,
+                        contentDescription = null,
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .fillMaxSize()
@@ -873,14 +879,19 @@ private fun FullScreenPhotoViewer(
             }
             val caption = photos.getOrNull(pagerState.currentPage)?.caption
             if (captionVisible && !caption.isNullOrBlank()) {
-                MarkupText(
-                    caption,
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color.White),
-                    onLinkClick = onLink,
+                Text(
+                    Markup.plainText(caption),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.4f))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        // A Dialog window reports insets as 0, so lift the text
+                        // above the system navigation bar using the host
+                        // Activity's inset (with a floor for when even that
+                        // reads 0), else it hides behind the bar at the bottom.
+                        .padding(bottom = navBarHeight().coerceAtLeast(32.dp))
                         .padding(16.dp),
                 )
             }
@@ -891,5 +902,32 @@ private fun FullScreenPhotoViewer(
                 Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White)
             }
         }
+    }
+}
+
+/**
+ * The system navigation bar's height in dp. A Dialog window reports its own
+ * insets as 0, so read the live inset from the host Activity window (falling
+ * back to the platform resource) — otherwise the caption hides behind the bar.
+ */
+@Composable
+private fun navBarHeight(): Dp {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    return remember(context) {
+        var c: Context? = context
+        while (c is ContextWrapper && c !is Activity) c = c.baseContext
+        val live = (c as? Activity)?.window?.decorView
+            ?.let { ViewCompat.getRootWindowInsets(it) }
+            ?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom
+            ?: 0
+        val px = if (live > 0) {
+            live
+        } else {
+            val res = context.resources
+            val id = res.getIdentifier("navigation_bar_height", "dimen", "android")
+            if (id > 0) res.getDimensionPixelSize(id) else 0
+        }
+        with(density) { px.toDp() }
     }
 }
