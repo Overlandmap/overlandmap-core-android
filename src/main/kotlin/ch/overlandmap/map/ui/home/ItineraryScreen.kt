@@ -112,6 +112,7 @@ import org.maplibre.android.maps.MapLibreMap
 import android.widget.Toast
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -122,6 +123,7 @@ import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -894,19 +896,31 @@ private fun FullScreenPhotoViewer(
                             .pointerInput(page) {
                                 // Two-finger gestures always pinch/pan; a single
                                 // finger pans only while zoomed, otherwise it's
-                                // left for the pager (browse) or a tap.
+                                // left for the pager (browse) or a tap. Zoom is
+                                // anchored at the pinch centroid so the point
+                                // under the fingers stays put (offset is kept in
+                                // content coordinates; see the graphicsLayer).
                                 awaitEachGesture {
                                     awaitFirstDown(requireUnconsumed = false)
                                     do {
                                         val event = awaitPointerEvent()
                                         val pressed = event.changes.count { it.pressed }
-                                        if (pressed >= 2) {
-                                            scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
-                                            if (scale > 1f) offset += event.calculatePan()
-                                            event.changes.forEach { if (it.positionChanged()) it.consume() }
-                                        } else if (scale > 1f) {
-                                            offset += event.calculatePan()
-                                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                        if (pressed >= 2 || scale > 1f) {
+                                            val zoomChange =
+                                                if (pressed >= 2) event.calculateZoom() else 1f
+                                            val pan = event.calculatePan()
+                                            val centroid = event.calculateCentroid()
+                                            val newScale = (scale * zoomChange).coerceIn(1f, 5f)
+                                            offset = if (newScale == 1f) {
+                                                Offset.Zero
+                                            } else {
+                                                (offset + centroid / scale) -
+                                                    (centroid / newScale + pan / newScale)
+                                            }
+                                            scale = newScale
+                                            event.changes.forEach {
+                                                if (it.positionChanged()) it.consume()
+                                            }
                                         }
                                     } while (event.changes.any { it.pressed })
                                 }
@@ -918,8 +932,9 @@ private fun FullScreenPhotoViewer(
                                 if (current) {
                                     scaleX = scale
                                     scaleY = scale
-                                    translationX = offset.x
-                                    translationY = offset.y
+                                    translationX = -offset.x * scale
+                                    translationY = -offset.y * scale
+                                    transformOrigin = TransformOrigin(0f, 0f)
                                 }
                             },
                     )
