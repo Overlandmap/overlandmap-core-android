@@ -117,16 +117,19 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.view.ViewCompat
@@ -134,7 +137,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import ch.overlandmap.map.model.ItineraryStep
+import kotlin.math.roundToInt
 
 private val GREEN = Color(0xFF2E7D32)
 private val BLUE = Color(0xFF1976D2)
@@ -873,14 +879,9 @@ private fun FullScreenPhotoViewer(
                 }
                 val showingOnline = imageState is AsyncImagePainter.State.Success &&
                     photos[page].url.startsWith("http")
-                // Photo + caption as one vertically-centered group, so the
-                // caption sits right below the photo (in the letterbox for a
-                // landscape shot; hugging its bottom for a full-height one).
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
+                var containerSize by remember(page) { mutableStateOf(IntSize.Zero) }
+
+                Box(modifier = Modifier.fillMaxSize().onSizeChanged { containerSize = it }) {
                     AsyncImage(
                         model = photos[page].url,
                         placeholder = placeholder,
@@ -889,10 +890,10 @@ private fun FullScreenPhotoViewer(
                         onSuccess = { imageState = it },
                         onError = { imageState = it },
                         contentDescription = null,
+                        // Always as large as possible for the space, aspect kept.
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false)
+                            .fillMaxSize()
                             .pointerInput(page) {
                                 // Two-finger gestures always pinch/pan; a single
                                 // finger pans only while zoomed, otherwise it's
@@ -942,31 +943,60 @@ private fun FullScreenPhotoViewer(
                                 }
                             },
                     )
-                    if (chromeVisible && !pageCaption.isNullOrBlank()) {
-                        Text(
-                            Markup.plainText(pageCaption),
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                        )
-                    }
-                    // DEBUG (remove for release): shows which image is displayed.
+
                     if (chromeVisible) {
-                        Text(
-                            if (showingOnline) "hi-res online photo" else "offline photo",
-                            color = Color.Yellow,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                                // Keep the text off the nav bar when the photo
-                                // runs to the bottom (a Dialog reports insets 0).
-                                .padding(bottom = navBarHeight().coerceAtLeast(16.dp)),
-                        )
+                        // The photo's rendered aspect decides caption placement:
+                        // when it fills the height (fits by height), overlay the
+                        // caption on the photo's bottom; otherwise drop it into
+                        // the letterbox right below the photo.
+                        val painterSize =
+                            (imageState as? AsyncImagePainter.State.Success)?.painter?.intrinsicSize
+                                ?.takeIf { it.isSpecified }
+                                ?: placeholder.intrinsicSize.takeIf { it.isSpecified }
+                        val imageAspect =
+                            painterSize?.let { if (it.height > 0f) it.width / it.height else null }
+                        val cW = containerSize.width.toFloat()
+                        val cH = containerSize.height.toFloat()
+                        val fillsVertically =
+                            imageAspect == null || cH <= 0f || imageAspect <= cW / cH
+                        val position = if (fillsVertically) {
+                            // Overlaid at the bottom of the photo, kept a little
+                            // above the bottom edge / nav bar (Dialog insets 0).
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = navBarHeight().coerceAtLeast(16.dp))
+                        } else {
+                            val photoBottom = ((cH + cW / imageAspect!!) / 2f).roundToInt()
+                            Modifier.align(Alignment.TopStart).offset { IntOffset(0, photoBottom) }
+                        }
+                        Column(
+                            modifier = position.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            if (!pageCaption.isNullOrBlank()) {
+                                Text(
+                                    Markup.plainText(pageCaption),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                )
+                            }
+                            // DEBUG (remove for release): which image is shown.
+                            Text(
+                                if (showingOnline) "hi-res online photo" else "offline photo",
+                                color = Color.Yellow,
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.Black.copy(alpha = 0.5f))
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
                     }
                 }
             }
