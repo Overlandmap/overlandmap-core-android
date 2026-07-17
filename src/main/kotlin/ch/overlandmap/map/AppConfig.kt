@@ -6,6 +6,9 @@ object AppConfig {
     /** Remote photo URL for a Cloudflare Images photo ID. */
     fun photoUrl(photoId: String) = "$CLOUDFLARE_IMAGE_BASE_URL/$photoId/public"
 
+    /** High-resolution (2000px) remote photo URL, for the full-screen viewer. */
+    fun fullPhotoUrl(photoId: String) = "$CLOUDFLARE_IMAGE_BASE_URL/$photoId/2000"
+
     /**
      * Style used when online. MapLibre cannot read Mapbox styles (mapbox:// tile
      * URLs need the proprietary SDK), so online browsing uses a free vector style;

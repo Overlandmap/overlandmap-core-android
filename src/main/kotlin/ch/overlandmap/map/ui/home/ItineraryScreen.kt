@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.data.UserPreferences
@@ -104,6 +105,7 @@ import ch.overlandmap.map.ui.shop.CommentsTab
 import ch.overlandmap.map.ui.shop.zoomToItinerary
 import ch.overlandmap.map.ui.zoomToPopupObject
 import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
 import org.maplibre.android.maps.MapLibreMap
 import android.widget.Toast
@@ -642,14 +644,14 @@ private fun StepsTab(
         }
     }
 
-    if (openPhoto) {
-        step.titlePhotoUrl?.let { url ->
-            FullScreenPhotoViewer(
-                photos = listOf(ViewerPhoto(url, step.titlePhotoCaption)),
-                startIndex = 0,
-                onDismiss = { openPhoto = false },
-            )
-        }
+    if (openPhoto && step.titlePhotoUrl != null) {
+        FullScreenPhotoViewer(
+            photos = listOf(
+                viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption),
+            ),
+            startIndex = 0,
+            onDismiss = { openPhoto = false },
+        )
     }
 }
 
@@ -756,10 +758,18 @@ private fun PhotosTab(state: ItineraryState) {
     // caption). Deduplicated by URL, keeping the first (captioned) occurrence.
     val photos = remember(state) {
         buildList {
-            state.itinerary?.titlePhotoUrl?.let { add(ViewerPhoto(it, null)) }
-            state.itinerary?.localOtherPhotoPaths?.forEach { add(ViewerPhoto("file://$it", null)) }
+            state.itinerary?.let {
+                if (it.titlePhotoId != null || it.localPhotoPath != null) {
+                    add(viewerPhoto(it.titlePhotoId, it.localPhotoPath, null))
+                }
+            }
+            state.itinerary?.localOtherPhotoPaths?.forEach {
+                add(ViewerPhoto("file://$it", placeholderUrl = null, caption = null))
+            }
             state.steps.forEach { step ->
-                step.titlePhotoUrl?.let { add(ViewerPhoto(it, step.titlePhotoCaption)) }
+                if (step.titlePhotoId != null || step.localPhotoPath != null) {
+                    add(viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption))
+                }
             }
         }.distinctBy { it.url }
     }
@@ -781,7 +791,9 @@ private fun PhotosTab(state: ItineraryState) {
     ) {
         items(photos.size) { index ->
             AsyncImage(
-                model = photos[index].url,
+                // Thumbnails use the local copy (or small remote), not the
+                // high-res full-screen image.
+                model = photos[index].placeholderUrl ?: photos[index].url,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -797,8 +809,22 @@ private fun PhotosTab(state: ItineraryState) {
     }
 }
 
-/** A photo shown in the full-screen viewer, with its optional caption. */
-data class ViewerPhoto(val url: String, val caption: String?)
+/**
+ * A photo for the full-screen viewer: [url] is loaded first (the high-res
+ * online image when available), with [placeholderUrl] (the downloaded local
+ * copy) shown while it loads and used as the fallback when offline.
+ */
+data class ViewerPhoto(val url: String, val placeholderUrl: String?, val caption: String?)
+
+/**
+ * Builds a [ViewerPhoto] preferring the high-res online image (from
+ * [titlePhotoId]) with the local copy as placeholder/offline fallback.
+ */
+private fun viewerPhoto(titlePhotoId: String?, localPhotoPath: String?, caption: String?): ViewerPhoto {
+    val local = localPhotoPath?.let { "file://$it" }
+    val online = titlePhotoId?.let(AppConfig::fullPhotoUrl)
+    return ViewerPhoto(url = online ?: local.orEmpty(), placeholderUrl = local, caption = caption)
+}
 
 /**
  * Full-screen photo viewer: letterboxed black, pinch-to-zoom (and pan) always
@@ -812,7 +838,8 @@ private fun FullScreenPhotoViewer(
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        var captionVisible by remember { mutableStateOf(true) }
+        // A tap toggles the caption and the close button together.
+        var chromeVisible by remember { mutableStateOf(true) }
         val pagerState = rememberPagerState(
             initialPage = startIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0)),
         ) { photos.size }
@@ -833,6 +860,10 @@ private fun FullScreenPhotoViewer(
             ) { page ->
                 val current = page == pagerState.currentPage
                 val pageCaption = photos[page].caption
+                // The downloaded local copy shows immediately (and stays when
+                // offline); the high-res online image loads over it. (Called
+                // unconditionally; a null local path yields an empty painter.)
+                val placeholder = rememberAsyncImagePainter(photos[page].placeholderUrl)
                 // Photo + caption as one vertically-centered group, so the
                 // caption sits right below the photo (in the letterbox for a
                 // landscape shot; hugging its bottom for a full-height one).
@@ -843,6 +874,8 @@ private fun FullScreenPhotoViewer(
                 ) {
                     AsyncImage(
                         model = photos[page].url,
+                        placeholder = placeholder,
+                        error = placeholder,
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
@@ -869,7 +902,7 @@ private fun FullScreenPhotoViewer(
                                 }
                             }
                             .pointerInput(page) {
-                                detectTapGestures(onTap = { captionVisible = !captionVisible })
+                                detectTapGestures(onTap = { chromeVisible = !chromeVisible })
                             }
                             .graphicsLayer {
                                 if (current) {
@@ -880,7 +913,7 @@ private fun FullScreenPhotoViewer(
                                 }
                             },
                     )
-                    if (captionVisible && !pageCaption.isNullOrBlank()) {
+                    if (chromeVisible && !pageCaption.isNullOrBlank()) {
                         Text(
                             Markup.plainText(pageCaption),
                             color = Color.White,
@@ -896,11 +929,13 @@ private fun FullScreenPhotoViewer(
                     }
                 }
             }
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-            ) {
-                Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White)
+            if (chromeVisible) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White)
+                }
             }
         }
     }
