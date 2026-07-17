@@ -19,7 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,11 +52,20 @@ fun VerticalSplit(
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // Move the same panes between the Row (landscape) and Column (portrait)
+    // layouts so their state — open dialogs, scroll position, the map view —
+    // survives a rotation instead of being torn down and rebuilt at the new
+    // call site. (Requires the Activity to handle orientation config changes.)
+    val currentTop by rememberUpdatedState(top)
+    val currentBottom by rememberUpdatedState(bottom)
+    val topPane = remember { movableContentOf { currentTop() } }
+    val bottomPane = remember { movableContentOf { currentBottom() } }
+
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         if (landscape) {
             val totalWidthPx = constraints.maxWidth.toFloat()
             Row(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxHeight().weight(fraction)) { top() }
+                Box(modifier = Modifier.fillMaxHeight().weight(fraction)) { topPane() }
                 SplitHandle(
                     orientation = Orientation.Horizontal,
                     onDrag = { deltaPx ->
@@ -61,12 +73,12 @@ fun VerticalSplit(
                             .coerceIn(MIN_FRACTION, MAX_FRACTION)
                     },
                 )
-                Box(modifier = Modifier.fillMaxHeight().weight(1f - fraction)) { bottom() }
+                Box(modifier = Modifier.fillMaxHeight().weight(1f - fraction)) { bottomPane() }
             }
         } else {
             val totalHeightPx = constraints.maxHeight.toFloat()
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(fraction)) { top() }
+                Box(modifier = Modifier.fillMaxWidth().weight(fraction)) { topPane() }
                 SplitHandle(
                     orientation = Orientation.Vertical,
                     onDrag = { deltaPx ->
@@ -74,7 +86,7 @@ fun VerticalSplit(
                             .coerceIn(MIN_FRACTION, MAX_FRACTION)
                     },
                 )
-                Box(modifier = Modifier.fillMaxWidth().weight(1f - fraction)) { bottom() }
+                Box(modifier = Modifier.fillMaxWidth().weight(1f - fraction)) { bottomPane() }
             }
         }
     }
