@@ -105,6 +105,7 @@ import ch.overlandmap.map.ui.shop.CommentsTab
 import ch.overlandmap.map.ui.shop.zoomToItinerary
 import ch.overlandmap.map.ui.zoomToPopupObject
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
 import org.maplibre.android.maps.MapLibreMap
@@ -864,6 +865,12 @@ private fun FullScreenPhotoViewer(
                 // offline); the high-res online image loads over it. (Called
                 // unconditionally; a null local path yields an empty painter.)
                 val placeholder = rememberAsyncImagePainter(photos[page].placeholderUrl)
+                // DEBUG (remove for release): which image is actually shown.
+                var imageState by remember(photos[page].url) {
+                    mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty)
+                }
+                val showingOnline = imageState is AsyncImagePainter.State.Success &&
+                    photos[page].url.startsWith("http")
                 // Photo + caption as one vertically-centered group, so the
                 // caption sits right below the photo (in the letterbox for a
                 // landscape shot; hugging its bottom for a full-height one).
@@ -876,6 +883,9 @@ private fun FullScreenPhotoViewer(
                         model = photos[page].url,
                         placeholder = placeholder,
                         error = placeholder,
+                        onLoading = { imageState = it },
+                        onSuccess = { imageState = it },
+                        onError = { imageState = it },
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
@@ -921,7 +931,19 @@ private fun FullScreenPhotoViewer(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color.Black.copy(alpha = 0.5f))
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                    }
+                    // DEBUG (remove for release): shows which image is displayed.
+                    if (chromeVisible) {
+                        Text(
+                            if (showingOnline) "hi-res online photo" else "offline photo",
+                            color = Color.Yellow,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                                 // Keep the text off the nav bar when the photo
                                 // runs to the bottom (a Dialog reports insets 0).
                                 .padding(bottom = navBarHeight().coerceAtLeast(16.dp)),
