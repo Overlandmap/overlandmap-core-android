@@ -905,7 +905,11 @@ private fun FullScreenPhotoViewer(
                                     do {
                                         val event = awaitPointerEvent()
                                         val pressed = event.changes.count { it.pressed }
-                                        if (pressed >= 2 || scale > 1f) {
+                                        // Require a finger down: on the final
+                                        // (all-up) event the centroid is
+                                        // Unspecified, which would push the
+                                        // offset to NaN and blank the image.
+                                        if (pressed >= 1 && (pressed >= 2 || scale > 1f)) {
                                             val zoomChange =
                                                 if (pressed >= 2) event.calculateZoom() else 1f
                                             val pan = event.calculatePan()
