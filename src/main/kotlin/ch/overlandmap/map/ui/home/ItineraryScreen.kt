@@ -115,6 +115,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -597,7 +598,29 @@ private fun StepsTab(
     val step = steps[index]
     var openPhoto by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // A horizontal swipe moves between steps like the arrows: swipe
+            // left for the next step, right for the previous one. Vertical
+            // drags fall through to the content's scroll.
+            .pointerInput(index, steps.size) {
+                var drag = 0f
+                val threshold = 48.dp.toPx()
+                detectHorizontalDragGestures(
+                    onDragStart = { drag = 0f },
+                    onDragEnd = {
+                        when {
+                            drag <= -threshold && index < steps.lastIndex -> onSelectStep(index + 1)
+                            drag >= threshold && index > 0 -> onSelectStep(index - 1)
+                        }
+                    },
+                ) { change, dragAmount ->
+                    drag += dragAmount
+                    change.consume()
+                }
+            },
+    ) {
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             StepHeader(step, lang, useMiles, useFeet)
             step.description(lang)?.let {
