@@ -117,6 +117,12 @@ class TileArchiveRegistry(private val filesDir: File) {
     fun hasDetailTiles(): Boolean = detail.isNotEmpty()
 
     @Synchronized
+    fun hasHillshade(): Boolean = hillshade.isNotEmpty()
+
+    @Synchronized
+    fun hasContour(): Boolean = contour.isNotEmpty()
+
+    @Synchronized
     fun tile(source: String, zoom: Int, x: Int, y: Int, isRaster: Boolean): ByteArray? {
         val archives = when (source) {
             "planet" -> listOfNotNull(planet)

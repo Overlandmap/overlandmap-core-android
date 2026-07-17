@@ -29,6 +29,9 @@ object LocalTileServer : Runnable {
     /** The port styles are authored against; rewritten to [port] when served. */
     private const val AUTHORED_BASE_URL = "http://localhost:8000"
 
+    /** The offline style rewritten by [OfflineStyle] to render the pack tiles. */
+    private const val OFFLINE_STYLE_PATH = "styles/detailed.json"
+
     private lateinit var assetsDirectory: File
     private var registry: TileArchiveRegistry? = null
     private var serverSocket: ServerSocket? = null
@@ -140,13 +143,22 @@ object LocalTileServer : Runnable {
                 .firstNotNullOfOrNull { font -> staticFile("/glyphs/${font.trim()}/$range") }
         }
         val bytes = staticFile(path) ?: return null
+        if (!path.endsWith(".json")) return bytes
+        var json = bytes.toString(Charsets.UTF_8)
+        // The offline style ships rendering only the world `planet` source; it
+        // is rewritten so the pack's downloaded detail/contour/hillshade tiles
+        // are actually shown (see [OfflineStyle]).
+        if (path.trimStart('/') == OFFLINE_STYLE_PATH) {
+            json = OfflineStyle.transform(
+                json,
+                offlineHillshade = registry?.hasHillshade() == true,
+                contour = registry?.hasContour() == true,
+            )
+        }
         // Styles are authored against port 8000; the server may have bound
         // another one.
-        return if (path.endsWith(".json") && port != PREFERRED_PORT) {
-            bytes.toString(Charsets.UTF_8).replace(AUTHORED_BASE_URL, baseUrl).toByteArray()
-        } else {
-            bytes
-        }
+        if (port != PREFERRED_PORT) json = json.replace(AUTHORED_BASE_URL, baseUrl)
+        return json.toByteArray()
     }
 
     private fun staticFile(path: String): ByteArray? {
