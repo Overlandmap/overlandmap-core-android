@@ -832,40 +832,45 @@ private fun FullScreenPhotoViewer(
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
                 val current = page == pagerState.currentPage
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(page) {
-                            // Two-finger gestures always pinch/pan; a single
-                            // finger pans only while zoomed, otherwise it's left
-                            // for the pager (browse) or a tap.
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                do {
-                                    val event = awaitPointerEvent()
-                                    val pressed = event.changes.count { it.pressed }
-                                    if (pressed >= 2) {
-                                        scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
-                                        if (scale > 1f) offset += event.calculatePan()
-                                        event.changes.forEach { if (it.positionChanged()) it.consume() }
-                                    } else if (scale > 1f) {
-                                        offset += event.calculatePan()
-                                        event.changes.forEach { if (it.positionChanged()) it.consume() }
-                                    }
-                                } while (event.changes.any { it.pressed })
-                            }
-                        }
-                        .pointerInput(page) {
-                            detectTapGestures(onTap = { captionVisible = !captionVisible })
-                        },
-                    contentAlignment = Alignment.Center,
+                val pageCaption = photos[page].caption
+                // Photo + caption as one vertically-centered group, so the
+                // caption sits right below the photo (in the letterbox for a
+                // landscape shot; hugging its bottom for a full-height one).
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     AsyncImage(
                         model = photos[page].url,
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .pointerInput(page) {
+                                // Two-finger gestures always pinch/pan; a single
+                                // finger pans only while zoomed, otherwise it's
+                                // left for the pager (browse) or a tap.
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val pressed = event.changes.count { it.pressed }
+                                        if (pressed >= 2) {
+                                            scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                                            if (scale > 1f) offset += event.calculatePan()
+                                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                        } else if (scale > 1f) {
+                                            offset += event.calculatePan()
+                                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            }
+                            .pointerInput(page) {
+                                detectTapGestures(onTap = { captionVisible = !captionVisible })
+                            }
                             .graphicsLayer {
                                 if (current) {
                                     scaleX = scale
@@ -875,25 +880,21 @@ private fun FullScreenPhotoViewer(
                                 }
                             },
                     )
+                    if (captionVisible && !pageCaption.isNullOrBlank()) {
+                        Text(
+                            Markup.plainText(pageCaption),
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                // Keep the text off the nav bar when the photo
+                                // runs to the bottom (a Dialog reports insets 0).
+                                .padding(bottom = navBarHeight().coerceAtLeast(16.dp)),
+                        )
+                    }
                 }
-            }
-            val caption = photos.getOrNull(pagerState.currentPage)?.caption
-            if (captionVisible && !caption.isNullOrBlank()) {
-                Text(
-                    Markup.plainText(caption),
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        // A Dialog window reports insets as 0, so lift the text
-                        // above the system navigation bar using the host
-                        // Activity's inset (with a floor for when even that
-                        // reads 0), else it hides behind the bar at the bottom.
-                        .padding(bottom = navBarHeight().coerceAtLeast(32.dp))
-                        .padding(16.dp),
-                )
             }
             IconButton(
                 onClick = onDismiss,
