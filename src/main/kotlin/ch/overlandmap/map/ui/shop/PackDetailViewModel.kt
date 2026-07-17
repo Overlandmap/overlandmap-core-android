@@ -28,6 +28,8 @@ data class PackDetailState(
     val comments: List<Comment> = emptyList(),
     /** The pack's downloadable assets; kinds absent from the pack are missing. */
     val assets: Map<PackAssetKind, Asset> = emptyMap(),
+    /** The full purchased-pack zip, shown as the mandatory item when owned. */
+    val fullPackAsset: Asset? = null,
     /** Itinerary IDs already present in the local library. */
     val downloadedItineraryIds: Set<String> = emptySet(),
     /** True when the pack itself is in the local library. */
@@ -134,12 +136,16 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
                 val assets = pack?.let {
                     runCatching { fetchAssets(it) }.getOrDefault(emptyMap())
                 } ?: emptyMap()
+                val fullPackAsset = pack?.trackPackZip?.let {
+                    runCatching { shop.asset(it) }.getOrNull()
+                }
                 state.value = PackDetailState(
                     loading = false,
                     pack = pack,
                     itineraries = itineraries,
                     comments = comments,
                     assets = assets,
+                    fullPackAsset = fullPackAsset,
                     downloadedItineraryIds = downloadedIds(),
                     isLocal = library.trackPack(packId) != null,
                 )
@@ -201,6 +207,16 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
     fun downloadPack() {
         val pack = state.value.pack ?: return
         app.packDownloadManager.startFullPack(packId, pack.name)
+    }
+
+    /** Downloads the full purchased pack together with the chosen offline maps. */
+    fun downloadFullPack(kinds: Set<PackAssetKind>) {
+        val pack = state.value.pack ?: return
+        val maps = state.value.assets.filterKeys { it in kinds && it != PackAssetKind.FREE_ITINERARY }
+        viewModelScope.launch {
+            library.savePackAssets(packId, state.value.assets)
+            app.packDownloadManager.startFullPack(packId, pack.name, maps)
+        }
     }
 
     private suspend fun downloadedIds(): Set<String> =

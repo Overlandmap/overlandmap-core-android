@@ -25,42 +25,49 @@ import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.model.Asset
 
 /**
- * Asks what to download with the free sample itinerary: the zip itself is
- * mandatory, the offline / hillshade / contour maps are optional switches
- * (on by default, off and disabled when the pack has no such asset).
- * Shows each size, the resulting total, and the free space on the device.
+ * Asks what to download for a pack: a mandatory item (the free sample zip, or
+ * the full purchased pack) plus the optional offline / hillshade / contour maps
+ * as switches (on by default, off and disabled when the pack has no such
+ * asset). Shows each size, the resulting total, and the free space on the
+ * device. [onDownload] reports only the chosen *map* kinds — the mandatory item
+ * is always downloaded, so the caller pairs it with its own download call.
  */
 @Composable
-fun DownloadSampleDialog(
+fun DownloadAssetsDialog(
+    title: String,
+    mandatoryLabel: String,
+    mandatoryAsset: Asset?,
     assets: Map<PackAssetKind, Asset>,
     onDismiss: () -> Unit,
     onDownload: (Set<PackAssetKind>) -> Unit,
+    downloadEnabled: Boolean = true,
 ) {
     var offlineMap by remember { mutableStateOf(PackAssetKind.OFFLINE_MAP in assets) }
     var hillshade by remember { mutableStateOf(PackAssetKind.HILLSHADE in assets) }
     var contour by remember { mutableStateOf(PackAssetKind.CONTOUR in assets) }
 
     val selection = buildSet {
-        add(PackAssetKind.FREE_ITINERARY)
         if (offlineMap) add(PackAssetKind.OFFLINE_MAP)
         if (hillshade) add(PackAssetKind.HILLSHADE)
         if (contour) add(PackAssetKind.CONTOUR)
     }
-    val totalBytes = selection.sumOf { assets[it]?.fileSizeBytes ?: 0L }
+    val totalBytes = (mandatoryAsset?.fileSizeBytes ?: 0L) +
+        selection.sumOf { assets[it]?.fileSizeBytes ?: 0L }
 
     val context = LocalContext.current
     val freeBytes = remember { StatFs(context.filesDir.path).availableBytes }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.download_sample)) },
+        title = { Text(title) },
         text = {
             Column {
                 AssetRow(
-                    label = stringResource(R.string.free_sample_itinerary),
-                    asset = assets[PackAssetKind.FREE_ITINERARY],
+                    label = mandatoryLabel,
+                    asset = mandatoryAsset,
                     checked = true,
                     onChecked = null,
+                    alwaysAvailable = true,
                 )
                 AssetRow(
                     label = stringResource(R.string.offline_map),
@@ -96,7 +103,7 @@ fun DownloadSampleDialog(
         confirmButton = {
             TextButton(
                 onClick = { onDownload(selection) },
-                enabled = assets[PackAssetKind.FREE_ITINERARY] != null,
+                enabled = downloadEnabled,
             ) { Text(stringResource(R.string.download)) }
         },
         dismissButton = {
@@ -112,6 +119,7 @@ private fun AssetRow(
     asset: Asset?,
     checked: Boolean,
     onChecked: ((Boolean) -> Unit)?,
+    alwaysAvailable: Boolean = false,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -119,17 +127,23 @@ private fun AssetRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                if (asset == null) stringResource(R.string.not_available)
-                else readableSize(asset.fileSizeBytes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            val size = when {
+                asset != null -> readableSize(asset.fileSizeBytes)
+                alwaysAvailable -> null // full pack: size resolved by the backend
+                else -> stringResource(R.string.not_available)
+            }
+            size?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         Switch(
-            checked = asset != null && checked,
+            checked = alwaysAvailable || (asset != null && checked),
             onCheckedChange = onChecked,
-            enabled = asset != null && onChecked != null,
+            enabled = !alwaysAvailable && asset != null && onChecked != null,
         )
     }
 }

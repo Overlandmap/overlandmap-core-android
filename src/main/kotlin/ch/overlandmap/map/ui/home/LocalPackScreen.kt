@@ -81,6 +81,7 @@ import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.shop.CommentsTab
+import ch.overlandmap.map.ui.shop.DownloadAssetsDialog
 import ch.overlandmap.map.ui.shop.DownloadOverlay
 import ch.overlandmap.map.ui.shop.PackTracksMap
 import ch.overlandmap.map.ui.shop.zoomToPack
@@ -132,6 +133,7 @@ fun LocalPackScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var showSignInDialog by remember { mutableStateOf(false) }
+    var showFullPackDialog by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     // Snackbar for the "check for update" outcome.
@@ -298,7 +300,7 @@ fun LocalPackScreen(
                                 if (signedIn) activity?.let(viewModel::buy)
                                 else showSignInDialog = true
                             },
-                            onDownloadPack = viewModel::downloadPack,
+                            onDownloadPack = { showFullPackDialog = true },
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
                                 .padding(start = 16.dp, bottom = 16.dp),
@@ -394,6 +396,19 @@ fun LocalPackScreen(
                 TextButton(onClick = { showSignInDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
+            },
+        )
+    }
+    if (showFullPackDialog) {
+        DownloadAssetsDialog(
+            title = stringResource(R.string.download_pack),
+            mandatoryLabel = stringResource(R.string.itineraries),
+            mandatoryAsset = state.fullPackAsset,
+            assets = state.assets,
+            onDismiss = { showFullPackDialog = false },
+            onDownload = { kinds ->
+                showFullPackDialog = false
+                viewModel.downloadFullPack(kinds)
             },
         )
     }

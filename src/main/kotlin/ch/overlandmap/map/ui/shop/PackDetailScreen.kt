@@ -126,6 +126,7 @@ fun PackDetailScreen(
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showDownloadDialog by remember { mutableStateOf(false) }
+    var showFullPackDialog by remember { mutableStateOf(false) }
     var showSignInDialog by remember { mutableStateOf(false) }
 
     // Frame the pack as soon as both the map and its bounds are known.
@@ -196,7 +197,7 @@ fun PackDetailScreen(
                                 if (signedIn) activity?.let(viewModel::buy)
                                 else showSignInDialog = true
                             },
-                            onDownloadPack = viewModel::downloadPack,
+                            onDownloadPack = { showFullPackDialog = true },
                             onDownloadSample = { showDownloadDialog = true },
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -241,12 +242,30 @@ fun PackDetailScreen(
     }
 
     if (showDownloadDialog) {
-        DownloadSampleDialog(
+        DownloadAssetsDialog(
+            title = stringResource(R.string.download_sample),
+            mandatoryLabel = stringResource(R.string.free_sample_itinerary),
+            mandatoryAsset = state.assets[PackAssetKind.FREE_ITINERARY],
             assets = state.assets,
+            downloadEnabled = state.assets[PackAssetKind.FREE_ITINERARY] != null,
             onDismiss = { showDownloadDialog = false },
             onDownload = { kinds ->
                 showDownloadDialog = false
-                viewModel.startAssetDownload(kinds)
+                viewModel.startAssetDownload(kinds + PackAssetKind.FREE_ITINERARY)
+            },
+        )
+    }
+
+    if (showFullPackDialog) {
+        DownloadAssetsDialog(
+            title = stringResource(R.string.download_pack),
+            mandatoryLabel = stringResource(R.string.itineraries),
+            mandatoryAsset = state.fullPackAsset,
+            assets = state.assets,
+            onDismiss = { showFullPackDialog = false },
+            onDownload = { kinds ->
+                showFullPackDialog = false
+                viewModel.downloadFullPack(kinds)
             },
         )
     }

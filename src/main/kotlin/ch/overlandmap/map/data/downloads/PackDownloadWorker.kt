@@ -120,6 +120,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
             } finally {
                 target.delete()
             }
+            downloadExtraAssets(packName)
             LocalTileServer.reloadArchives()
             Result.success()
         } catch (e: DownloadRefusedException) {
@@ -130,6 +131,35 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
             } else {
                 Result.failure(workDataOf(KEY_ERROR to (e.localizedMessage ?: "Download failed")))
             }
+        }
+    }
+
+    /**
+     * The optional map files (offline/hillshade/contour) chosen alongside a
+     * full pack. Their url/dest/name/size arrays ride in the same input as the
+     * full-pack id; absent or empty means nothing extra to fetch.
+     */
+    private suspend fun downloadExtraAssets(packName: String) {
+        val urls = inputData.getStringArray(KEY_URLS) ?: return
+        if (urls.isEmpty()) return
+        val destinations = inputData.getStringArray(KEY_DESTS) ?: return
+        val names = inputData.getStringArray(KEY_NAMES) ?: emptyArray()
+        val sizes = inputData.getLongArray(KEY_SIZES) ?: LongArray(urls.size)
+        val totalBytes = sizes.sum().coerceAtLeast(1)
+        var doneBytes = 0L
+        urls.indices.forEach { index ->
+            val name = names.getOrElse(index) { "" }
+            setProgress(
+                workDataOf(
+                    PROGRESS_FRACTION to doneBytes.toFloat() / totalBytes,
+                    PROGRESS_MESSAGE to name,
+                )
+            )
+            runCatching {
+                setForeground(foregroundInfo(packName, (doneBytes * 100 / totalBytes).toInt()))
+            }
+            Downloads.download(urls[index], File(destinations[index]))
+            doneBytes += sizes.getOrElse(index) { 0L }
         }
     }
 

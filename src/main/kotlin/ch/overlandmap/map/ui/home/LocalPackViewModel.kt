@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.billing.PurchaseOutcome
 import ch.overlandmap.map.data.PackAssetKind
+import ch.overlandmap.map.model.Asset
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Sidebar
@@ -24,6 +25,10 @@ data class LocalPackState(
     val pack: TrackPack? = null,
     val itineraries: List<Itinerary> = emptyList(),
     val sidebars: List<Sidebar> = emptyList(),
+    /** Online map assets, resolved for the "download the full pack" dialog. */
+    val assets: Map<PackAssetKind, Asset> = emptyMap(),
+    /** The full purchased-pack zip, the mandatory item of that dialog. */
+    val fullPackAsset: Asset? = null,
 )
 
 /** Outcome of the menu's "check for update", shown as a snackbar. */
@@ -121,12 +126,32 @@ class LocalPackViewModel(
                 itineraries = library.itinerariesOf(packId).sortedForGrid(),
                 sidebars = library.sidebars(packId),
             )
-            // A free sample offers to buy the full pack, so resolve its price.
+            // A free sample offers to buy/download the full pack, so resolve its
+            // price and the online map assets for the download dialog.
             if (pack?.isFreeSample == true) {
                 pack.productId?.let { app.billingManager.loadProducts(listOf(it)) }
+                val online = runCatching { shop.trackPack(packId) }.getOrNull()
+                if (online != null) {
+                    state.value = state.value.copy(
+                        assets = runCatching { fetchAssets(online) }.getOrDefault(emptyMap()),
+                        fullPackAsset = online.trackPackZip?.let {
+                            runCatching { shop.asset(it) }.getOrNull()
+                        },
+                    )
+                }
             }
         }
     }
+
+    /** Resolves the online pack's map asset references into Asset documents. */
+    private suspend fun fetchAssets(pack: TrackPack): Map<PackAssetKind, Asset> =
+        listOf(
+            PackAssetKind.OFFLINE_MAP to pack.pmtilesMap,
+            PackAssetKind.HILLSHADE to pack.hillshade,
+            PackAssetKind.CONTOUR to pack.contour,
+        ).mapNotNull { (kind, assetId) ->
+            assetId?.let { shop.asset(it) }?.let { kind to it }
+        }.toMap()
 
     /** Starts the Play purchase of the full pack; requires a signed-in user. */
     fun buy(activity: Activity) {
@@ -143,6 +168,16 @@ class LocalPackViewModel(
     fun downloadPack() {
         val pack = state.value.pack ?: return
         app.packDownloadManager.startFullPack(packId, pack.name)
+    }
+
+    /** Downloads the full purchased pack together with the chosen offline maps. */
+    fun downloadFullPack(kinds: Set<PackAssetKind>) {
+        val pack = state.value.pack ?: return
+        val maps = state.value.assets.filterKeys { it in kinds }
+        viewModelScope.launch {
+            library.savePackAssets(packId, state.value.assets)
+            app.packDownloadManager.startFullPack(packId, pack.name, maps)
+        }
     }
 
     /** Deletes the pack's database rows and downloaded photos. */

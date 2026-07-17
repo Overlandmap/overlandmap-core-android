@@ -96,14 +96,36 @@ class PackDownloadManager(
      * `downloadTrackPackUrl` cloud function for the zip's temporary URL and
      * installs it. No-op when this pack is already downloading.
      */
-    fun startFullPack(packId: String, packName: String) {
+    fun startFullPack(
+        packId: String,
+        packName: String,
+        mapSelection: Map<PackAssetKind, Asset> = emptyMap(),
+    ) {
         if (isDownloading(packId)) return
+        // The full pack's itinerary zip is fetched by the worker via a signed
+        // URL; any optional maps the user chose ride along as an extra list the
+        // worker downloads after the zip (the free-sample kind never applies).
+        val urls = mutableListOf<String>()
+        val destinations = mutableListOf<String>()
+        val names = mutableListOf<String>()
+        val sizes = mutableListOf<Long>()
+        mapSelection.forEach { (kind, asset) ->
+            val url = asset.url ?: return@forEach
+            urls += url
+            destinations += mapFile(packId, kind, asset).path
+            names += asset.name
+            sizes += asset.fileSizeBytes
+        }
         setProgress(packId, PackDownloadProgress())
         val request = OneTimeWorkRequestBuilder<PackDownloadWorker>()
             .setInputData(
                 workDataOf(
                     PackDownloadWorker.KEY_PACK_NAME to packName,
                     PackDownloadWorker.KEY_FULL_PACK_ID to packId,
+                    PackDownloadWorker.KEY_URLS to urls.toTypedArray(),
+                    PackDownloadWorker.KEY_DESTS to destinations.toTypedArray(),
+                    PackDownloadWorker.KEY_NAMES to names.toTypedArray(),
+                    PackDownloadWorker.KEY_SIZES to sizes.toLongArray(),
                 )
             )
             .setConstraints(
