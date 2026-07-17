@@ -44,4 +44,39 @@ object MapStyles {
         } else {
             AppConfig.GLOBAL_STYLE_URL
         }
+
+    private const val LIGHT_STYLE_PATH = "styles/simplified.json"
+
+    /**
+     * The style URL for the itinerary map's [options]. Offline styles carry
+     * their hillshade/contour toggles as query params (read by the server) and
+     * fall back to the online base map until the local pieces are ready; Mapbox
+     * and satellite styles are `mapbox://` URLs, falling back to the offline
+     * detailed style when no Mapbox token is available.
+     */
+    fun resolve(context: Context, options: MapStyleOptions, hasMapboxToken: Boolean): String =
+        when (options.base) {
+            BaseMapStyle.OFFLINE_LIGHT -> offlineStyle(context, LIGHT_STYLE_PATH, options)
+            BaseMapStyle.OFFLINE_DETAILED -> offlineStyle(context, OFFLINE_STYLE_PATH, options)
+            BaseMapStyle.MAPBOX ->
+                if (hasMapboxToken) options.mapboxKind.styleUrl
+                else offlineStyle(context, OFFLINE_STYLE_PATH, options)
+            BaseMapStyle.SATELLITE ->
+                if (hasMapboxToken) {
+                    if (options.satelliteRoads) MapStyleOptions.SATELLITE_WITH_ROADS
+                    else MapStyleOptions.SATELLITE_NO_ROADS
+                } else {
+                    offlineStyle(context, OFFLINE_STYLE_PATH, options)
+                }
+        }
+
+    private fun offlineStyle(context: Context, path: String, options: MapStyleOptions): String =
+        if (LocalTileServer.hasPlanet() && StyleAssetsManager(context).ready()) {
+            "${LocalTileServer.baseUrl}/$path" +
+                "?hillshade=${bit(options.hillshade)}&contour=${bit(options.contour)}"
+        } else {
+            AppConfig.GLOBAL_STYLE_URL
+        }
+
+    private fun bit(value: Boolean) = if (value) 1 else 0
 }

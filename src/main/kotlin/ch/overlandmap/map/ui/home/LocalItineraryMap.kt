@@ -2,16 +2,25 @@ package ch.overlandmap.map.ui.home
 
 import android.content.Context
 import android.graphics.RectF
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.map.MapLibreMapView
 import ch.overlandmap.map.map.MapStyles
 import ch.overlandmap.map.map.boundsOf
@@ -19,6 +28,7 @@ import ch.overlandmap.map.map.ensureTracksLayer
 import ch.overlandmap.map.model.ItineraryStep
 import ch.overlandmap.map.model.Track
 import ch.overlandmap.map.model.Waypoint
+import kotlinx.coroutines.launch
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -106,32 +116,54 @@ fun LocalItineraryMap(
 ) {
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     val context = LocalContext.current
-
-    MapLibreMapView(
-        modifier = modifier,
-        styleUrl = MapStyles.globalStyleUrl(context),
-        onMapReady = onMapReady,
-        onStyleLoaded = { map, style ->
-            ensureTracksLayer(style)
-            style.getLayerAs<LineLayer>(STYLE_TRACKS_LAYER)?.apply {
-                setFilter(eq(get("trackPackId"), literal(trackPackId)))
-                // Unselected itineraries: thin blue, overriding the style's
-                // zoom-interpolated width. Round joins/caps to smooth corners.
-                setProperties(
-                    lineColor("#0000FF"),
-                    lineWidth(2f),
-                    lineJoin(LINE_JOIN_ROUND),
-                    lineCap(LINE_CAP_ROUND),
-                )
-            }
-            addItineraryLayer(style, tracks)
-            addWaypointLayer(context, style, waypoints)
-            addStepLayers(style, steps)
-            installTapHandler(map, onTapped)
-            fitToContent(map, tracks, steps)
-            loadedStyle = style
-        },
+    val app = context.applicationContext as OverlandApp
+    val scope = rememberCoroutineScope()
+    val styleOptions by app.userPreferences.mapStyle.collectAsState(
+        initial = app.userPreferences.mapStyleNow(),
     )
+    val hasMapboxToken = app.mapboxTokenManager.cachedTokenNow() != null
+    val styleUrl = remember(styleOptions, hasMapboxToken) {
+        MapStyles.resolve(context, styleOptions, hasMapboxToken)
+    }
+    // Fit the camera to the itinerary only on first load, not on style switches.
+    var fitted by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        MapLibreMapView(
+            modifier = Modifier.fillMaxSize(),
+            styleUrl = styleUrl,
+            onMapReady = onMapReady,
+            onStyleLoaded = { map, style ->
+                ensureTracksLayer(style)
+                style.getLayerAs<LineLayer>(STYLE_TRACKS_LAYER)?.apply {
+                    setFilter(eq(get("trackPackId"), literal(trackPackId)))
+                    // Unselected itineraries: thin blue, overriding the style's
+                    // zoom-interpolated width. Round joins/caps to smooth corners.
+                    setProperties(
+                        lineColor("#0000FF"),
+                        lineWidth(2f),
+                        lineJoin(LINE_JOIN_ROUND),
+                        lineCap(LINE_CAP_ROUND),
+                    )
+                }
+                addItineraryLayer(style, tracks)
+                addWaypointLayer(context, style, waypoints)
+                addStepLayers(style, steps)
+                installTapHandler(map, onTapped)
+                if (!fitted) {
+                    fitToContent(map, tracks, steps)
+                    fitted = true
+                }
+                loadedStyle = style
+            },
+        )
+        MapStyleMenu(
+            options = styleOptions,
+            hasMapboxToken = hasMapboxToken,
+            onChange = { scope.launch { app.userPreferences.setMapStyle(it) } },
+            modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp),
+        )
+    }
 
     // Swapping the paired layers' filters moves the inverted circle.
     LaunchedEffect(selectedStepId, loadedStyle) {

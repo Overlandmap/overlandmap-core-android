@@ -26,7 +26,13 @@ object OfflineStyle {
 
     private val FILL_TYPES = setOf("fill", "fill-extrusion")
 
-    fun transform(styleJson: String, offlineHillshade: Boolean, contour: Boolean): String {
+    fun transform(
+        styleJson: String,
+        showHillshade: Boolean,
+        showContour: Boolean,
+        hasOfflineHillshade: Boolean,
+        hasContour: Boolean,
+    ): String {
         val root = JSONObject(styleJson)
         val sources = root.getJSONObject("sources")
         val layers = root.getJSONArray("layers")
@@ -62,33 +68,38 @@ object OfflineStyle {
             .put("paint", JSONObject().put("fill-color", "rgb(239,239,239)"))
 
         val hillshade = ArrayList<JSONObject>()
-        when {
-            // Pre-rendered raster hillshade downloaded with the pack.
-            offlineHillshade -> {
-                sources.put(
-                    "hillshadeRaster",
-                    JSONObject()
-                        .put("type", "raster")
-                        .put("tiles", JSONArray().put("$BASE_URL/tiles/hillshade/{z}/{x}/{y}.webp"))
-                        .put("tileSize", 256)
-                        .put("minzoom", 7)
-                        // Pre-rendered hillshade stops at z11; overzoom above.
-                        .put("maxzoom", 11),
-                )
-                hillshade.add(
-                    JSONObject()
-                        .put("id", "hillshade")
-                        .put("type", "raster")
-                        .put("source", "hillshadeRaster")
-                        .put("paint", JSONObject().put("raster-opacity", 0.5)),
-                )
+        if (showHillshade) {
+            when {
+                // Pre-rendered raster hillshade downloaded with the pack.
+                hasOfflineHillshade -> {
+                    sources.put(
+                        "hillshadeRaster",
+                        JSONObject()
+                            .put("type", "raster")
+                            .put(
+                                "tiles",
+                                JSONArray().put("$BASE_URL/tiles/hillshade/{z}/{x}/{y}.webp"),
+                            )
+                            .put("tileSize", 256)
+                            .put("minzoom", 7)
+                            // Pre-rendered hillshade stops at z11; overzoom above.
+                            .put("maxzoom", 11),
+                    )
+                    hillshade.add(
+                        JSONObject()
+                            .put("id", "hillshade")
+                            .put("type", "raster")
+                            .put("source", "hillshadeRaster")
+                            .put("paint", JSONObject().put("raster-opacity", 0.5)),
+                    )
+                }
+                // Fall back to the online elevation-derived hillshade.
+                onlineHillshade != null -> hillshade.add(onlineHillshade)
             }
-            // Fall back to the online elevation-derived hillshade.
-            onlineHillshade != null -> hillshade.add(onlineHillshade)
         }
 
         val contours = ArrayList<JSONObject>()
-        if (contour) {
+        if (showContour && hasContour) {
             contours.add(contourLine("contour_minor", "c100", "rgba(120,90,60,0.35)", 0.7, 12))
             contours.add(contourLine("contour_index", "c500", "rgba(120,90,60,0.6)", 1.1, 11))
             contours.add(contourLabel())

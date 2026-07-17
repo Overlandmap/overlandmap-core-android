@@ -12,6 +12,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import org.maplibre.android.MapLibre
+import org.maplibre.android.WellKnownTileServer
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
@@ -60,17 +62,33 @@ fun MapLibreMapView(
         }
     }
 
+    // (Re)load the style whenever the map becomes ready or [styleUrl] changes,
+    // so the itinerary map's style menu can switch styles live. The style's
+    // language is re-applied and the caller re-adds its sources/layers each
+    // time via [onStyleLoaded].
+    val resolvedUrl = styleUrl ?: defaultStyleUrl(context)
+    LaunchedEffect(map, resolvedUrl) {
+        val readyMap = map ?: return@LaunchedEffect
+        // Ensure the (possibly later-fetched) Mapbox token is applied before a
+        // mapbox:// style loads, in case MapLibre was first initialised before
+        // the token had been cached.
+        if (resolvedUrl.startsWith("mapbox://")) {
+            (context.applicationContext as OverlandApp).mapboxTokenManager.cachedTokenNow()
+                ?.let { MapLibre.setApiKey(it) }
+        }
+        readyMap.setStyle(resolvedUrl) { style ->
+            applyStyleLanguage(style, resolvedUrl, preferences.mapLanguageNow())
+            onStyleLoaded(readyMap, style)
+        }
+    }
+
     Box(modifier = modifier) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-            factory = { viewContext ->
+            factory = {
                 mapView.getMapAsync { readyMap ->
                     map = readyMap
                     onMapReady(readyMap)
-                    readyMap.setStyle(styleUrl ?: defaultStyleUrl(viewContext)) { style ->
-                        applyMapLanguage(style, preferences.mapLanguageNow())
-                        onStyleLoaded(readyMap, style)
-                    }
                 }
                 mapView
             },
@@ -102,12 +120,27 @@ private fun ZoomButton(glyph: String, label: String, onClick: () -> Unit) {
 }
 
 private fun createMapView(context: Context): MapView {
-    MapLibre.getInstance(context)
+    // Initialise with the cached Mapbox token so mapbox:// styles resolve; the
+    // token is warmed at startup, so it is present on all but the very first
+    // run (offline styles need no token).
+    val token = (context.applicationContext as OverlandApp).userPreferences.mapboxTokenNow()?.first
+    if (token != null) {
+        MapLibre.getInstance(context, token, WellKnownTileServer.Mapbox)
+        MapLibre.setApiKey(token)
+    } else {
+        MapLibre.getInstance(context)
+    }
     return MapView(context)
 }
 
 private fun defaultStyleUrl(context: Context): String =
     MapStyles.styleUrl(java.io.File(context.filesDir, "assets"))
+
+/** Localizes labels using the schema of whichever style (offline vs Mapbox). */
+private fun applyStyleLanguage(style: Style, styleUrl: String, language: String) {
+    if (styleUrl.startsWith("mapbox://")) applyMapboxLanguage(style, language)
+    else applyMapLanguage(style, language)
+}
 
 /** Bounds helper for fitting a map around min/max coordinates. */
 fun boundsOf(latMin: Double, latMax: Double, lonMin: Double, lonMax: Double): LatLngBounds =

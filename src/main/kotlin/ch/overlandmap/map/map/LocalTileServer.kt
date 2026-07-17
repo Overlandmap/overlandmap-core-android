@@ -29,8 +29,9 @@ object LocalTileServer : Runnable {
     /** The port styles are authored against; rewritten to [port] when served. */
     private const val AUTHORED_BASE_URL = "http://localhost:8000"
 
-    /** The offline style rewritten by [OfflineStyle] to render the pack tiles. */
+    /** The offline styles rewritten by [OfflineStyle] to render the pack tiles. */
     private const val OFFLINE_STYLE_PATH = "styles/detailed.json"
+    private const val LIGHT_STYLE_PATH = "styles/simplified.json"
 
     private lateinit var assetsDirectory: File
     private var registry: TileArchiveRegistry? = null
@@ -125,7 +126,10 @@ object LocalTileServer : Runnable {
         }
     }
 
-    private fun serve(path: String): ByteArray? {
+    private fun serve(fullPath: String): ByteArray? {
+        // The offline style URL carries the hillshade/contour toggles as a query.
+        val path = fullPath.substringBefore('?')
+        val query = fullPath.substringAfter('?', "")
         val tileMatch = Regex("/tiles/([^/]+)/(\\d+)/(\\d+)/(\\d+)\\.(pbf|mvt|webp|png)").matchEntire(path)
         if (tileMatch != null) {
             val (source, z, x, y, extension) = tileMatch.destructured
@@ -145,14 +149,22 @@ object LocalTileServer : Runnable {
         val bytes = staticFile(path) ?: return null
         if (!path.endsWith(".json")) return bytes
         var json = bytes.toString(Charsets.UTF_8)
-        // The offline style ships rendering only the world `planet` source; it
-        // is rewritten so the pack's downloaded detail/contour/hillshade tiles
-        // are actually shown (see [OfflineStyle]).
-        if (path.trimStart('/') == OFFLINE_STYLE_PATH) {
+        // The offline styles ship rendering only the world `planet` source; they
+        // are rewritten so the pack's downloaded detail/contour/hillshade tiles
+        // are actually shown, honouring the ?hillshade=&contour= toggles (see
+        // [OfflineStyle]).
+        val relative = path.trimStart('/')
+        if (relative == OFFLINE_STYLE_PATH || relative == LIGHT_STYLE_PATH) {
+            val params = query.split('&').mapNotNull {
+                val eq = it.indexOf('=')
+                if (eq < 0) null else it.substring(0, eq) to it.substring(eq + 1)
+            }.toMap()
             json = OfflineStyle.transform(
                 json,
-                offlineHillshade = registry?.hasHillshade() == true,
-                contour = registry?.hasContour() == true,
+                showHillshade = params["hillshade"] != "0",
+                showContour = params["contour"] != "0",
+                hasOfflineHillshade = registry?.hasHillshade() == true,
+                hasContour = registry?.hasContour() == true,
             )
         }
         // Styles are authored against port 8000; the server may have bound

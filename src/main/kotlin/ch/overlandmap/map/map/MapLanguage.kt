@@ -35,6 +35,29 @@ fun applyMapLanguage(style: Style, language: String) {
     Log.d("MapLanguage", "Labels in '$language' on $replaced layers")
 }
 
+/**
+ * Applies the map-language preference to a Mapbox (mapbox://) style. Mapbox
+ * tiles name their fields `name_en`, `name_fr`, … (not the `name:xx` of the
+ * offline planet tiles), and their symbol layers already carry an expression
+ * text-field, so any symbol layer referencing a name is re-pointed at the
+ * chosen language. MapLibre has no built-in localizeLabels, so this stands in
+ * for it.
+ */
+fun applyMapboxLanguage(style: Style, language: String) {
+    if (language == UserPreferences.MAP_LANGUAGE_NATIVE) return
+    val name: Expression = coalesce(get("name_$language"), get("name_en"), get("name"))
+    style.layers.filterIsInstance<SymbolLayer>().forEach { layer ->
+        val raw = try {
+            layer.textField.value
+        } catch (_: Exception) {
+            return@forEach
+        }
+        if (raw?.toString()?.contains("name") == true) {
+            layer.setProperties(textField(name))
+        }
+    }
+}
+
 private fun usesNameToken(layer: SymbolLayer): Boolean {
     // Read the raw value: the getter's generic type is a lie for layers whose
     // text-field is an expression (a gson JsonArray at runtime).
