@@ -86,6 +86,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -104,6 +105,7 @@ import ch.overlandmap.map.map.Flyover
 import ch.overlandmap.map.map.MapStyleOptions
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.data.GpsFormat
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryDifficulty
@@ -196,6 +198,7 @@ fun ItineraryScreen(
     val selectedStepIndex by viewModel.selectedStepIndex.collectAsState()
     val useMiles by viewModel.useMiles.collectAsState()
     val useFeet by viewModel.useFeet.collectAsState()
+    val gpsFormat by viewModel.gpsFormat.collectAsState()
     val lang = currentLanguage()
     // Itinerary state to reapply once, only when restored at cold start.
     val restore = remember { RestoreState.consume(itineraryId) }
@@ -502,7 +505,7 @@ fun ItineraryScreen(
                             onAddWaypoint = { showAddWaypoint = true },
                         )
                         1 -> StepsTab(
-                            state, selectedStepIndex, lang, useMiles, useFeet,
+                            state, selectedStepIndex, lang, useMiles, useFeet, gpsFormat,
                             onLink, viewModel::selectStep,
                         )
                         2 -> PhotosTab(state)
@@ -830,6 +833,7 @@ private fun StepsTab(
     lang: String,
     useMiles: Boolean,
     useFeet: Boolean,
+    gpsFormat: GpsFormat,
     onLink: (MarkupLink, String) -> Unit,
     onSelectStep: (Int) -> Unit,
 ) {
@@ -863,7 +867,7 @@ private fun StepsTab(
             val step = steps[page]
             var openPhoto by remember(page) { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                StepHeader(step, lang, useMiles, useFeet)
+                StepHeader(step, lang, useMiles, useFeet, gpsFormat)
                 step.description(lang)?.let {
                     MarkupText(
                         it,
@@ -929,11 +933,11 @@ private fun StepsTab(
     }
 }
 
-/** Decimal-degree coordinates of a step, or null when it has no position. */
-private fun ItineraryStep.coordText(): String? {
+/** Coordinates of a step formatted according to the user's preference, or null. */
+private fun ItineraryStep.coordText(gpsFormat: GpsFormat): String? {
     val la = lat ?: return null
     val lo = lon ?: return null
-    return "%.5f, %.5f".format(la, lo)
+    return UserPreferences.formatCoordinates(la, lo, gpsFormat)
 }
 
 /**
@@ -943,13 +947,13 @@ private fun ItineraryStep.coordText(): String? {
  * right (actions TBD).
  */
 @Composable
-private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, useFeet: Boolean) {
+private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, useFeet: Boolean, gpsFormat: GpsFormat) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val coords = step.coordText()
+    val coords = step.coordText(gpsFormat)
     val subtitle = listOfNotNull(
         coords,
-        step.ele?.let { UserPreferences.formatElevationM(it, useFeet) },
+        step.ele?.let { "alt. ${UserPreferences.formatElevationM(it, useFeet)}" },
     ).joinToString("  ·  ")
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -984,24 +988,27 @@ private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, use
                     )
                 }
             }
+            val distText = if (useMiles) {
+                "${(step.distanceKm * 0.621371).toInt()} mi"
+            } else {
+                "${step.distanceKm.toInt()} km"
+            }
             Text(
-                UserPreferences.formatDistanceKm(step.distanceKm, useMiles),
+                distText,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PoiIcon(Icons.Filled.LocalGasStation, step.hasFuel)
             PoiIcon(Icons.Filled.Hotel, step.hasHotel)
-            PoiIcon(Icons.Filled.LocalPolice, step.isPoliceCheckpoint)
+            PoiIcon(ImageVector.vectorResource(R.drawable.ic_boom_gate), step.isPoliceCheckpoint)
             Spacer(Modifier.weight(1f))
-            // Meanings/actions TBD.
-            IconButton(onClick = {}) {
-                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = GREEN)
-            }
+            // Check-in button with badge and dialog.
+            CheckInButton(step)
             IconButton(onClick = {}) {
                 Icon(Icons.Filled.Help, contentDescription = null, tint = RED)
             }
@@ -1015,15 +1022,20 @@ private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, use
     }
 }
 
-/** A point-of-interest flag icon: black when set, gray otherwise, no background. */
+/** A point-of-interest flag icon: blue when set, light gray otherwise. */
 @Composable
 private fun PoiIcon(icon: ImageVector, active: Boolean) {
-    Icon(
-        icon,
-        contentDescription = null,
-        tint = if (active) Color.Black else Color.Gray,
-        modifier = Modifier.padding(end = 12.dp).size(24.dp),
-    )
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(28.dp).padding(end = 6.dp),
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (active) MaterialTheme.colorScheme.primary else Color.LightGray,
+            modifier = Modifier.size(22.dp),
+        )
+    }
 }
 
 @Composable

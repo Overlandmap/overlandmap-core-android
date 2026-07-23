@@ -14,9 +14,13 @@ class HomeViewModel(app: OverlandApp) : ViewModel() {
 
     private val library = app.libraryRepository
 
-    /** Downloaded track packs (the "Local Library" section). */
-    val packs: StateFlow<List<TrackPack>> = library.observeTrackPacks()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /**
+     * Downloaded track packs (the "Local Library" section).
+     * `null` means the initial load hasn't completed yet; an empty list means
+     * the library is genuinely empty.
+     */
+    val packs: StateFlow<List<TrackPack>?> = library.observeTrackPacks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The five most recently opened itineraries (the "Last used" section). */
     val lastUsed: StateFlow<List<Itinerary>> = library.observeLastOpened(5)

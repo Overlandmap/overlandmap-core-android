@@ -17,6 +17,10 @@
     <string name="update_check_failed">Kan niet controleren op updates</string>
     <string name="delete">Verwijderen</string>
     <string name="cancel">Annuleren</string>
+    <string name="confirm">Bevestigen</string>
+    <string name="check_in">Inchecken</string>
+    <string name="check_ins_title">Check-ins</string>
+    <string name="check_in_hint">Voeg hier een bericht toe indien nodig</string>
     <string name="close">Sluiten</string>
     <string name="retry">Opnieuw proberen</string>
     <string name="zoom_in">Inzoomen</string>
@@ -97,6 +101,7 @@
     <string name="settings_units">Eenheden</string>
     <string name="units_use_miles">Afstanden in mijlen</string>
     <string name="units_use_feet">Hoogtes in voet</string>
+    <string name="gps_format">Coördinatenformaat</string>
     <string name="last_used">Laatst gebruikt</string>
     <string name="local_library">Lokale bibliotheek</string>
     <string name="sidebars">Artikelen</string>

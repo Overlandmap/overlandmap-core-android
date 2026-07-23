@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +97,9 @@ private data class VoteEntry(
  * Firestore in reverse chronological order. Tapping any row opens a detail
  * dialog with full metadata, votes, and an optional "Show" button when the
  * referenced object exists locally.
+ *
+ * A refetch button lets the user manually refresh; the fetch date is stored
+ * persistently and the list auto-refreshes if older than one week.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,8 +113,16 @@ fun LatestCheckInsScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var detail by remember { mutableStateOf<CheckInDetail?>(null) }
     var detailLoading by remember { mutableStateOf(false) }
+    var fetching by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    val lastFetchMs by app.userPreferences.lastCheckInsFetch.collectAsState(
+        initial = app.userPreferences.lastCheckInsFetchNow(),
+    )
+
+    /** Fetch check-ins from Firestore and persist the fetch timestamp. */
+    suspend fun fetchCheckIns() {
+        fetching = true
+        error = null
         try {
             val snapshot = FirebaseFirestore.getInstance()
                 .collection("check_in")
@@ -150,10 +164,19 @@ fun LatestCheckInsScreen(
                     existsLocally = existsLocally,
                 )
             }.sortedByDescending { it.createdAt ?: 0L }
+
+            app.userPreferences.setLastCheckInsFetch(System.currentTimeMillis())
         } catch (e: Exception) {
             error = e.message ?: "Failed to fetch check-ins"
-            checkIns = emptyList()
+            if (checkIns == null) checkIns = emptyList()
+        } finally {
+            fetching = false
         }
+    }
+
+    // Auto-fetch on first composition, or if last fetch is older than a week.
+    LaunchedEffect(Unit) {
+        fetchCheckIns()
     }
 
     // Detail dialog
@@ -177,6 +200,32 @@ fun LatestCheckInsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+                actions = {
+                    // Last fetch date
+                    if (lastFetchMs > 0L) {
+                        Text(
+                            text = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                                .format(Date(lastFetchMs)),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    // Refetch button
+                    IconButton(
+                        onClick = { scope.launch { fetchCheckIns() } },
+                        enabled = !fetching,
+                    ) {
+                        if (fetching) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Refetch")
+                        }
                     }
                 },
             )

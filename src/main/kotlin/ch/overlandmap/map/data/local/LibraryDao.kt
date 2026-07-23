@@ -59,6 +59,10 @@ interface LibraryDao {
     @Query("SELECT documentId FROM track_pack WHERE isFreeSample = 0")
     suspend fun purchasedPackIds(): List<String>
 
+    /** IDs of all locally downloaded packs. */
+    @Query("SELECT documentId FROM track_pack")
+    suspend fun allTrackPackIds(): List<String>
+
     @Query("SELECT * FROM itinerary WHERE documentId = :id")
     suspend fun _itinerary(id: String): ItineraryRow?
     suspend fun itinerary(id: String): Itinerary? = _itinerary(id)?.toModel()

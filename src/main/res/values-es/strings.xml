@@ -17,6 +17,10 @@
     <string name="update_check_failed">No se pudo comprobar las actualizaciones</string>
     <string name="delete">Eliminar</string>
     <string name="cancel">Cancelar</string>
+    <string name="confirm">Confirmar</string>
+    <string name="check_in">Registrarse</string>
+    <string name="check_ins_title">Registros</string>
+    <string name="check_in_hint">Añadir un mensaje aquí si es necesario</string>
     <string name="close">Cerrar</string>
     <string name="retry">Reintentar</string>
     <string name="zoom_in">Acercar</string>
@@ -97,6 +101,7 @@
     <string name="settings_units">Unidades</string>
     <string name="units_use_miles">Distancias en millas</string>
     <string name="units_use_feet">Altitudes en pies</string>
+    <string name="gps_format">Formato de coordenadas</string>
     <string name="last_used">Usados recientemente</string>
     <string name="local_library">Biblioteca local</string>
     <string name="sidebars">Artículos</string>

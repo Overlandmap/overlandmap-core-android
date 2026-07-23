@@ -47,6 +47,9 @@ class LibraryRepository(
 
     suspend fun trackPack(id: String) = dao.trackPack(id)
 
+    /** All locally downloaded track pack IDs. */
+    suspend fun allTrackPackIds(): List<String> = dao.allTrackPackIds()
+
     /** The pack's asset catalogue (itinerary zip, offline map, hillshade, contour). */
     suspend fun packAssets(trackPackId: String) = dao.packAssets(trackPackId)
 

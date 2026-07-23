@@ -18,9 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackRow::class, WaypointRow::class, SidebarRow::class, CommentRow::class,
         PackAssetRow::class, CountryRow::class, CountryBorderRow::class, BorderPostRow::class,
         ContributedWaypointRow::class, CheckInRow::class, VoteRow::class,
-        ClimateRow::class, DiscussionRow::class,
+        ClimateRow::class, DiscussionRow::class, SocialSyncRow::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

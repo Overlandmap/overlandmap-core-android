@@ -41,6 +41,8 @@ class UserPreferences(private val context: Context) {
     private val lastLatKey = doublePreferencesKey("last_lat")
     private val lastLonKey = doublePreferencesKey("last_lon")
     private val debugShowZoomKey = booleanPreferencesKey("debug_show_zoom")
+    private val lastCheckInsFetchKey = longPreferencesKey("last_check_ins_fetch")
+    private val gpsFormatKey = stringPreferencesKey("gps_format")
 
     val useMiles: Flow<Boolean> = context.dataStore.data.map { it[useMilesKey] ?: false }
     val useFeet: Flow<Boolean> = context.dataStore.data.map { it[useFeetKey] ?: false }
@@ -52,6 +54,29 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setDebugShowZoom(value: Boolean) {
         context.dataStore.edit { it[debugShowZoomKey] = value }
+    }
+
+    /** Epoch millis when check-ins were last fetched from Firestore (0 = never). */
+    val lastCheckInsFetch: Flow<Long> =
+        context.dataStore.data.map { it[lastCheckInsFetchKey] ?: 0L }
+
+    fun lastCheckInsFetchNow(): Long = runBlocking { lastCheckInsFetch.first() }
+
+    suspend fun setLastCheckInsFetch(epochMillis: Long) {
+        context.dataStore.edit { it[lastCheckInsFetchKey] = epochMillis }
+    }
+
+    /** GPS coordinate display format: DD (decimal degrees), DDMM, or DDMMSS. */
+    val gpsFormat: Flow<GpsFormat> =
+        context.dataStore.data.map { p ->
+            p[gpsFormatKey]?.let { runCatching { GpsFormat.valueOf(it) }.getOrNull() }
+                ?: GpsFormat.DD
+        }
+
+    fun gpsFormatNow(): GpsFormat = runBlocking { gpsFormat.first() }
+
+    suspend fun setGpsFormat(format: GpsFormat) {
+        context.dataStore.edit { it[gpsFormatKey] = format.name }
     }
 
     /** The route of the screen last shown, restored after the app is killed. */
@@ -166,5 +191,40 @@ class UserPreferences(private val context: Context) {
 
         fun formatElevationM(meters: Int, useFeet: Boolean): String =
             if (useFeet) "${(meters * 3.28084).toInt()} ft" else "$meters m"
+
+        /** Format coordinates according to the chosen GPS format. */
+        fun formatCoordinates(lat: Double, lon: Double, format: GpsFormat): String =
+            when (format) {
+                GpsFormat.DD -> "%.5f, %.5f".format(lat, lon)
+                GpsFormat.DDMM -> "${ddToddmm(lat, true)}, ${ddToddmm(lon, false)}"
+                GpsFormat.DDMMSS -> "${ddToddmmss(lat, true)}, ${ddToddmmss(lon, false)}"
+            }
+
+        private fun ddToddmm(decimal: Double, isLat: Boolean): String {
+            val abs = Math.abs(decimal)
+            val deg = abs.toInt()
+            val min = (abs - deg) * 60
+            val suffix = if (isLat) { if (decimal >= 0) "N" else "S" }
+            else { if (decimal >= 0) "E" else "W" }
+            return "%d°%06.3f'%s".format(deg, min, suffix)
+        }
+
+        private fun ddToddmmss(decimal: Double, isLat: Boolean): String {
+            val abs = Math.abs(decimal)
+            val deg = abs.toInt()
+            val minFull = (abs - deg) * 60
+            val min = minFull.toInt()
+            val sec = (minFull - min) * 60
+            val suffix = if (isLat) { if (decimal >= 0) "N" else "S" }
+            else { if (decimal >= 0) "E" else "W" }
+            return "%d°%02d'%04.1f\"%s".format(deg, min, sec, suffix)
+        }
     }
+}
+
+/** GPS coordinate display formats. */
+enum class GpsFormat(val label: String) {
+    DD("DD (decimal)"),
+    DDMM("DD°MM.MMM'"),
+    DDMMSS("DD°MM'SS.S\""),
 }

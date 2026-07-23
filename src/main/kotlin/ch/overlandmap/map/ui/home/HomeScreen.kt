@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -65,7 +66,11 @@ fun HomeScreen(
                 Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search))
             }
         }
-        if (packs.isEmpty()) EmptyLibrary()
+        val packList = packs
+        if (packList == null) {
+            // Still loading from Room — show nothing to avoid "empty" flash.
+            Spacer(modifier = Modifier.weight(1f))
+        } else if (packList.isEmpty()) EmptyLibrary()
         else LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
             contentPadding = PaddingValues(8.dp),
@@ -91,7 +96,7 @@ fun HomeScreen(
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionTitle(stringResource(R.string.local_library))
         }
-        packs.forEach { pack ->
+        packList.forEach { pack ->
             item(key = "pack-${pack.documentId}") {
                 PhotoGridTile(
                     photoUrl = pack.titlePhotoUrl,

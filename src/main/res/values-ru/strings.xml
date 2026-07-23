@@ -17,6 +17,10 @@
     <string name="update_check_failed">Не удалось проверить обновления</string>
     <string name="delete">Удалить</string>
     <string name="cancel">Отмена</string>
+    <string name="confirm">Подтвердить</string>
+    <string name="check_in">Отметиться</string>
+    <string name="check_ins_title">Отметки</string>
+    <string name="check_in_hint">Добавьте сообщение здесь при необходимости</string>
     <string name="close">Закрыть</string>
     <string name="retry">Повторить</string>
     <string name="zoom_in">Приблизить</string>
@@ -97,6 +101,7 @@
     <string name="settings_units">Единицы измерения</string>
     <string name="units_use_miles">Расстояния в милях</string>
     <string name="units_use_feet">Высоты в футах</string>
+    <string name="gps_format">Формат координат</string>
     <string name="last_used">Недавно использованные</string>
     <string name="local_library">Локальная библиотека</string>
     <string name="sidebars">Статьи</string>

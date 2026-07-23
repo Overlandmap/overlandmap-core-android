@@ -10,6 +10,7 @@ import ch.overlandmap.map.data.PlanetMapManager
 import ch.overlandmap.map.data.SatelliteTileManager
 import ch.overlandmap.map.data.SearchRepository
 import ch.overlandmap.map.data.ShopRepository
+import ch.overlandmap.map.data.SocialRepository
 import ch.overlandmap.map.data.StyleAssetsManager
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.data.WorldRepository
@@ -37,6 +38,7 @@ class OverlandApp : Application() {
     val authRepository by lazy { AuthRepository() }
     val shopRepository by lazy { ShopRepository(authRepository) }
     val libraryRepository by lazy { LibraryRepository(database.libraryDao(), authRepository, ftsIndex) }
+    val socialRepository by lazy { SocialRepository(database.socialDao(), database.libraryDao(), authRepository) }
     val worldRepository by lazy { WorldRepository(database.worldDao(), authRepository, ftsIndex) }
     val searchRepository by lazy { SearchRepository(ftsIndex, libraryRepository) }
     val satelliteTileManager by lazy { SatelliteTileManager(this, appScope) }
@@ -79,6 +81,17 @@ class OverlandApp : Application() {
                     .await()
                 trackPackNames = docs.documents.associate { doc ->
                     doc.id to ((doc.data?.get("name") as? String) ?: doc.id)
+                }
+            }
+        }
+        // Sync social data (check-ins, votes, comments, contributed waypoints)
+        // for each locally downloaded pack if the cache is older than 24 hours.
+        appScope.launch {
+            runCatching {
+                authRepository.awaitUser()
+                val packs = libraryRepository.allTrackPackIds()
+                packs.forEach { packId ->
+                    runCatching { socialRepository.syncIfNeeded(packId) }
                 }
             }
         }

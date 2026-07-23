@@ -62,6 +62,7 @@ import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.isDebugBuild
+import ch.overlandmap.map.data.GpsFormat
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.ui.overlandApp
 import kotlinx.coroutines.launch
@@ -522,7 +523,7 @@ fun ProfileScreen(
     }
 }
 
-/** Units submenu: miles and feet switches. */
+/** Units submenu: miles and feet switches, GPS coordinate format. */
 @Composable
 fun UnitsScreen(
     onBack: () -> Unit,
@@ -530,6 +531,7 @@ fun UnitsScreen(
 ) {
     val useMiles by viewModel.useMiles.collectAsState()
     val useFeet by viewModel.useFeet.collectAsState()
+    val gpsFormat by viewModel.gpsFormat.collectAsState()
 
     SettingsSubScreen(title = stringResource(R.string.settings_units), onBack = onBack) {
         SwitchRow(
@@ -542,6 +544,19 @@ fun UnitsScreen(
             checked = useFeet,
             onChange = viewModel::setUseFeet,
         )
+
+        Text(
+            stringResource(R.string.gps_format),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+        )
+        GpsFormat.entries.forEach { format ->
+            GpsFormatRow(
+                label = format.label,
+                selected = format == gpsFormat,
+                onClick = { viewModel.setGpsFormat(format) },
+            )
+        }
     }
 }
 
@@ -584,4 +599,21 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
         Text(label, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChange)
     }
+}
+
+@Composable
+private fun GpsFormatRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+    ) {
+        Text(label, modifier = Modifier.weight(1f))
+        if (selected) {
+            Text("✓", color = MaterialTheme.colorScheme.primary)
+        }
+    }
+    HorizontalDivider()
 }

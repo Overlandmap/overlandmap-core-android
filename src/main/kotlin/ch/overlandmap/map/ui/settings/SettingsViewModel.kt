@@ -6,6 +6,7 @@ import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.overlandmap.map.OverlandApp
+import ch.overlandmap.map.data.GpsFormat
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.AppUser
 import ch.overlandmap.map.model.UserPurchase
@@ -49,6 +50,8 @@ class SettingsViewModel(private val app: OverlandApp) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val useFeet = preferences.useFeet
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val gpsFormat = preferences.gpsFormat
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GpsFormat.DD)
     val mapLanguage = preferences.mapLanguage
         .stateIn(
             viewModelScope,
@@ -103,6 +106,10 @@ class SettingsViewModel(private val app: OverlandApp) : ViewModel() {
 
     fun setUseFeet(value: Boolean) {
         viewModelScope.launch { preferences.setUseFeet(value) }
+    }
+
+    fun setGpsFormat(format: GpsFormat) {
+        viewModelScope.launch { preferences.setGpsFormat(format) }
     }
 
     fun setMapLanguage(code: String) {
