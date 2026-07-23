@@ -4,113 +4,53 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.TypeConverters
-import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import ch.overlandmap.map.model.BorderPost
-import ch.overlandmap.map.model.Comment
-import ch.overlandmap.map.model.Country
-import ch.overlandmap.map.model.CountryBorder
-import ch.overlandmap.map.model.Itinerary
-import ch.overlandmap.map.model.ItineraryStep
-import ch.overlandmap.map.model.PackAsset
-import ch.overlandmap.map.model.Sidebar
-import ch.overlandmap.map.model.Track
-import ch.overlandmap.map.model.TrackPack
-import ch.overlandmap.map.model.Waypoint
 
 /**
  * The offline-first SQLite database: downloaded track packs plus the cached
- * world data (countries, borders, border posts).
+ * world and social data. Every table keeps only the columns its queries need
+ * and stores the rest of each object in a `json` blob (see LibraryRows /
+ * WorldRows), so models can gain fields without a schema migration.
  */
 @Database(
     entities = [
-        TrackPack::class, Itinerary::class, ItineraryStep::class,
-        Track::class, Waypoint::class, Sidebar::class, Comment::class,
-        Country::class, CountryBorder::class, BorderPost::class, PackAsset::class,
+        TrackPackRow::class, ItineraryRow::class, ItineraryStepRow::class,
+        TrackRow::class, WaypointRow::class, SidebarRow::class, CommentRow::class,
+        PackAssetRow::class, CountryRow::class, CountryBorderRow::class, BorderPostRow::class,
+        ContributedWaypointRow::class, CheckInRow::class, VoteRow::class,
+        ClimateRow::class, DiscussionRow::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false,
 )
-@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
     abstract fun worldDao(): WorldDao
+    abstract fun socialDao(): SocialDao
 
     companion object {
         @Volatile
         private var instance: AppDatabase? = null
 
-        /** v6: the pack update check (zip asset reference, needs-update flag). */
-        private val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE track_pack ADD COLUMN trackPackZip TEXT")
-                db.execSQL("ALTER TABLE track_pack ADD COLUMN needsUpdate INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        /** v7: per-pack asset catalogue for the Downloads screen. */
-        private val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS pack_asset (" +
-                        "trackPackId TEXT NOT NULL, kind TEXT NOT NULL, assetId TEXT NOT NULL, " +
-                        "name TEXT NOT NULL, fileSizeBytes INTEGER NOT NULL, " +
-                        "PRIMARY KEY(trackPackId, kind))"
-                )
-            }
-        }
-
-        /** v8: the sidebar title-photo caption. */
-        private val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE sidebar ADD COLUMN titlePhotoCaption TEXT")
-            }
-        }
-
-        /** v9: per-step point-of-interest flags (fuel, hotel, police checkpoint). */
-        private val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE itinerary_step ADD COLUMN hasFuel INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE itinerary_step ADD COLUMN hasHotel INTEGER NOT NULL DEFAULT 0")
-                db.execSQL(
-                    "ALTER TABLE itinerary_step ADD COLUMN isPoliceCheckpoint " +
-                        "INTEGER NOT NULL DEFAULT 0"
-                )
-            }
-        }
-
-        /**
-         * v10: the remaining point-of-interest flags on steps, and the full set
-         * on waypoints (viewpoint, bivouac, border, embassy, mountain pass,
-         * bridge, water crossing, historical/religious site, hot spring).
-         */
-        private val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // Steps already have hasFuel/hasHotel/isPoliceCheckpoint (v9).
-                val stepFlags = listOf(
-                    "isViewpoint", "isBivouac", "isBorder", "isEmbassy", "isMountainPass",
-                    "isBridge", "isWaterCrossing", "isHistoricalSite", "isReligiousSite",
-                    "isHotSpring",
-                )
-                val waypointFlags = listOf("hasFuel", "hasHotel", "isPoliceCheckpoint") + stepFlags
-                stepFlags.forEach {
-                    db.execSQL("ALTER TABLE itinerary_step ADD COLUMN $it INTEGER NOT NULL DEFAULT 0")
-                }
-                waypointFlags.forEach {
-                    db.execSQL("ALTER TABLE waypoint ADD COLUMN $it INTEGER NOT NULL DEFAULT 0")
-                }
-            }
-        }
-
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, AppDatabase::class.java, "overlandmap.db")
-                    .addMigrations(
-                        MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
-                    )
+                    // The column+json schema is a clean break from the old
+                    // per-field columns; there is no upgrade path, so a stale
+                    // database is discarded and re-downloaded.
                     .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
+                    // The full-text index spans every type and language, so it
+                    // lives in raw FTS4 tables Room doesn't model; create them
+                    // with the database (and defensively on every open).
+                    .addCallback(object : RoomDatabase.Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) =
+                            FtsIndex.createTables(db)
+
+                        override fun onOpen(db: SupportSQLiteDatabase) =
+                            FtsIndex.createTables(db)
+                    })
                     .build()
                     .also { instance = it }
             }

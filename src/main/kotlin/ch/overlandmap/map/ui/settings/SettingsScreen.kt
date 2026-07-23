@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
@@ -45,6 +46,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,9 +59,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.AppConfig
+import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.isDebugBuild
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.ui.overlandApp
+import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import java.text.DateFormat
 import java.util.Date
@@ -77,10 +82,12 @@ fun SettingsScreen(
     onOpenLanguage: () -> Unit,
     onOpenUnits: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenDebug: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
 ) {
     val user by viewModel.user.collectAsState()
     var showSignOutDialog by remember { mutableStateOf(false) }
+    val debugBuild = isDebugBuild(LocalContext.current)
 
     Column(
         modifier = Modifier
@@ -173,6 +180,15 @@ fun SettingsScreen(
             onClick = onOpenDownloads,
         )
         HorizontalDivider()
+        // Debug tools — only in debuggable builds; absent from release.
+        if (debugBuild) {
+            SubmenuRow(
+                icon = Icons.Filled.BugReport,
+                label = stringResource(R.string.debug),
+                onClick = onOpenDebug,
+            )
+            HorizontalDivider()
+        }
     }
 
     if (showSignOutDialog) {
@@ -525,6 +541,36 @@ fun UnitsScreen(
             label = stringResource(R.string.units_use_feet),
             checked = useFeet,
             onChange = viewModel::setUseFeet,
+        )
+    }
+}
+
+/**
+ * Debug tools submenu (only reachable from a debuggable build). Currently a
+ * single toggle for the itinerary map's zoom-level overlay; add further debug
+ * switches here.
+ */
+@Composable
+fun DebugScreen(
+    onBack: () -> Unit,
+    onOpenLatestCheckIns: () -> Unit = {},
+) {
+    val app = LocalContext.current.applicationContext as OverlandApp
+    val scope = rememberCoroutineScope()
+    val showZoom by app.userPreferences.debugShowZoom.collectAsState(
+        initial = app.userPreferences.debugShowZoomNow(),
+    )
+    SettingsSubScreen(title = stringResource(R.string.debug), onBack = onBack) {
+        SwitchRow(
+            label = stringResource(R.string.debug_show_zoom),
+            checked = showZoom,
+            onChange = { scope.launch { app.userPreferences.setDebugShowZoom(it) } },
+        )
+        HorizontalDivider()
+        SubmenuRow(
+            icon = Icons.Filled.BugReport,
+            label = stringResource(R.string.debug_latest_check_ins),
+            onClick = onOpenLatestCheckIns,
         )
     }
 }

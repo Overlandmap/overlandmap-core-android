@@ -7,17 +7,22 @@ import ch.overlandmap.map.data.LibraryRepository
 import ch.overlandmap.map.data.MapboxTokenManager
 import ch.overlandmap.map.data.PackDownloadManager
 import ch.overlandmap.map.data.PlanetMapManager
+import ch.overlandmap.map.data.SatelliteTileManager
+import ch.overlandmap.map.data.SearchRepository
 import ch.overlandmap.map.data.ShopRepository
 import ch.overlandmap.map.data.StyleAssetsManager
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.data.WorldRepository
 import ch.overlandmap.map.data.local.AppDatabase
+import ch.overlandmap.map.data.local.FtsIndex
 import ch.overlandmap.map.map.LocalTileServer
 import com.google.firebase.FirebaseApp
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 /**
  * Application entry point and the app's (deliberately simple) dependency
@@ -28,15 +33,27 @@ class OverlandApp : Application() {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val database by lazy { AppDatabase.get(this) }
+    val ftsIndex by lazy { FtsIndex(database) }
     val authRepository by lazy { AuthRepository() }
     val shopRepository by lazy { ShopRepository(authRepository) }
-    val libraryRepository by lazy { LibraryRepository(database.libraryDao(), authRepository) }
-    val worldRepository by lazy { WorldRepository(database.worldDao(), authRepository) }
+    val libraryRepository by lazy { LibraryRepository(database.libraryDao(), authRepository, ftsIndex) }
+    val worldRepository by lazy { WorldRepository(database.worldDao(), authRepository, ftsIndex) }
+    val searchRepository by lazy { SearchRepository(ftsIndex, libraryRepository) }
+    val satelliteTileManager by lazy { SatelliteTileManager(this, appScope) }
     val userPreferences by lazy { UserPreferences(this) }
     val mapboxTokenManager by lazy { MapboxTokenManager(userPreferences) }
     val billingManager by lazy { BillingManager(this, appScope) }
     val packDownloadManager by lazy { PackDownloadManager(this, appScope, libraryRepository) }
     val planetMapManager by lazy { PlanetMapManager(this, appScope, shopRepository) }
+
+    /**
+     * Cached map of track pack document IDs to their display names, fetched
+     * from Firestore at startup. Used by debug tools to resolve pack names
+     * without repeated network calls.
+     */
+    @Volatile
+    var trackPackNames: Map<String, String> = emptyMap()
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -52,5 +69,18 @@ class OverlandApp : Application() {
         // Warm the Mapbox token so mapbox:// styles can load (cached, refreshed
         // when older than three months).
         appScope.launch { runCatching { mapboxTokenManager.validToken() } }
+        // Cache track pack names from Firestore for debug tools.
+        appScope.launch {
+            runCatching {
+                authRepository.awaitUser()
+                val docs = FirebaseFirestore.getInstance()
+                    .collection("track_pack")
+                    .get()
+                    .await()
+                trackPackNames = docs.documents.associate { doc ->
+                    doc.id to ((doc.data?.get("name") as? String) ?: doc.id)
+                }
+            }
+        }
     }
 }
