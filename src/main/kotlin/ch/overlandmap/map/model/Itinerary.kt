@@ -1,7 +1,5 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 import ch.overlandmap.map.AppConfig
 
 /** Ordinals match the Firestore difficulty codes (easy=0 … challenging=3). */
@@ -17,9 +15,8 @@ enum class ItineraryDifficulty(val raw: String) {
  * One itinerary of a track pack. Port of `models/itinerary.dart`. The first
  * entry of [trackIds] is the main track (name/length source).
  */
-@Entity(tableName = "itinerary")
 data class Itinerary(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val trackPackId: String,
     /** Stable slug carried by vector-tile features and deep links (not the doc ID). */
     val itineraryId: String = "",
@@ -27,6 +24,10 @@ data class Itinerary(
     val translatedName: Map<String, String>? = null,
     val description: String? = null,
     val translatedDesc: Map<String, String>? = null,
+    val roadConditions: String? = null,
+    val translatedRoadConditions: Map<String, String>? = null,
+    val highlights: String? = null,
+    val translatedHighlights: Map<String, String>? = null,
     val trackIds: List<String> = emptyList(),
     val lengthKM: Double = 0.0,
     val lengthDays: Double = 0.0,
@@ -66,6 +67,20 @@ data class Itinerary(
 
     fun description(lang: String): String? = localized(description, translatedDesc, lang)
 
+    fun roadConditions(lang: String): String? =
+        localized(roadConditions, translatedRoadConditions, lang)
+
+    fun highlights(lang: String): String? = localized(highlights, translatedHighlights, lang)
+
+    /**
+     * The text an itinerary contributes to the search index in [lang]: its
+     * description plus road conditions and highlights, so a search matches any
+     * of them.
+     */
+    fun indexableDescription(lang: String): String =
+        listOfNotNull(description(lang), roadConditions(lang), highlights(lang))
+            .joinToString("\n")
+
     companion object {
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Itinerary(
             documentId = documentId,
@@ -75,6 +90,10 @@ data class Itinerary(
             translatedName = FS.stringMap(data["translatedName"]),
             description = FS.str(data["description"]),
             translatedDesc = FS.stringMap(data["translatedDesc"]),
+            roadConditions = FS.str(data["roadConditions"]),
+            translatedRoadConditions = FS.stringMap(data["translatedRoadConditions"]),
+            highlights = FS.str(data["highlights"]),
+            translatedHighlights = FS.stringMap(data["translatedHighlights"]),
             trackIds = FS.stringList(data["trackIds"]) ?: emptyList(),
             lengthKM = FS.double(data["lengthKM"]) ?: 0.0,
             lengthDays = FS.double(data["lengthDays"]) ?: 0.0,

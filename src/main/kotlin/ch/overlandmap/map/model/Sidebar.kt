@@ -1,16 +1,13 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 import ch.overlandmap.map.AppConfig
 
 /**
  * An informational article of a track pack (Firestore collection `sidebar`).
  * Port of `models/sidebar.dart`, reduced to the displayable fields.
  */
-@Entity(tableName = "sidebar")
 data class Sidebar(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val trackPackId: String,
     val name: String,
     val translatedName: Map<String, String>? = null,

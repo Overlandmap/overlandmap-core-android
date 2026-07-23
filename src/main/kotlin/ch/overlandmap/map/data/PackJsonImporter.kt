@@ -59,7 +59,7 @@ object PackJsonImporter {
             (itineraryJson["steps"] as? List<*>).orEmpty().forEach { stepData ->
                 val stepJson = stepData.asMap()
                 // The export stores the step's document ID as a field, and
-                // omits trackPackId (deletion cascades filter on it).
+                // omits trackPackId (deletion cascades filter o      n it).
                 steps += ItineraryStep
                     .fromFirestore(FS.str(stepJson["documentId"]) ?: "", itineraryId, stepJson)
                     .copy(trackPackId = packId, localPhotoPath = localPhoto(stepJson, photoDir))

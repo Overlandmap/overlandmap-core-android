@@ -1,5 +1,7 @@
 package ch.overlandmap.map.data
 
+import ch.overlandmap.map.data.local.FtsDoc
+import ch.overlandmap.map.data.local.FtsIndex
 import ch.overlandmap.map.data.local.LibraryDao
 import ch.overlandmap.map.model.Asset
 import ch.overlandmap.map.model.Comment
@@ -21,8 +23,14 @@ import kotlinx.coroutines.tasks.await
 class LibraryRepository(
     private val dao: LibraryDao,
     private val auth: AuthRepository,
+    private val fts: FtsIndex,
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) {
+
+    /** Step + waypoint lookups by document ID, to open a search hit. */
+    suspend fun stepByDocumentId(documentId: String) = dao.stepByDocumentId(documentId)
+
+    suspend fun waypointByDocumentId(documentId: String) = dao.waypointByDocumentId(documentId)
 
     fun observeTrackPacks() = dao.observeTrackPacks()
 
@@ -93,16 +101,29 @@ class LibraryRepository(
      * tracks, waypoints, sidebars) and the photos its zips had unpacked.
      */
     suspend fun deletePack(trackPackId: String) {
+        val itineraries = dao.itinerariesOf(trackPackId)
+        val steps = dao.stepsOfPack(trackPackId)
+        val sidebars = dao.sidebars(trackPackId)
+        val waypointIds = dao.waypointIdsOfPack(trackPackId)
         val photos = buildList {
             dao.trackPack(trackPackId)?.localPhotoPath?.let(::add)
-            dao.itinerariesOf(trackPackId).forEach { itinerary ->
+            itineraries.forEach { itinerary ->
                 itinerary.localPhotoPath?.let(::add)
                 itinerary.localOtherPhotoPaths?.let(::addAll)
             }
-            dao.stepsOfPack(trackPackId).forEach { it.localPhotoPath?.let(::add) }
-            dao.sidebars(trackPackId).forEach { it.localPhotoPath?.let(::add) }
+            steps.forEach { it.localPhotoPath?.let(::add) }
+            sidebars.forEach { it.localPhotoPath?.let(::add) }
+        }
+        // Every object's search-index entry goes with it.
+        val indexedIds = buildList {
+            add(trackPackId)
+            itineraries.forEach { add(it.documentId) }
+            steps.forEach { add(it.documentId) }
+            sidebars.forEach { add(it.documentId) }
+            addAll(waypointIds)
         }
         dao.deletePackContent(trackPackId)
+        fts.deleteDocuments(indexedIds)
         photos.forEach { runCatching { File(it).delete() } }
     }
 
@@ -153,5 +174,27 @@ class LibraryRepository(
         dao.insertTracks(parsed.tracks)
         dao.insertWaypoints(parsed.waypoints)
         dao.insertSidebars(parsed.sidebars)
+        indexPack(parsed)
+    }
+
+    /** Adds every text-bearing object of a freshly imported pack to the search index. */
+    private suspend fun indexPack(parsed: ParsedPack) {
+        val docs = buildList {
+            val pack = parsed.pack
+            add(FtsDoc(FtsIndex.TYPE_TRACK_PACK, pack.documentId, pack::name) { pack.description(it).orEmpty() })
+            parsed.itineraries.forEach { i ->
+                add(FtsDoc(FtsIndex.TYPE_ITINERARY, i.documentId, i::name, i::indexableDescription))
+            }
+            parsed.steps.forEach { s ->
+                add(FtsDoc(FtsIndex.TYPE_STEP, s.documentId, s::name) { s.description(it).orEmpty() })
+            }
+            parsed.waypoints.forEach { w ->
+                add(FtsDoc(FtsIndex.TYPE_WAYPOINT, w.documentId, w::name) { w.description(it).orEmpty() })
+            }
+            parsed.sidebars.forEach { sb ->
+                add(FtsDoc(FtsIndex.TYPE_SIDEBAR, sb.documentId, sb::name) { sb.description(it).orEmpty() })
+            }
+        }
+        fts.index(docs)
     }
 }

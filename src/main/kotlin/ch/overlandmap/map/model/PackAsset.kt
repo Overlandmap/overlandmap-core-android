@@ -1,6 +1,5 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
 
 /**
  * A record of one asset a pack offers — its itinerary zip, offline map,
@@ -9,7 +8,6 @@ import androidx.room.Entity
  * The row is the catalogue entry; whether the file is on disk decides the
  * download status, so deleting a file keeps the entry (re-downloadable later).
  */
-@Entity(tableName = "pack_asset", primaryKeys = ["trackPackId", "kind"])
 data class PackAsset(
     val trackPackId: String,
     /** [ch.overlandmap.map.data.PackAssetKind] name. */

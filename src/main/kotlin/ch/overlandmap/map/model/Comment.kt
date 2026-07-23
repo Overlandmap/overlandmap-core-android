@@ -1,6 +1,5 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
 
 /**
  * A user comment on a track pack or itinerary. Port of the Flutter app's
@@ -9,7 +8,6 @@ import androidx.room.Entity
  * (the commented document's ID). Rows exist in Room as an offline cache of
  * the comments last fetched for a local pack or itinerary.
  */
-@Entity(tableName = "comment", primaryKeys = ["objectId", "documentId"])
 data class Comment(
     val documentId: String,
     /** ID of the commented document (track pack or itinerary). */

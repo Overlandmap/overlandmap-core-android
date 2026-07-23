@@ -47,6 +47,7 @@ fun VerticalSplit(
     bottom: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     initialTopFraction: Float = 0.45f,
+    collapseBottom: Boolean = false,
 ) {
     var fraction by rememberSaveable { mutableFloatStateOf(initialTopFraction) }
     val landscape =
@@ -62,7 +63,11 @@ fun VerticalSplit(
     val bottomPane = remember { movableContentOf { currentBottom() } }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        if (landscape) {
+        if (collapseBottom) {
+            // Full-screen top pane: the same movable content, so the map view
+            // isn't torn down and rebuilt on toggle.
+            Box(modifier = Modifier.fillMaxSize()) { topPane() }
+        } else if (landscape) {
             val totalWidthPx = constraints.maxWidth.toFloat()
             Row(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.fillMaxHeight().weight(fraction)) { topPane() }

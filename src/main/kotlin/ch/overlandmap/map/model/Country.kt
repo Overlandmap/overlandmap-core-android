@@ -1,7 +1,5 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 /** Enum ports of `models/country.dart`; raw values match the Firestore ints. */
 enum class CountryOverlanding(val raw: Int, val color: Long) {
@@ -42,9 +40,8 @@ enum class CountryInsurance(val raw: Int) {
  * Port of `models/country.dart`. Cached in Room so the world map works
  * offline.
  */
-@Entity(tableName = "country")
 data class Country(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val name: String,
     val translations: Map<String, String>? = null,
     val continent: String? = null,

@@ -24,9 +24,7 @@ import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.home.SidebarPreviewDialog
 import ch.overlandmap.map.ui.home.WaypointDialog
-import ch.overlandmap.map.ui.zoomToPopupObject
 import kotlinx.coroutines.launch
-import org.maplibre.android.maps.MapLibreMap
 
 /** A link's popup: what it shows plus what its open (arrow/buy) action does. */
 private data class LinkPopup(val kind: MapPopupKind, val open: () -> Unit)
@@ -50,7 +48,7 @@ fun rememberMarkupLinkHandler(
     onOpenSidebar: (sidebarId: String) -> Unit,
     onJumpToStep: ((stepId: Int) -> Unit)? = null,
     onOpenShopPack: ((packId: String) -> Unit)? = null,
-    mapProvider: () -> MapLibreMap? = { null },
+    onZoomToObject: (MapPopupKind) -> Unit = {},
 ): (MarkupLink, String) -> Unit {
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
@@ -112,7 +110,7 @@ fun rememberMarkupLinkHandler(
         MapObjectPopup(
             state = MapPopupState(position = null, kind = current.kind),
             onDismiss = { popup = null },
-            onZoom = { kind -> mapProvider()?.let { zoomToPopupObject(it, kind) } },
+            onZoom = { kind -> onZoomToObject(kind) },
             onOpen = { current.open() },
         )
     }

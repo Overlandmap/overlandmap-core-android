@@ -1,19 +1,17 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.AppMode
 
 /**
  * A purchasable pack of itineraries. Kotlin port of the Flutter app's
  * `models/track_pack.dart` (FSTrackPack), reduced to the fields this app uses.
- * Rows exist in Room only for downloaded (purchased or free-itinerary) packs;
- * the shop reads the same model straight from Firestore.
+ * The shop reads this straight from Firestore; downloaded packs are cached in
+ * Room as a [ch.overlandmap.map.data.local.TrackPackRow] (queryable columns
+ * plus a `json` blob of the rest).
  */
-@Entity(tableName = "track_pack")
 data class TrackPack(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val name: String,
     val translatedName: Map<String, String>? = null,
     val description: String? = null,

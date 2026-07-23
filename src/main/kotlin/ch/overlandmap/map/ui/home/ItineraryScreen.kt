@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -25,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,10 +38,15 @@ import androidx.compose.material.icons.filled.Agriculture
 import androidx.compose.material.icons.filled.AirportShuttle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SentimentNeutral
 import androidx.compose.material.icons.filled.SentimentSatisfied
 import androidx.compose.material.icons.filled.SentimentVeryDissatisfied
@@ -47,20 +54,24 @@ import androidx.compose.material.icons.filled.SentimentVerySatisfied
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -69,6 +80,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,14 +89,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.AppConfig
+import ch.overlandmap.map.map.BaseMapStyle
+import ch.overlandmap.map.map.Flyover
+import ch.overlandmap.map.map.MapStyleOptions
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.data.UserPreferences
@@ -94,6 +111,7 @@ import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.MapObjectPopup
 import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
+import ch.overlandmap.map.ui.RestoreState
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.markup.Markup
@@ -102,13 +120,18 @@ import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.shop.CommentsTab
-import ch.overlandmap.map.ui.shop.zoomToItinerary
-import ch.overlandmap.map.ui.zoomToPopupObject
+import ch.overlandmap.map.ui.zoomToItineraryMapbox
+import ch.overlandmap.map.ui.zoomToPopupObjectMapbox
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import org.maplibre.android.maps.MapLibreMap
+import com.mapbox.maps.MapView
 import android.widget.Toast
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -154,7 +177,7 @@ private val RED = Color(0xFFD32F2F)
  * itinerary slug), steps (one at a time with prev/next arrows synced with the
  * map selection), photos, comments.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun ItineraryScreen(
     itineraryId: String,
@@ -162,6 +185,7 @@ fun ItineraryScreen(
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenPack: (packId: String) -> Unit,
     onOpenSidebar: (sidebarId: String) -> Unit,
+    onOpenSettings: () -> Unit = {},
     initialStepId: Int? = null,
     viewModel: ItineraryViewModel = viewModel(key = itineraryId) {
         ItineraryViewModel(overlandApp(), itineraryId)
@@ -173,14 +197,50 @@ fun ItineraryScreen(
     val useMiles by viewModel.useMiles.collectAsState()
     val useFeet by viewModel.useFeet.collectAsState()
     val lang = currentLanguage()
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Itinerary state to reapply once, only when restored at cold start.
+    val restore = remember { RestoreState.consume(itineraryId) }
+    var tab by rememberSaveable { mutableIntStateOf(restore?.tab ?: 0) }
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
-    var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    var restoreCam by remember {
+        mutableStateOf(restore?.takeIf { it.zoom != null && it.lat != null && it.lon != null })
+    }
+    val cameraSink = remember { MutableStateFlow<Triple<Double, Double, Double>?>(null) }
+    // Persist the itinerary UI state so a cold start can reapply it.
+    LaunchedEffect(tab) { app.userPreferences.setLastTab(tab) }
+    LaunchedEffect(selectedStepIndex) { app.userPreferences.setLastStepIndex(selectedStepIndex) }
+    LaunchedEffect(Unit) {
+        cameraSink.filterNotNull().debounce(600).collect { (zoom, lat, lon) ->
+            app.userPreferences.setLastCamera(zoom, lat, lon)
+        }
+    }
+    // The saved camera is one-time: drop it after the first load so a later map
+    // recreation (leaving full screen) keeps the user's position.
+    LaunchedEffect(Unit) {
+        delay(2500)
+        restoreCam = null
+    }
+    // Reapply the restored step once its list has loaded.
+    LaunchedEffect(state.steps) {
+        val target = restore ?: return@LaunchedEffect
+        if (state.steps.isNotEmpty() && target.stepIndex in state.steps.indices) {
+            viewModel.selectStep(target.stepIndex)
+        }
+    }
+    var mapView by remember { mutableStateOf<MapView?>(null) }
+    var mapFullScreen by remember { mutableStateOf(false) }
+    var is3D by remember { mutableStateOf(false) }
+    val flyover = remember { Flyover() }
+    val flyoverState by flyover.state.collectAsState()
     var popup by remember { mutableStateOf<MapPopupState?>(null) }
     var openWaypoint by remember { mutableStateOf<Waypoint?>(null) }
     var showAddWaypoint by remember { mutableStateOf(false) }
+    var satelliteMode by remember { mutableStateOf(false) }
+    val styleOptions by app.userPreferences.mapStyle.collectAsState(
+        initial = app.userPreferences.mapStyleNow(),
+    )
+    val satelliteSelected = styleOptions.base == BaseMapStyle.SATELLITE
 
     // Opened through a step link (?step=N): select that step once loaded.
     LaunchedEffect(initialStepId, state.steps) {
@@ -200,12 +260,60 @@ fun ItineraryScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             if (!landscape) {
-                TopAppBar(
-                    title = { Text(state.itinerary?.name(lang) ?: "") },
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            state.itinerary?.name(lang) ?: "",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
+                    },
+                    actions = {
+                        ItineraryMenu(
+                            satelliteSelected = satelliteSelected,
+                            onShowOnMap = {
+                                mapView?.mapboxMap?.let { m ->
+                                    state.itinerary?.let { zoomToItineraryMapbox(m, it) }
+                                }
+                            },
+                            onFullScreen = { mapFullScreen = true },
+                            onShareLink = {
+                                shareItineraryLink(
+                                    context,
+                                    editorId = state.trackPack?.editor,
+                                    packName = state.trackPack?.name,
+                                    itineraryId = state.itinerary?.itineraryId ?: "",
+                                )
+                            },
+                            onExportGpx = {
+                                state.itinerary?.let {
+                                    shareItineraryGpx(
+                                        context, it, state.tracks, state.steps, state.waypoints, lang,
+                                    )
+                                }
+                            },
+                            onDownloadRegion = { satelliteMode = true },
+                            onFlyover = {
+                                // Cinematic flyover reads best on satellite in 3D:
+                                // switch the base style and turn on terrain, then
+                                // fly the route (the controls appear over the map).
+                                if (!satelliteSelected) {
+                                    scope.launch {
+                                        app.userPreferences.setMapStyle(
+                                            styleOptions.copy(base = BaseMapStyle.SATELLITE),
+                                        )
+                                    }
+                                }
+                                is3D = true
+                                mapView?.let { mv -> flyover.start(mv, state.tracks) }
+                            },
+                            onSettings = onOpenSettings,
+                        )
                     },
                 )
             }
@@ -234,14 +342,17 @@ fun ItineraryScreen(
             onOpenSidebar = onOpenSidebar,
             onJumpToStep = ::jumpToStep,
             onOpenShopPack = onOpenPack,
-            mapProvider = { map },
+            onZoomToObject = { kind -> mapView?.mapboxMap?.let { zoomToPopupObjectMapbox(it, kind) } },
         )
 
         VerticalSplit(
             modifier = Modifier.fillMaxSize().padding(padding),
             top = {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    LocalItineraryMap(
+                    // Torn down while the full-screen dialog is open, so only one
+                    // Mapbox map view is ever live at a time.
+                    if (!mapFullScreen) {
+                    MapboxItineraryMap(
                         trackPackId = itinerary.trackPackId,
                         tracks = state.tracks,
                         steps = state.steps,
@@ -284,14 +395,40 @@ fun ItineraryScreen(
                                     }
                             }
                         },
-                        onMapReady = { map = it },
+                        onMapReady = { mapView = it },
+                        initialCameraZoom = restoreCam?.zoom,
+                        initialCameraLat = restoreCam?.lat,
+                        initialCameraLon = restoreCam?.lon,
+                        onCameraChanged = { zoom, lat, lon ->
+                            cameraSink.value = Triple(zoom, lat, lon)
+                        },
+                        is3D = is3D,
+                        onSet3D = { is3D = it },
                         modifier = Modifier.fillMaxSize(),
                     )
+                    if (satelliteMode) {
+                        mapView?.mapboxMap?.let { m ->
+                            SatelliteDownloadOverlay(
+                                map = m,
+                                onEstimate = app.satelliteTileManager::estimate,
+                                onDownload = { area ->
+                                    val uri = if (styleOptions.satelliteRoads) {
+                                        MapStyleOptions.SATELLITE_WITH_ROADS
+                                    } else {
+                                        MapStyleOptions.SATELLITE_NO_ROADS
+                                    }
+                                    app.satelliteTileManager.download(itinerary.name(lang), uri, area)
+                                    satelliteMode = false
+                                },
+                                onClose = { satelliteMode = false },
+                            )
+                        }
+                    }
                     popup?.let { current ->
                         MapObjectPopup(
                             state = current,
                             onDismiss = { popup = null },
-                            onZoom = { kind -> map?.let { zoomToPopupObject(it, kind) } },
+                            onZoom = { kind -> mapView?.mapboxMap?.let { zoomToPopupObjectMapbox(it, kind) } },
                             onOpen = { kind ->
                                 when (kind) {
                                     is MapPopupKind.OfStep -> jumpToStep(kind.step.stepId)
@@ -302,6 +439,21 @@ fun ItineraryScreen(
                                 }
                             },
                         )
+                    }
+                    // Media-player controls while a flyover runs.
+                    if (flyoverState.active) {
+                        FlyoverControls(
+                            state = flyoverState,
+                            onPlayPause = {
+                                if (flyoverState.playing) flyover.pause() else flyover.play()
+                            },
+                            onStop = { flyover.stop() },
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                        )
+                    }
                     }
                 }
             },
@@ -348,21 +500,6 @@ fun ItineraryScreen(
                             lang = lang,
                             onLink = onLink,
                             onAddWaypoint = { showAddWaypoint = true },
-                            onShareGpx = {
-                                shareItineraryGpx(
-                                    context, itinerary, state.tracks, state.steps,
-                                    state.waypoints, lang,
-                                )
-                            },
-                            onShareLink = {
-                                shareItineraryLink(
-                                    context,
-                                    editorId = state.trackPack?.editor,
-                                    packName = state.trackPack?.name,
-                                    itineraryId = itinerary.itineraryId,
-                                )
-                            },
-                            onZoom = { map?.let { zoomToItinerary(it, itinerary) } },
                         )
                         1 -> StepsTab(
                             state, selectedStepIndex, lang, useMiles, useFeet,
@@ -374,6 +511,59 @@ fun ItineraryScreen(
                 }
             },
         )
+
+        // Full-screen map: a dialog window over everything, edge to edge. The
+        // split's map is torn down (above) while this is open, so there is only
+        // one map view. A lower-right button returns to the split view.
+        if (mapFullScreen) {
+            Dialog(
+                onDismissRequest = { mapFullScreen = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                // A Compose dialog fits system windows and isn't sized to the
+                // whole screen by default; force it full-bleed edge to edge.
+                val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+                SideEffect {
+                    dialogWindow?.let { window ->
+                        window.setLayout(
+                            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        )
+                        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+                    }
+                }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    MapboxItineraryMap(
+                        trackPackId = itinerary.trackPackId,
+                        tracks = state.tracks,
+                        steps = state.steps,
+                        waypoints = state.waypoints,
+                        selectedStepId = state.steps.getOrNull(selectedStepIndex)?.stepId,
+                        onTapped = {},
+                        is3D = is3D,
+                        onSet3D = { is3D = it },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Surface(
+                        onClick = { mapFullScreen = false },
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.9f),
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .navigationBarsPadding()
+                            .padding(16.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.FullscreenExit,
+                            contentDescription = stringResource(R.string.full_screen_map),
+                            tint = Color.Black,
+                            modifier = Modifier.padding(12.dp).size(28.dp),
+                        )
+                    }
+                }
+            }
+        }
 
         openWaypoint?.let { waypoint ->
             WaypointDialog(waypoint, lang, onLink = onLink, onDismiss = { openWaypoint = null })
@@ -401,9 +591,6 @@ private fun DescriptionTab(
     lang: String,
     onLink: (MarkupLink, String) -> Unit,
     onAddWaypoint: () -> Unit,
-    onShareGpx: () -> Unit,
-    onShareLink: () -> Unit,
-    onZoom: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -411,15 +598,12 @@ private fun DescriptionTab(
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        // Property box with its action icons alongside; the description now
-        // runs full width below the two.
+        // Property box with the add-waypoint action alongside; the other actions
+        // moved to the top-bar menu. The description runs full width below.
         Row {
             PropertiesBox(itinerary, useMiles)
             ItineraryActions(
                 onAddWaypoint = onAddWaypoint,
-                onShareGpx = onShareGpx,
-                onShareLink = onShareLink,
-                onZoom = onZoom,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
@@ -434,13 +618,103 @@ private fun DescriptionTab(
     }
 }
 
-/** The three itinerary actions stacked to the right of the property box. */
+/** The itinerary screen's top-bar overflow menu (to the right of the title). */
+@Composable
+private fun ItineraryMenu(
+    satelliteSelected: Boolean,
+    onShowOnMap: () -> Unit,
+    onFullScreen: () -> Unit,
+    onShareLink: () -> Unit,
+    onExportGpx: () -> Unit,
+    onDownloadRegion: () -> Unit,
+    onFlyover: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    IconButton(onClick = { open = true }) {
+        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.menu))
+    }
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.show_on_map)) },
+            onClick = { open = false; onShowOnMap() },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.full_screen_map)) },
+            onClick = { open = false; onFullScreen() },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.share_link)) },
+            onClick = { open = false; onShareLink() },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.export_gpx)) },
+            onClick = { open = false; onExportGpx() },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.download_map_region)) },
+            enabled = satelliteSelected,
+            onClick = { open = false; onDownloadRegion() },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.flyover_3d)) },
+            onClick = { open = false; onFlyover() },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.settings)) },
+            onClick = { open = false; onSettings() },
+        )
+    }
+}
+
+/** A media-player bar over the map while a [Flyover] runs: play/pause, a
+ * progress bar, and stop. */
+@Composable
+private fun FlyoverControls(
+    state: Flyover.State,
+    onPlayPause: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.55f),
+        shape = MaterialTheme.shapes.large,
+        modifier = modifier,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+            IconButton(onClick = onPlayPause) {
+                Icon(
+                    if (state.playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = stringResource(
+                        if (state.playing) R.string.pause else R.string.play,
+                    ),
+                    tint = Color.White,
+                )
+            }
+            LinearProgressIndicator(
+                progress = { state.progress },
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.3f),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+            )
+            IconButton(onClick = onStop) {
+                Icon(
+                    Icons.Filled.Stop,
+                    contentDescription = stringResource(R.string.stop),
+                    tint = Color.White,
+                )
+            }
+        }
+    }
+}
+
+/** The action(s) to the right of the property box. */
 @Composable
 private fun ItineraryActions(
     onAddWaypoint: () -> Unit,
-    onShareGpx: () -> Unit,
-    onShareLink: () -> Unit,
-    onZoom: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
@@ -448,34 +722,6 @@ private fun ItineraryActions(
             Icon(
                 Icons.Filled.AddLocationAlt,
                 contentDescription = stringResource(R.string.add_waypoint),
-            )
-        }
-        Box {
-            var menu by remember { mutableStateOf(false) }
-            IconButton(onClick = { menu = true }) {
-                Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.share_as_gpx)) },
-                    onClick = {
-                        menu = false
-                        onShareGpx()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.share_link)) },
-                    onClick = {
-                        menu = false
-                        onShareLink()
-                    },
-                )
-            }
-        }
-        IconButton(onClick = onZoom) {
-            Icon(
-                Icons.Filled.Search,
-                contentDescription = stringResource(R.string.zoom_to_itinerary),
             )
         }
     }
@@ -594,71 +840,77 @@ private fun StepsTab(
         }
         return
     }
-    val index = selectedStepIndex.coerceIn(0, steps.lastIndex)
-    val step = steps[index]
-    var openPhoto by remember { mutableStateOf(false) }
+    // One page per step: swiping slides the view, and selecting a step (arrow,
+    // map tap, restore) animates the same slide.
+    val pagerState = rememberPagerState(
+        initialPage = selectedStepIndex.coerceIn(0, steps.lastIndex),
+    ) { steps.size }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            // A horizontal swipe moves between steps like the arrows: swipe
-            // left for the next step, right for the previous one. Vertical
-            // drags fall through to the content's scroll.
-            .pointerInput(index, steps.size) {
-                var drag = 0f
-                val threshold = 48.dp.toPx()
-                detectHorizontalDragGestures(
-                    onDragStart = { drag = 0f },
-                    onDragEnd = {
-                        when {
-                            drag <= -threshold && index < steps.lastIndex -> onSelectStep(index + 1)
-                            drag >= threshold && index > 0 -> onSelectStep(index - 1)
-                        }
-                    },
-                ) { change, dragAmount ->
-                    drag += dragAmount
-                    change.consume()
-                }
-            },
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-            StepHeader(step, lang, useMiles, useFeet)
-            step.description(lang)?.let {
-                MarkupText(
-                    it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    onLinkClick = onLink,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
-            // The title image goes at the end; tapping it opens the zoomable viewer.
-            step.titlePhotoUrl?.let { url ->
-                AsyncImage(
-                    model = url,
-                    contentDescription = step.titlePhotoCaption,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(4f / 3f)
-                        .clickable { openPhoto = true },
-                    contentScale = ContentScale.Crop,
-                )
-                step.titlePhotoCaption?.let {
+    LaunchedEffect(selectedStepIndex, steps.size) {
+        val target = selectedStepIndex.coerceIn(0, steps.lastIndex)
+        if (pagerState.currentPage != target) pagerState.animateScrollToPage(target)
+    }
+    // A swipe that lands on another step updates the selection (so the map and
+    // the rest of the screen follow).
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            if (page != selectedStepIndex) onSelectStep(page)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+            val step = steps[page]
+            var openPhoto by remember(page) { mutableStateOf(false) }
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                StepHeader(step, lang, useMiles, useFeet)
+                step.description(lang)?.let {
                     MarkupText(
                         it,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
+                        style = MaterialTheme.typography.bodyMedium,
                         onLinkClick = onLink,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(16.dp),
                     )
                 }
+                // The title image goes at the end; tapping it opens the viewer.
+                step.titlePhotoUrl?.let { url ->
+                    AsyncImage(
+                        model = url,
+                        contentDescription = step.titlePhotoCaption,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f)
+                            .clickable { openPhoto = true },
+                        contentScale = ContentScale.Crop,
+                    )
+                    step.titlePhotoCaption?.let {
+                        MarkupText(
+                            it,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                            onLinkClick = onLink,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+                // Clears the floating prev/next bar so it never hides the last line.
+                Spacer(Modifier.height(56.dp))
             }
-            // Clears the floating prev/next bar so it never hides the last line.
-            Spacer(Modifier.height(56.dp))
+            if (openPhoto && step.titlePhotoUrl != null) {
+                FullScreenPhotoViewer(
+                    photos = listOf(
+                        viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption),
+                    ),
+                    startIndex = 0,
+                    onDismiss = { openPhoto = false },
+                )
+            }
         }
 
-        // Prev/next arrows float over the scroll at the bottom, on a translucent
-        // white strip.
+        // Prev/next arrows float over the pages at the bottom, on a translucent
+        // white strip; they drive the same sliding animation.
+        val index = selectedStepIndex.coerceIn(0, steps.lastIndex)
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -674,16 +926,6 @@ private fun StepsTab(
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
             }
         }
-    }
-
-    if (openPhoto && step.titlePhotoUrl != null) {
-        FullScreenPhotoViewer(
-            photos = listOf(
-                viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption),
-            ),
-            startIndex = 0,
-            onDismiss = { openPhoto = false },
-        )
     }
 }
 

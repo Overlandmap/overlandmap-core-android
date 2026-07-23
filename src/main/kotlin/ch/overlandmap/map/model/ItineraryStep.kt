@@ -1,13 +1,11 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
 import ch.overlandmap.map.AppConfig
 
 /**
  * A numbered step along an itinerary (Firestore subcollection
  * `itinerary/{id}/steps`). Port of ItineraryStep in `models/itinerary.dart`.
  */
-@Entity(tableName = "itinerary_step", primaryKeys = ["itineraryId", "documentId"])
 data class ItineraryStep(
     val documentId: String,
     val itineraryId: String,

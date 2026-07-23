@@ -35,11 +35,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.data.SatelliteDownloadProgress
 import ch.overlandmap.map.ui.overlandApp
 
 /**
@@ -56,6 +59,8 @@ fun DownloadsScreen(
 ) {
     LaunchedEffect(Unit) { viewModel.start() }
     val state by viewModel.state.collectAsState()
+    val app = LocalContext.current.applicationContext as OverlandApp
+    val satellite by app.satelliteTileManager.progress.collectAsState()
 
     Scaffold(
         topBar = {
@@ -77,6 +82,15 @@ fun DownloadsScreen(
         }
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(modifier = Modifier.weight(1f)) {
+                if (satellite.isNotEmpty()) {
+                    item {
+                        SatelliteSection(
+                            items = satellite,
+                            onDelete = { app.satelliteTileManager.delete(it) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
                 items(state.packs, key = { it.packId }) { pack ->
                     PackSection(
                         pack = pack,
@@ -164,6 +178,57 @@ private fun AssetRow(item: DownloadItem, onDownload: () -> Unit, onDelete: () ->
                 color = MaterialTheme.colorScheme.error,
             )
             else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun SatelliteSection(
+    items: Map<String, SatelliteDownloadProgress>,
+    onDelete: (regionId: String) -> Unit,
+) {
+    Column {
+        Text(
+            stringResource(R.string.satellite_tiles),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        items.forEach { (regionId, item) ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 32.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            item.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            formatBytes(item.sizeBytes),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onDelete(regionId) }) {
+                        Text(stringResource(R.string.delete))
+                    }
+                }
+                when {
+                    item.error != null -> Text(
+                        item.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    !item.done -> LinearProgressIndicator(
+                        progress = { item.fraction },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    )
+                }
+            }
         }
     }
 }

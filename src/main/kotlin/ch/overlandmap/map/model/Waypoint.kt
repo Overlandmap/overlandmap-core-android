@@ -1,15 +1,12 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 /**
  * A point of interest of an itinerary (fuel, water, camp, …). Port of
  * `models/waypoint.dart`.
  */
-@Entity(tableName = "waypoint")
 data class Waypoint(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val trackPackId: String,
     val itineraryId: String? = null,
     val name: String,

@@ -1,15 +1,12 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 /**
  * A border crossing point (Firestore collection `border_post`). Port of
  * `models/border_post.dart`.
  */
-@Entity(tableName = "border_post")
 data class BorderPost(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val name: String,
     /** "XX - YY" country code pair, e.g. "GE - AM". */
     val countries: String? = null,

@@ -72,6 +72,12 @@ dependencies {
     // Map rendering (Mapbox GL fork; reads the MBTiles served by LocalTileServer)
     implementation("org.maplibre.gl:android-sdk:11.7.1")
 
+    // Mapbox Maps SDK: itinerary screen only, for satellite offline tiles
+    // (TileStore/OfflineManager). Needs MAPBOX_DOWNLOADS_TOKEN (see
+    // settings.gradle.kts). Coexists with MapLibre — different package.
+    // The `-ndk27` variant ships 16 KB-page-aligned native libs (Android 15+).
+    implementation("com.mapbox.maps:android-ndk27:11.26.0")
+
     // Images
     implementation("io.coil-kt:coil-compose:2.7.0")
 }

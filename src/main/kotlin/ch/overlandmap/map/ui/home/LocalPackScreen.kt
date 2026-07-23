@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -54,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,7 +66,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ch.overlandmap.map.AppMode
+import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.data.SearchResult
+import ch.overlandmap.map.data.local.FtsIndex
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.TrackPack
@@ -75,7 +81,9 @@ import ch.overlandmap.map.ui.PhotoGridTile
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.mapActionButtonColors
+import ch.overlandmap.map.ui.search.SearchTabContent
 import ch.overlandmap.map.ui.zoomToPopupObject
+import kotlinx.coroutines.launch
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
@@ -135,6 +143,33 @@ fun LocalPackScreen(
     var showSignInDialog by remember { mutableStateOf(false) }
     var showFullPackDialog by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val app = context.applicationContext as OverlandApp
+
+    // A tapped search result: objects with a map position show their popup over
+    // the map on the top half (so its Zoom button works); a sidebar opens its
+    // screen.
+    fun openSearchResult(result: SearchResult) {
+        scope.launch {
+            val library = app.libraryRepository
+            when (result.type) {
+                FtsIndex.TYPE_ITINERARY -> library.itinerary(result.documentId)?.let {
+                    popup = MapPopupState(position = null, kind = MapPopupKind.OfItinerary(it))
+                }
+                FtsIndex.TYPE_STEP -> library.stepByDocumentId(result.documentId)?.let { step ->
+                    popup = MapPopupState(
+                        position = null,
+                        kind = MapPopupKind.OfStep(result.itinerarySlug ?: "", step),
+                    )
+                }
+                FtsIndex.TYPE_WAYPOINT -> library.waypointByDocumentId(result.documentId)?.let {
+                    popup = MapPopupState(position = null, kind = MapPopupKind.OfWaypoint(it))
+                }
+                FtsIndex.TYPE_SIDEBAR -> onOpenSidebar(result.documentId)
+                else -> Unit
+            }
+        }
+    }
 
     // Snackbar for the "check for update" outcome.
     val updateCheckMessage = when (updateCheck) {
@@ -168,7 +203,7 @@ fun LocalPackScreen(
         onOpenItinerary = onOpenItinerary,
         onOpenSidebar = onOpenSidebar,
         onOpenShopPack = onOpenShopPack,
-        mapProvider = { map },
+        onZoomToObject = { kind -> map?.let { zoomToPopupObject(it, kind) } },
     )
 
     // Same full-display layout as the shop's pack detail.
@@ -249,8 +284,11 @@ fun LocalPackScreen(
                                 when (kind) {
                                     is MapPopupKind.OfItinerary ->
                                         onOpenItinerary(kind.itinerary.documentId, null)
+                                    is MapPopupKind.OfStep ->
+                                        onOpenItinerary(kind.step.itineraryId, kind.step.stepId)
+                                    is MapPopupKind.OfWaypoint ->
+                                        kind.waypoint.itineraryId?.let { onOpenItinerary(it, null) }
                                     is MapPopupKind.Buy -> onOpenShopPack(kind.packId)
-                                    else -> Unit
                                 }
                             },
                         )
@@ -341,6 +379,21 @@ fun LocalPackScreen(
                             onClick = { tab = 3 },
                             text = { Text(stringResource(R.string.comments)) },
                         )
+                        // Single-pack mode: a search tab (icon only) to the right
+                        // of Comments. Its content fills this bottom half, so the
+                        // map on the top half stays for the results' Zoom action.
+                        if (AppMode.singleTrackPack) {
+                            Tab(
+                                selected = tab == 4,
+                                onClick = { tab = 4 },
+                                icon = {
+                                    Icon(
+                                        Icons.Filled.Search,
+                                        contentDescription = stringResource(R.string.search),
+                                    )
+                                },
+                            )
+                        }
                     }
                     when (tab) {
                         0 -> LocalDescriptionTab(state, lang, onLink)
@@ -349,6 +402,7 @@ fun LocalPackScreen(
                         }
                         2 -> SidebarsTab(state.sidebars, lang) { onOpenSidebar(it.documentId) }
                         3 -> CommentsTab(comments, lang)
+                        4 -> SearchTabContent(onResultClick = { openSearchResult(it) })
                     }
                 }
             },

@@ -1,5 +1,7 @@
 package ch.overlandmap.map.data
 
+import ch.overlandmap.map.data.local.FtsDoc
+import ch.overlandmap.map.data.local.FtsIndex
 import ch.overlandmap.map.data.local.WorldDao
 import ch.overlandmap.map.model.BorderPost
 import ch.overlandmap.map.model.Country
@@ -14,6 +16,7 @@ import kotlinx.coroutines.tasks.await
 class WorldRepository(
     private val dao: WorldDao,
     private val auth: AuthRepository,
+    private val fts: FtsIndex,
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) {
 
@@ -39,5 +42,30 @@ class WorldRepository(
         dao.insertCountries(countries)
         dao.insertBorders(borders)
         dao.insertBorderPosts(posts)
+        reindex(countries, borders, posts)
+    }
+
+    /** Rebuilds the world objects' search-index entries from a fresh snapshot. */
+    private suspend fun reindex(
+        countries: List<Country>,
+        borders: List<CountryBorder>,
+        posts: List<BorderPost>,
+    ) {
+        fts.deleteType(FtsIndex.TYPE_COUNTRY)
+        fts.deleteType(FtsIndex.TYPE_BORDER)
+        fts.deleteType(FtsIndex.TYPE_BORDER_POST)
+        fts.index(
+            buildList {
+                countries.forEach { c ->
+                    add(FtsDoc(FtsIndex.TYPE_COUNTRY, c.documentId, c::name) { c.comment(it).orEmpty() })
+                }
+                borders.forEach { b ->
+                    add(FtsDoc(FtsIndex.TYPE_BORDER, b.documentId, { b.name }) { b.comment(it).orEmpty() })
+                }
+                posts.forEach { p ->
+                    add(FtsDoc(FtsIndex.TYPE_BORDER_POST, p.documentId, { p.name }) { p.comment(it).orEmpty() })
+                }
+            }
+        )
     }
 }

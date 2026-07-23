@@ -3,7 +3,9 @@ package ch.overlandmap.map.data
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -31,9 +33,62 @@ class UserPreferences(private val context: Context) {
     private val offlineContourKey = booleanPreferencesKey("offline_contour")
     private val mapboxTokenKey = stringPreferencesKey("mapbox_token")
     private val mapboxTokenDateKey = longPreferencesKey("mapbox_token_date")
+    private val lastRouteKey = stringPreferencesKey("last_route")
+    // Itinerary screen state, restored only on a cold-start route restore.
+    private val lastTabKey = intPreferencesKey("last_tab")
+    private val lastStepKey = intPreferencesKey("last_step")
+    private val lastZoomKey = doublePreferencesKey("last_zoom")
+    private val lastLatKey = doublePreferencesKey("last_lat")
+    private val lastLonKey = doublePreferencesKey("last_lon")
+    private val debugShowZoomKey = booleanPreferencesKey("debug_show_zoom")
 
     val useMiles: Flow<Boolean> = context.dataStore.data.map { it[useMilesKey] ?: false }
     val useFeet: Flow<Boolean> = context.dataStore.data.map { it[useFeetKey] ?: false }
+
+    /** Debug: overlay the current map zoom on the itinerary map (default off). */
+    val debugShowZoom: Flow<Boolean> = context.dataStore.data.map { it[debugShowZoomKey] ?: false }
+
+    fun debugShowZoomNow(): Boolean = runBlocking { debugShowZoom.first() }
+
+    suspend fun setDebugShowZoom(value: Boolean) {
+        context.dataStore.edit { it[debugShowZoomKey] = value }
+    }
+
+    /** The route of the screen last shown, restored after the app is killed. */
+    fun lastRouteNow(): String? = runBlocking { context.dataStore.data.first()[lastRouteKey] }
+
+    suspend fun setLastRoute(route: String) {
+        context.dataStore.edit { it[lastRouteKey] = route }
+    }
+
+    fun lastTabNow(): Int = runBlocking { context.dataStore.data.first()[lastTabKey] ?: 0 }
+
+    fun lastStepIndexNow(): Int = runBlocking { context.dataStore.data.first()[lastStepKey] ?: 0 }
+
+    /** The saved (zoom, lat, lon), or null when none is stored. */
+    fun lastCameraNow(): Triple<Double, Double, Double>? = runBlocking {
+        val p = context.dataStore.data.first()
+        val zoom = p[lastZoomKey]
+        val lat = p[lastLatKey]
+        val lon = p[lastLonKey]
+        if (zoom != null && lat != null && lon != null) Triple(zoom, lat, lon) else null
+    }
+
+    suspend fun setLastTab(tab: Int) {
+        context.dataStore.edit { it[lastTabKey] = tab }
+    }
+
+    suspend fun setLastStepIndex(step: Int) {
+        context.dataStore.edit { it[lastStepKey] = step }
+    }
+
+    suspend fun setLastCamera(zoom: Double, lat: Double, lon: Double) {
+        context.dataStore.edit {
+            it[lastZoomKey] = zoom
+            it[lastLatKey] = lat
+            it[lastLonKey] = lon
+        }
+    }
 
     /** The chosen map style and its per-style customization. */
     val mapStyle: Flow<MapStyleOptions> = context.dataStore.data.map(::readMapStyle)

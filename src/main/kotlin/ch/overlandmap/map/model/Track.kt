@@ -1,7 +1,5 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Base64
@@ -14,9 +12,8 @@ data class TrackPoint(val lat: Double, val lon: Double, val ele: Double)
  * as [coordsBase64] (Float32 lat/lon/ele triples, little endian) until a map
  * actually needs it, which keeps the library list cheap in memory.
  */
-@Entity(tableName = "track")
 data class Track(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val trackPackId: String,
     val itineraryId: String,
     val name: String? = null,

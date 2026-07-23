@@ -1,7 +1,5 @@
 package ch.overlandmap.map.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 
 /** Open state shared by borders and border posts; raw values match Firestore. */
 enum class BorderOpenState(val raw: Int, val colorHex: String) {
@@ -21,9 +19,8 @@ enum class BorderOpenState(val raw: Int, val colorHex: String) {
  * `models/country_border.dart`. [geomString] holds the GeoJSON geometry used
  * to draw the border line on the map.
  */
-@Entity(tableName = "border")
 data class CountryBorder(
-    @PrimaryKey val documentId: String,
+    val documentId: String,
     val name: String,
     val country1: String? = null,
     val country2: String? = null,
