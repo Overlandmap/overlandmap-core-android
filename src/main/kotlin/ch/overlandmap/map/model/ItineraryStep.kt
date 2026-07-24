@@ -37,6 +37,9 @@ data class ItineraryStep(
     val isHotSpring: Boolean = false,
     val titlePhotoId: String? = null,
     val titlePhotoCaption: String? = null,
+    /** Access / opening status of this step, and its free-text detail. */
+    val openKind: OpenKind? = null,
+    val openDetails: String? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
     val localPhotoPath: String? = null,
 ) {
@@ -79,6 +82,8 @@ data class ItineraryStep(
                 isHotSpring = FS.bool(data["isHotSpring"]),
                 titlePhotoId = FS.str(data["titlePhotoId"]),
                 titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
+                openKind = OpenKind.fromRaw(FS.str(data["openKind"])),
+                openDetails = FS.str(data["openDetails"]),
             )
     }
 }

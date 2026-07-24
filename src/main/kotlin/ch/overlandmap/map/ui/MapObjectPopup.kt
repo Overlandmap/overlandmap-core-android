@@ -254,6 +254,9 @@ private fun PopupHeader(kind: MapPopupKind) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                openStatusText(kind.waypoint.openKind, kind.waypoint.openDetails)?.let { status ->
+                    Text(status, style = MaterialTheme.typography.bodySmall)
+                }
             }
             Icon(
                 waypointIcon(kind.waypoint.type),

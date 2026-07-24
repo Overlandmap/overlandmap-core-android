@@ -6,6 +6,7 @@ import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryDifficulty
 import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.model.OpenKind
 import ch.overlandmap.map.model.PackAsset
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Track
@@ -242,6 +243,8 @@ fun ItineraryStep.toRow() = ItineraryStepRow(
         putIfTrue("isHotSpring", isHotSpring)
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titlePhotoCaption", titlePhotoCaption)
+        putIfNotNull("openKind", openKind?.raw)
+        putIfNotNull("openDetails", openDetails)
         putIfNotNull("localPhotoPath", localPhotoPath)
     },
 )
@@ -275,6 +278,8 @@ fun ItineraryStepRow.toModel(): ItineraryStep = parseJsonColumn(json).let { j ->
         isHotSpring = j.flag("isHotSpring"),
         titlePhotoId = j.stringOrNull("titlePhotoId"),
         titlePhotoCaption = j.stringOrNull("titlePhotoCaption"),
+        openKind = OpenKind.fromRaw(j.stringOrNull("openKind")),
+        openDetails = j.stringOrNull("openDetails"),
         localPhotoPath = j.stringOrNull("localPhotoPath"),
     )
 }
@@ -344,6 +349,8 @@ fun Waypoint.toRow() = WaypointRow(
         putIfTrue("isHistoricalSite", isHistoricalSite)
         putIfTrue("isReligiousSite", isReligiousSite)
         putIfTrue("isHotSpring", isHotSpring)
+        putIfNotNull("openKind", openKind?.raw)
+        putIfNotNull("openDetails", openDetails)
     },
 )
 
@@ -374,6 +381,8 @@ fun WaypointRow.toModel(): Waypoint = parseJsonColumn(json).let { j ->
         isHistoricalSite = j.flag("isHistoricalSite"),
         isReligiousSite = j.flag("isReligiousSite"),
         isHotSpring = j.flag("isHotSpring"),
+        openKind = OpenKind.fromRaw(j.stringOrNull("openKind")),
+        openDetails = j.stringOrNull("openDetails"),
     )
 }
 

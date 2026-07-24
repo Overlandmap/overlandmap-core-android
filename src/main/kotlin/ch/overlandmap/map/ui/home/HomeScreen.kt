@@ -56,6 +56,12 @@ fun HomeScreen(
     val lastUsed by viewModel.lastUsed.collectAsState()
     var packToDelete by remember { mutableStateOf<TrackPack?>(null) }
     val lang = currentLanguage()
+    // The "free" badge on a last-used itinerary only applies while its pack is
+    // still a free sample; once the full pack is downloaded it's dropped (same
+    // rule as LocalPackScreen).
+    val freeSamplePackIds = remember(packs) {
+        packs?.filter { it.isFreeSample }?.map { it.documentId }?.toSet() ?: emptySet()
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -87,7 +93,8 @@ fun HomeScreen(
                     PhotoGridTile(
                         photoUrl = itinerary.titlePhotoUrl,
                         label = itinerary.name(lang),
-                        freeBanner = itinerary.isFree,
+                        freeBanner = itinerary.isFree &&
+                            itinerary.trackPackId in freeSamplePackIds,
                         onClick = { onOpenItinerary(itinerary.documentId) },
                     )
                 }

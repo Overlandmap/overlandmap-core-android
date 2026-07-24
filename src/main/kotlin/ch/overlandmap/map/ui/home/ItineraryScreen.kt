@@ -117,6 +117,7 @@ import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.RestoreState
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.openStatusText
 import ch.overlandmap.map.ui.markup.Markup
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
@@ -620,6 +621,62 @@ private fun DescriptionTab(
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             )
         }
+        // Highlights: one bullet per paragraph, each still full markup.
+        itinerary.highlights(lang)?.takeIf { it.isNotBlank() }?.let {
+            SectionTitle(stringResource(R.string.itinerary_highlights))
+            BulletedMarkup(it, onLink, modifier = Modifier.fillMaxWidth())
+        }
+        // Road conditions: formatted like the description.
+        itinerary.roadConditions(lang)?.takeIf { it.isNotBlank() }?.let {
+            SectionTitle(stringResource(R.string.itinerary_road_conditions))
+            MarkupText(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                onLinkClick = onLink,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** A bold section header above an itinerary content block (Highlights, …). */
+@Composable
+private fun SectionTitle(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+    )
+}
+
+/**
+ * Renders each non-blank paragraph of [text] as a bulleted line — the bullet in
+ * its own column so wrapped lines hang under the text — with the paragraph kept
+ * as full markup (links, inline metrics, formatting) at the content text size.
+ */
+@Composable
+private fun BulletedMarkup(
+    text: String,
+    onLink: (MarkupLink, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        text.split('\n').map(String::trim).filter(String::isNotEmpty).forEach { line ->
+            Row {
+                Text(
+                    "•",
+                    style = contentTextStyle(MaterialTheme.typography.bodyMedium),
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+                MarkupText(
+                    line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    onLinkClick = onLink,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 
@@ -876,6 +933,14 @@ private fun StepsTab(
             var openPhoto by remember(page) { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 StepHeader(step, lang, useMiles, useFeet, gpsFormat)
+                // Access status (e.g. "Permit needed: …"), bold kind + details.
+                openStatusText(step.openKind, step.openDetails)?.let { status ->
+                    Text(
+                        status,
+                        style = contentTextStyle(MaterialTheme.typography.bodyMedium),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
                 step.description(lang)?.let {
                     MarkupText(
                         it,

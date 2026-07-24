@@ -19,6 +19,7 @@ import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
+import ch.overlandmap.map.ui.openStatusText
 import ch.overlandmap.map.ui.theme.contentTextStyle
 
 /**
@@ -72,6 +73,9 @@ fun WaypointDialog(
                         UserPreferences.formatElevationM(it, useFeet),
                         style = contentTextStyle(MaterialTheme.typography.labelLarge),
                     )
+                }
+                openStatusText(waypoint.openKind, waypoint.openDetails)?.let { status ->
+                    Text(status, style = contentTextStyle(MaterialTheme.typography.bodyMedium))
                 }
                 waypoint.description(lang)?.let {
                     MarkupText(it, onLinkClick = onLink)

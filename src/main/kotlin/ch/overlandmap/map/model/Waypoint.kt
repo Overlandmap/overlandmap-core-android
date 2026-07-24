@@ -32,6 +32,9 @@ data class Waypoint(
     val isHistoricalSite: Boolean = false,
     val isReligiousSite: Boolean = false,
     val isHotSpring: Boolean = false,
+    /** Access / opening status of this waypoint, and its free-text detail. */
+    val openKind: OpenKind? = null,
+    val openDetails: String? = null,
 ) {
     fun name(lang: String): String = localized(name, translatedName, lang) ?: name
 
@@ -64,6 +67,8 @@ data class Waypoint(
             isHistoricalSite = FS.bool(data["isHistoricalSite"]),
             isReligiousSite = FS.bool(data["isReligiousSite"]),
             isHotSpring = FS.bool(data["isHotSpring"]),
+            openKind = OpenKind.fromRaw(FS.str(data["openKind"])),
+            openDetails = FS.str(data["openDetails"]),
         )
     }
 }
