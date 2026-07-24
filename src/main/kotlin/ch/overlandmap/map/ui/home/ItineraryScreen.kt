@@ -111,6 +111,7 @@ import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryDifficulty
 import ch.overlandmap.map.model.OpenKind
+import ch.overlandmap.map.model.Track
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.MapObjectPopup
 import ch.overlandmap.map.ui.MapPopupKind
@@ -503,7 +504,9 @@ fun ItineraryScreen(
                     when (tab) {
                         0 -> DescriptionTab(
                             itinerary = itinerary,
+                            tracks = state.tracks,
                             useMiles = useMiles,
+                            useFeet = useFeet,
                             lang = lang,
                             onLink = onLink,
                             onAddWaypoint = { showAddWaypoint = true },
@@ -594,7 +597,9 @@ fun ItineraryScreen(
 @Composable
 private fun DescriptionTab(
     itinerary: Itinerary,
+    tracks: List<Track>,
     useMiles: Boolean,
+    useFeet: Boolean,
     lang: String,
     onLink: (MarkupLink, String) -> Unit,
     onAddWaypoint: () -> Unit,
@@ -635,6 +640,23 @@ private fun DescriptionTab(
                 style = MaterialTheme.typography.bodyMedium,
                 onLinkClick = onLink,
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        // Elevation profile of the main track (renders nothing when the track
+        // has no usable elevation data).
+        val mainTrack = remember(tracks) {
+            tracks.firstOrNull { it.documentId == itinerary.trackIds.firstOrNull() }
+                ?: tracks.maxByOrNull { it.coordsBase64.length }
+        }
+        mainTrack?.let { track ->
+            ElevationProfile(
+                track = track,
+                useMiles = useMiles,
+                useFeet = useFeet,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(top = 16.dp),
             )
         }
     }
