@@ -1,6 +1,7 @@
 package ch.overlandmap.map
 
 import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
 import ch.overlandmap.map.billing.BillingManager
 import ch.overlandmap.map.data.AuthRepository
 import ch.overlandmap.map.data.LibraryRepository
@@ -60,6 +61,9 @@ class OverlandApp : Application() {
     override fun onCreate() {
         super.onCreate()
         FirebaseApp.initializeApp(this)
+        // On first launch, default the interface and map languages to the
+        // device language (if supported), otherwise English.
+        initDefaultLanguage()
         // Firestore rules require an authenticated user for every request:
         // reuse the cached sign-in from a previous run, or sign in anonymously.
         appScope.launch { authRepository.ensureSignedIn() }
@@ -95,5 +99,23 @@ class OverlandApp : Application() {
                 }
             }
         }
+    }
+
+    /**
+     * On first launch (no AppCompat locale set yet), sets the interface and map
+     * languages to the device language if it's one we support, otherwise English.
+     */
+    private fun initDefaultLanguage() {
+        val current = AppCompatDelegate.getApplicationLocales()
+        if (!current.isEmpty) return // already configured — not a fresh install
+
+        val deviceLang = java.util.Locale.getDefault().language
+        val supported = AppConfig.SUPPORTED_LANGUAGES.map { it.first }.toSet()
+        val lang = if (deviceLang in supported) deviceLang else "en"
+
+        AppCompatDelegate.setApplicationLocales(
+            androidx.core.os.LocaleListCompat.forLanguageTags(lang)
+        )
+        appScope.launch { userPreferences.setMapLanguage(lang) }
     }
 }
