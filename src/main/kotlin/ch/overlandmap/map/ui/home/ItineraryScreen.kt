@@ -110,6 +110,7 @@ import ch.overlandmap.map.data.GpsFormat
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryDifficulty
+import ch.overlandmap.map.model.OpenKind
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.MapObjectPopup
 import ch.overlandmap.map.ui.MapPopupKind
@@ -1078,7 +1079,13 @@ private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, use
         ) {
             PoiIcon(Icons.Filled.LocalGasStation, step.hasFuel)
             PoiIcon(Icons.Filled.Hotel, step.hasHotel)
-            PoiIcon(ImageVector.vectorResource(R.drawable.ic_boom_gate), step.isPoliceCheckpoint)
+            PoiIcon(
+                ImageVector.vectorResource(R.drawable.ic_boom_gate),
+                step.isPoliceCheckpoint,
+                // A closed checkpoint is flagged red rather than the usual tint.
+                activeTint = if (step.openKind == OpenKind.CLOSED) RED
+                else MaterialTheme.colorScheme.primary,
+            )
             Spacer(Modifier.weight(1f))
             // Check-in button with badge and dialog.
             CheckInButton(step)
@@ -1097,7 +1104,11 @@ private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, use
 
 /** A point-of-interest flag icon: blue when set, light gray otherwise. */
 @Composable
-private fun PoiIcon(icon: ImageVector, active: Boolean) {
+private fun PoiIcon(
+    icon: ImageVector,
+    active: Boolean,
+    activeTint: Color = MaterialTheme.colorScheme.primary,
+) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.size(28.dp).padding(end = 6.dp),
@@ -1105,7 +1116,7 @@ private fun PoiIcon(icon: ImageVector, active: Boolean) {
         Icon(
             icon,
             contentDescription = null,
-            tint = if (active) MaterialTheme.colorScheme.primary else Color.LightGray,
+            tint = if (active) activeTint else Color.LightGray,
             modifier = Modifier.size(22.dp),
         )
     }

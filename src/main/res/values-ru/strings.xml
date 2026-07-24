@@ -30,7 +30,6 @@
     <string name="itinerary_count">%d маршрутов</string>
     <string name="itineraries">Маршруты</string>
     <string name="steps">Этапы</string>
-    <string name="length_days">%1$.0f дней</string>
     <string name="free">Бесплатно</string>
 
     <string name="shop_offline">Магазин недоступен офлайн</string>
@@ -95,13 +94,24 @@
     <string name="expired">Истёк</string>
     <string name="or_divider">или</string>
     <string name="settings_language">Язык</string>
-    <string name="ui_language">Язык приложения</string>
+    <string name="ui_language">Язык интерфейса</string>
     <string name="map_language">Язык карты</string>
     <string name="map_language_native">Местные названия</string>
-    <string name="settings_units">Единицы измерения</string>
+    <string name="settings_units">Формат единиц измерения</string>
     <string name="units_use_miles">Расстояния в милях</string>
     <string name="units_use_feet">Высоты в футах</string>
-    <string name="gps_format">Формат координат</string>
+    <string name="gps_format">GPS-координаты</string>
+    <string name="units_distance">Единицы расстояния</string>
+    <string name="units_height">Единицы высоты</string>
+    <string name="units_temperature">Единицы температуры</string>
+    <string name="units_metric">метрическая</string>
+    <string name="units_imperial">имперская</string>
+    <string name="units_celsius">Цельсий</string>
+    <string name="units_fahrenheit">Фаренгейт</string>
+    <string name="units_sample">Пример:</string>
+    <string name="gps_dd">десятичные градусы</string>
+    <string name="gps_ddmm">градусы / минуты</string>
+    <string name="gps_ddmmss">градусы / минуты / секунды</string>
     <string name="last_used">Недавно использованные</string>
     <string name="local_library">Локальная библиотека</string>
     <string name="sidebars">Статьи</string>
@@ -124,4 +134,26 @@
     <string name="partly_offroad">Частично бездорожье</string>
     <string name="mostly_offroad">В основном бездорожье</string>
     <string name="fully_offroad">Бездорожье</string>
+
+    <plurals name="length_days">
+        <item quantity="one">%1$d день</item>
+        <item quantity="few">%1$d дня</item>
+        <item quantity="many">%1$d дней</item>
+        <item quantity="other">%1$d дней</item>
+    </plurals>
+
+    <string name="itinerary_highlights">Основные моменты</string>
+    <string name="itinerary_road_conditions">Состояние дорог</string>
+    <string name="open_kind_open">Открыто</string>
+    <string name="open_kind_closed">Закрыто</string>
+    <string name="open_kind_temp_closed">Временно закрыто</string>
+    <string name="open_kind_permit">Требуется разрешение</string>
+    <string name="open_kind_restricted">Ограничено</string>
+    <string name="open_kind_toll">Платная дорога</string>
+    <string name="settings_text_size">Размер текста</string>
+    <string name="text_size_small">Мелкий</string>
+    <string name="text_size_medium">Средний</string>
+    <string name="text_size_large">Крупный</string>
+    <string name="text_size_very_large">Очень крупный</string>
+    <string name="text_size_sample">::Пример заголовка::\nСъешь же ещё этих мягких французских булок да выпей чаю. Так будут выглядеть описания, состояние дорог и основные моменты при этом размере.</string>
 </resources>

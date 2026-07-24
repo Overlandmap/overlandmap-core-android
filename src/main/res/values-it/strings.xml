@@ -30,7 +30,6 @@
     <string name="itinerary_count">%d itinerari</string>
     <string name="itineraries">Itinerari</string>
     <string name="steps">Tappe</string>
-    <string name="length_days">%1$.0f giorni</string>
     <string name="free">Gratuito</string>
 
     <string name="shop_offline">Il negozio non è disponibile offline</string>
@@ -95,13 +94,24 @@
     <string name="expired">Scaduto</string>
     <string name="or_divider">oppure</string>
     <string name="settings_language">Lingua</string>
-    <string name="ui_language">Lingua dell\'app</string>
+    <string name="ui_language">Lingua dell\'interfaccia</string>
     <string name="map_language">Lingua della mappa</string>
     <string name="map_language_native">Nomi locali</string>
-    <string name="settings_units">Unità</string>
+    <string name="settings_units">Formato delle unità</string>
     <string name="units_use_miles">Distanze in miglia</string>
     <string name="units_use_feet">Altitudini in piedi</string>
-    <string name="gps_format">Formato coordinate</string>
+    <string name="gps_format">Coordinate GPS</string>
+    <string name="units_distance">Unità di distanza</string>
+    <string name="units_height">Unità di altezza (elevazione)</string>
+    <string name="units_temperature">Unità di temperatura</string>
+    <string name="units_metric">metrico</string>
+    <string name="units_imperial">imperiale</string>
+    <string name="units_celsius">Celsius</string>
+    <string name="units_fahrenheit">Fahrenheit</string>
+    <string name="units_sample">Esempio:</string>
+    <string name="gps_dd">gradi decimali</string>
+    <string name="gps_ddmm">gradi / minuti</string>
+    <string name="gps_ddmmss">gradi / minuti / secondi</string>
     <string name="last_used">Usati di recente</string>
     <string name="local_library">Libreria locale</string>
     <string name="sidebars">Articoli</string>
@@ -124,4 +134,24 @@
     <string name="partly_offroad">Parzialmente off-road</string>
     <string name="mostly_offroad">Prevalentemente off-road</string>
     <string name="fully_offroad">Off-road</string>
+
+    <plurals name="length_days">
+        <item quantity="one">%1$d giorno</item>
+        <item quantity="other">%1$d giorni</item>
+    </plurals>
+
+    <string name="itinerary_highlights">Punti salienti</string>
+    <string name="itinerary_road_conditions">Condizioni stradali</string>
+    <string name="open_kind_open">Aperto</string>
+    <string name="open_kind_closed">Chiuso</string>
+    <string name="open_kind_temp_closed">Chiuso temporaneamente</string>
+    <string name="open_kind_permit">Permesso necessario</string>
+    <string name="open_kind_restricted">Limitato</string>
+    <string name="open_kind_toll">Pedaggio</string>
+    <string name="settings_text_size">Dimensione del testo</string>
+    <string name="text_size_small">Piccolo</string>
+    <string name="text_size_medium">Medio</string>
+    <string name="text_size_large">Grande</string>
+    <string name="text_size_very_large">Molto grande</string>
+    <string name="text_size_sample">::Titolo di esempio::\nMa la volpe, col suo balzo, ha raggiunto il quieto Fido. Ecco come appariranno le descrizioni, le condizioni stradali e i punti salienti con questa dimensione.</string>
 </resources>

@@ -30,7 +30,6 @@
     <string name="itinerary_count">%d itinerários</string>
     <string name="itineraries">Itinerários</string>
     <string name="steps">Etapas</string>
-    <string name="length_days">%1$.0f dias</string>
     <string name="free">Grátis</string>
 
     <string name="shop_offline">A loja não está disponível offline</string>
@@ -95,13 +94,24 @@
     <string name="expired">Expirado</string>
     <string name="or_divider">ou</string>
     <string name="settings_language">Idioma</string>
-    <string name="ui_language">Idioma da aplicação</string>
+    <string name="ui_language">Idioma da interface</string>
     <string name="map_language">Idioma do mapa</string>
     <string name="map_language_native">Nomes locais</string>
-    <string name="settings_units">Unidades</string>
+    <string name="settings_units">Formato de unidades</string>
     <string name="units_use_miles">Distâncias em milhas</string>
     <string name="units_use_feet">Altitudes em pés</string>
-    <string name="gps_format">Formato das coordenadas</string>
+    <string name="gps_format">Coordenadas GPS</string>
+    <string name="units_distance">Unidades de distância</string>
+    <string name="units_height">Unidades de altura (elevação)</string>
+    <string name="units_temperature">Unidades de temperatura</string>
+    <string name="units_metric">métrico</string>
+    <string name="units_imperial">imperial</string>
+    <string name="units_celsius">Celsius</string>
+    <string name="units_fahrenheit">Fahrenheit</string>
+    <string name="units_sample">Exemplo:</string>
+    <string name="gps_dd">graus decimais</string>
+    <string name="gps_ddmm">graus / minutos</string>
+    <string name="gps_ddmmss">graus / minutos / segundos</string>
     <string name="last_used">Usados recentemente</string>
     <string name="local_library">Biblioteca local</string>
     <string name="sidebars">Artigos</string>
@@ -124,4 +134,24 @@
     <string name="partly_offroad">Parcialmente off-road</string>
     <string name="mostly_offroad">Maioritariamente off-road</string>
     <string name="fully_offroad">Off-road</string>
+
+    <plurals name="length_days">
+        <item quantity="one">%1$d dia</item>
+        <item quantity="other">%1$d dias</item>
+    </plurals>
+
+    <string name="itinerary_highlights">Destaques</string>
+    <string name="itinerary_road_conditions">Condições da estrada</string>
+    <string name="open_kind_open">Aberto</string>
+    <string name="open_kind_closed">Fechado</string>
+    <string name="open_kind_temp_closed">Fechado temporariamente</string>
+    <string name="open_kind_permit">Autorização necessária</string>
+    <string name="open_kind_restricted">Restrito</string>
+    <string name="open_kind_toll">Portagem</string>
+    <string name="settings_text_size">Tamanho do texto</string>
+    <string name="text_size_small">Pequeno</string>
+    <string name="text_size_medium">Médio</string>
+    <string name="text_size_large">Grande</string>
+    <string name="text_size_very_large">Muito grande</string>
+    <string name="text_size_sample">::Título de exemplo::\nUm pequeno jabuti xereta viu dez cegonhas felizes. É assim que as descrições, as condições da estrada e os destaques ficarão neste tamanho.</string>
 </resources>

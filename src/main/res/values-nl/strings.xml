@@ -30,7 +30,6 @@
     <string name="itinerary_count">%d routes</string>
     <string name="itineraries">Routes</string>
     <string name="steps">Etappes</string>
-    <string name="length_days">%1$.0f dagen</string>
     <string name="free">Gratis</string>
 
     <string name="shop_offline">De winkel is offline niet beschikbaar</string>
@@ -95,13 +94,24 @@
     <string name="expired">Verlopen</string>
     <string name="or_divider">of</string>
     <string name="settings_language">Taal</string>
-    <string name="ui_language">App-taal</string>
+    <string name="ui_language">Interfacetaal</string>
     <string name="map_language">Kaarttaal</string>
     <string name="map_language_native">Lokale namen</string>
-    <string name="settings_units">Eenheden</string>
+    <string name="settings_units">Voorkeursformaat voor eenheden</string>
     <string name="units_use_miles">Afstanden in mijlen</string>
     <string name="units_use_feet">Hoogtes in voet</string>
-    <string name="gps_format">Coördinatenformaat</string>
+    <string name="gps_format">GPS-coördinaten</string>
+    <string name="units_distance">Eenheden voor afstand</string>
+    <string name="units_height">Eenheden voor hoogte</string>
+    <string name="units_temperature">Eenheden voor temperatuur</string>
+    <string name="units_metric">metrisch</string>
+    <string name="units_imperial">imperiaal</string>
+    <string name="units_celsius">Celsius</string>
+    <string name="units_fahrenheit">Fahrenheit</string>
+    <string name="units_sample">Voorbeeld:</string>
+    <string name="gps_dd">decimale graden</string>
+    <string name="gps_ddmm">graden / minuten</string>
+    <string name="gps_ddmmss">graden / minuten / seconden</string>
     <string name="last_used">Laatst gebruikt</string>
     <string name="local_library">Lokale bibliotheek</string>
     <string name="sidebars">Artikelen</string>
@@ -124,4 +134,24 @@
     <string name="partly_offroad">Gedeeltelijk offroad</string>
     <string name="mostly_offroad">Overwegend offroad</string>
     <string name="fully_offroad">Offroad</string>
+
+    <plurals name="length_days">
+        <item quantity="one">%1$d dag</item>
+        <item quantity="other">%1$d dagen</item>
+    </plurals>
+
+    <string name="itinerary_highlights">Hoogtepunten</string>
+    <string name="itinerary_road_conditions">Wegomstandigheden</string>
+    <string name="open_kind_open">Open</string>
+    <string name="open_kind_closed">Gesloten</string>
+    <string name="open_kind_temp_closed">Tijdelijk gesloten</string>
+    <string name="open_kind_permit">Vergunning vereist</string>
+    <string name="open_kind_restricted">Beperkt</string>
+    <string name="open_kind_toll">Tol</string>
+    <string name="settings_text_size">Tekstgrootte</string>
+    <string name="text_size_small">Klein</string>
+    <string name="text_size_medium">Gemiddeld</string>
+    <string name="text_size_large">Groot</string>
+    <string name="text_size_very_large">Zeer groot</string>
+    <string name="text_size_sample">::Voorbeeldtitel::\nPa\'s wijze lynx bezag vroom het fikse aquaduct. Zo zien beschrijvingen, wegomstandigheden en hoogtepunten er op dit formaat uit.</string>
 </resources>
