@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -34,8 +35,16 @@ private val FillColor = Color(0xFF8B7B5B)
 private val LineColor = Color(0xFF6F6042)
 private val CursorColor = Color(0xFF1A1A1A)
 
-/** One resampled, smoothed profile sample: cumulative distance and elevation, both in metres. */
-private data class ProfilePoint(val distanceM: Double, val eleM: Double)
+/** The geographic point under the profile cursor, reported while dragging. */
+data class ElevationCursor(val lat: Double, val lon: Double)
+
+/** One resampled, smoothed profile sample: distance/elevation (metres) and its position. */
+private data class ProfilePoint(
+    val distanceM: Double,
+    val eleM: Double,
+    val lat: Double,
+    val lon: Double,
+)
 
 /**
  * Interactive elevation profile of [track]: a filled line of altitude (Y, in
@@ -49,6 +58,7 @@ fun ElevationProfile(
     useMiles: Boolean,
     useFeet: Boolean,
     modifier: Modifier = Modifier,
+    onCursor: (ElevationCursor?) -> Unit = {},
 ) {
     val samples = remember(track.documentId) { buildProfile(track) }
     if (samples.size < 2) return
@@ -73,19 +83,30 @@ fun ElevationProfile(
     val labelColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.toArgb()
 
     var cursorX by remember { mutableStateOf<Float?>(null) }
+    val currentOnCursor by rememberUpdatedState(onCursor)
 
     Canvas(
-        modifier = modifier.pointerInput(Unit) {
+        modifier = modifier.pointerInput(samples) {
+            val leftPx = 52.dp.toPx()
             awaitEachGesture {
+                fun report(xPos: Float) {
+                    cursorX = xPos
+                    val plotW = size.width - leftPx
+                    if (plotW <= 0f) return
+                    val t = ((xPos - leftPx) / plotW).coerceIn(0f, 1f)
+                    val idx = (t * (samples.size - 1)).roundToInt().coerceIn(0, samples.lastIndex)
+                    currentOnCursor(ElevationCursor(samples[idx].lat, samples[idx].lon))
+                }
                 val down = awaitFirstDown(requireUnconsumed = false)
-                cursorX = down.position.x
+                report(down.position.x)
                 do {
                     val event = awaitPointerEvent()
                     // Consume so the enclosing vertical scroll doesn't steal the hold.
                     event.changes.forEach { if (it.pressed) it.consume() }
-                    cursorX = event.changes.firstOrNull { it.pressed }?.position?.x ?: cursorX
+                    event.changes.firstOrNull { it.pressed }?.let { report(it.position.x) }
                 } while (event.changes.any { it.pressed })
                 cursorX = null
+                currentOnCursor(null)
             }
         },
     ) {
@@ -181,10 +202,10 @@ private fun buildProfile(track: Track): List<ProfilePoint> {
 
     val raw = ArrayList<ProfilePoint>(pts.size)
     var dist = 0.0
-    raw.add(ProfilePoint(0.0, pts[0].ele))
+    raw.add(ProfilePoint(0.0, pts[0].ele, pts[0].lat, pts[0].lon))
     for (i in 1 until pts.size) {
         dist += haversineMeters(pts[i - 1], pts[i])
-        raw.add(ProfilePoint(dist, pts[i].ele))
+        raw.add(ProfilePoint(dist, pts[i].ele, pts[i].lat, pts[i].lon))
     }
     val total = raw.last().distanceM
     if (total <= 0.0) return emptyList()
@@ -199,7 +220,14 @@ private fun buildProfile(track: Track): List<ProfilePoint> {
         val b = raw[minOf(j + 1, raw.size - 1)]
         val span = b.distanceM - a.distanceM
         val t = if (span > 0.0) ((d - a.distanceM) / span).coerceIn(0.0, 1.0) else 0.0
-        resampled.add(ProfilePoint(d, a.eleM + (b.eleM - a.eleM) * t))
+        resampled.add(
+            ProfilePoint(
+                distanceM = d,
+                eleM = a.eleM + (b.eleM - a.eleM) * t,
+                lat = a.lat + (b.lat - a.lat) * t,
+                lon = a.lon + (b.lon - a.lon) * t,
+            ),
+        )
     }
     return smooth(resampled, window = 5)
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,6 +85,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
@@ -139,6 +141,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import com.mapbox.maps.MapView
+import com.mapbox.geojson.Point
 import android.widget.Toast
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -242,6 +245,8 @@ fun ItineraryScreen(
     val flyover = remember { Flyover() }
     val flyoverState by flyover.state.collectAsState()
     var popup by remember { mutableStateOf<MapPopupState?>(null) }
+    // The geographic point under the elevation-profile drag, shown as a map dot.
+    var profileCursor by remember { mutableStateOf<ElevationCursor?>(null) }
     var openWaypoint by remember { mutableStateOf<Waypoint?>(null) }
     var showAddWaypoint by remember { mutableStateOf(false) }
     var satelliteMode by remember { mutableStateOf(false) }
@@ -356,7 +361,7 @@ fun ItineraryScreen(
         VerticalSplit(
             modifier = Modifier.fillMaxSize().padding(padding),
             top = {
-                Box(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                     // Torn down while the full-screen dialog is open, so only one
                     // Mapbox map view is ever live at a time.
                     if (!mapFullScreen) {
@@ -462,6 +467,27 @@ fun ItineraryScreen(
                                 .padding(16.dp),
                         )
                     }
+                    // Dot tracking the elevation-profile drag, over everything
+                    // else on the map; removed when the drag ends.
+                    profileCursor?.let { cursor ->
+                        mapView?.mapboxMap?.let { mbMap ->
+                            val screen = mbMap.pixelForCoordinate(
+                                Point.fromLngLat(cursor.lon, cursor.lat),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .offset {
+                                        IntOffset(
+                                            (screen.x - 9.dp.toPx()).roundToInt(),
+                                            (screen.y - 9.dp.toPx()).roundToInt(),
+                                        )
+                                    }
+                                    .size(18.dp)
+                                    .background(RED, CircleShape)
+                                    .border(2.dp, Color.White, CircleShape),
+                            )
+                        }
+                    }
                     }
                 }
             },
@@ -510,6 +536,7 @@ fun ItineraryScreen(
                             lang = lang,
                             onLink = onLink,
                             onAddWaypoint = { showAddWaypoint = true },
+                            onProfileCursor = { profileCursor = it },
                         )
                         1 -> StepsTab(
                             state, selectedStepIndex, lang, useMiles, useFeet, gpsFormat,
@@ -603,6 +630,7 @@ private fun DescriptionTab(
     lang: String,
     onLink: (MarkupLink, String) -> Unit,
     onAddWaypoint: () -> Unit,
+    onProfileCursor: (ElevationCursor?) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -653,6 +681,7 @@ private fun DescriptionTab(
                 track = track,
                 useMiles = useMiles,
                 useFeet = useFeet,
+                onCursor = onProfileCursor,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
