@@ -76,6 +76,7 @@ import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.mapActionButtonColors
 import ch.overlandmap.map.ui.markup.MarkupText
+import ch.overlandmap.map.ui.theme.contentTextStyle
 import ch.overlandmap.map.ui.overlandApp
 import coil.compose.AsyncImage
 import org.maplibre.android.maps.MapLibreMap
@@ -564,22 +565,29 @@ internal fun CommentsTab(comments: List<Comment>, lang: String) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         comment.userName ?: "",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = contentTextStyle(MaterialTheme.typography.labelLarge),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                     )
                     comment.createdAt?.let {
                         Text(
                             dateFormat.format(Date(it)),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = contentTextStyle(MaterialTheme.typography.labelSmall),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 comment.rating?.takeIf { it > 0 }?.let {
-                    Text("★".repeat(it), color = MaterialTheme.colorScheme.tertiary)
+                    Text(
+                        "★".repeat(it),
+                        style = contentTextStyle(MaterialTheme.typography.bodyLarge),
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
                 }
-                Text(comment.content(lang), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    comment.content(lang),
+                    style = contentTextStyle(MaterialTheme.typography.bodyMedium),
+                )
             }
         }
     }

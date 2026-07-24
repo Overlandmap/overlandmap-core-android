@@ -32,6 +32,7 @@ import ch.overlandmap.map.model.BorderOpenState
 import ch.overlandmap.map.model.Country
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.overlandApp
+import ch.overlandmap.map.ui.theme.contentTextStyle
 
 /**
  * Overland map tab: world map on top; the bottom half shows the info of the
@@ -86,7 +87,12 @@ private fun CountrySearch(countries: List<Country>, onPick: (Country) -> Unit) {
         LazyColumn {
             items(matches.size) { index ->
                 val country = matches[index]
-                TextButton(onClick = { onPick(country) }) { Text(country.name(lang)) }
+                TextButton(onClick = { onPick(country) }) {
+                    Text(
+                        country.name(lang),
+                        style = contentTextStyle(MaterialTheme.typography.labelLarge),
+                    )
+                }
             }
         }
     }
@@ -112,7 +118,7 @@ private fun SelectionInfo(
                     is WorldSelection.OfBorder -> selection.border.name
                     is WorldSelection.OfBorderPost -> selection.post.name
                 },
-                style = MaterialTheme.typography.titleMedium,
+                style = contentTextStyle(MaterialTheme.typography.titleMedium),
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onClose) {
@@ -123,7 +129,9 @@ private fun SelectionInfo(
             is WorldSelection.OfCountry -> CountryInfo(selection.country, lang)
             is WorldSelection.OfBorder -> {
                 OpenStateLabel(selection.border.openState)
-                selection.border.comment(lang)?.let { Text(it) }
+                selection.border.comment(lang)?.let {
+                    Text(it, style = contentTextStyle(MaterialTheme.typography.bodyLarge))
+                }
                 Row {
                     selection.border.country1?.let { code ->
                         TextButton(onClick = { onOpenCountry(code) }) { Text(code) }
@@ -136,9 +144,11 @@ private fun SelectionInfo(
             is WorldSelection.OfBorderPost -> {
                 OpenStateLabel(selection.post.openState)
                 selection.post.countries?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall)
+                    Text(it, style = contentTextStyle(MaterialTheme.typography.bodySmall))
                 }
-                selection.post.comment(lang)?.let { Text(it) }
+                selection.post.comment(lang)?.let {
+                    Text(it, style = contentTextStyle(MaterialTheme.typography.bodyLarge))
+                }
             }
         }
     }
@@ -155,7 +165,11 @@ private fun CountryInfo(country: Country, lang: String) {
     InfoRow(stringResource(R.string.country_carnet), country.carnetStatus.name)
     InfoRow(stringResource(R.string.country_insurance), country.insuranceStatus.name)
     country.comment(lang)?.let {
-        Text(it, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            it,
+            style = contentTextStyle(MaterialTheme.typography.bodyLarge),
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 
@@ -169,7 +183,7 @@ private fun InfoRow(label: String, value: String?) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        Text(value, style = MaterialTheme.typography.bodyMedium)
+        Text(value, style = contentTextStyle(MaterialTheme.typography.bodyMedium))
     }
 }
 

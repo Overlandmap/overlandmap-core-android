@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
@@ -35,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -62,8 +64,10 @@ import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.isDebugBuild
+import ch.overlandmap.map.data.FontSize
 import ch.overlandmap.map.data.GpsFormat
 import ch.overlandmap.map.data.UserPreferences
+import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.overlandApp
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
@@ -82,6 +86,7 @@ fun SettingsScreen(
     onOpenProfile: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenUnits: () -> Unit,
+    onOpenTextSize: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenDebug: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
@@ -173,6 +178,12 @@ fun SettingsScreen(
             icon = Icons.Filled.Straighten,
             label = stringResource(R.string.settings_units),
             onClick = onOpenUnits,
+        )
+        HorizontalDivider()
+        SubmenuRow(
+            icon = Icons.Filled.FormatSize,
+            label = stringResource(R.string.settings_text_size),
+            onClick = onOpenTextSize,
         )
         HorizontalDivider()
         SubmenuRow(
@@ -351,6 +362,7 @@ fun SignInScreen(
  * Language submenu, two lists: the UI language and the map-label language
  * (the same languages plus "native", each place in its local language).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageScreen(
     onBack: () -> Unit,
@@ -358,43 +370,65 @@ fun LanguageScreen(
 ) {
     val mapLanguage by viewModel.mapLanguage.collectAsState()
 
-    SettingsSubScreen(title = stringResource(R.string.settings_language), onBack = onBack) {
-        Text(
-            stringResource(R.string.ui_language),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        val currentLanguage = AppCompatDelegate.getApplicationLocales().toLanguageTags()
-            .ifEmpty { java.util.Locale.getDefault().language }
-        AppConfig.SUPPORTED_LANGUAGES.forEach { (code, label) ->
-            LanguageRow(
-                flag = languageFlag(code),
-                label = label,
-                selected = code == currentLanguage,
-                onClick = { viewModel.setLanguage(code) },
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_language)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
             )
-        }
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            SectionHeader(stringResource(R.string.ui_language))
+            val currentLanguage = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+                .ifEmpty { java.util.Locale.getDefault().language }
+            AppConfig.SUPPORTED_LANGUAGES.forEach { (code, label) ->
+                LanguageRow(
+                    flag = languageFlag(code),
+                    label = languageLabel(code, label),
+                    selected = code == currentLanguage,
+                    onClick = { viewModel.setLanguage(code) },
+                )
+            }
 
-        Text(
-            stringResource(R.string.map_language),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
-        )
-        LanguageRow(
-            flag = languageFlag(UserPreferences.MAP_LANGUAGE_NATIVE),
-            label = stringResource(R.string.map_language_native),
-            selected = mapLanguage == UserPreferences.MAP_LANGUAGE_NATIVE,
-            onClick = { viewModel.setMapLanguage(UserPreferences.MAP_LANGUAGE_NATIVE) },
-        )
-        AppConfig.SUPPORTED_LANGUAGES.forEach { (code, label) ->
+            SectionHeader(stringResource(R.string.map_language))
             LanguageRow(
-                flag = languageFlag(code),
-                label = label,
-                selected = code == mapLanguage,
-                onClick = { viewModel.setMapLanguage(code) },
+                flag = languageFlag(UserPreferences.MAP_LANGUAGE_NATIVE),
+                label = stringResource(R.string.map_language_native),
+                selected = mapLanguage == UserPreferences.MAP_LANGUAGE_NATIVE,
+                onClick = { viewModel.setMapLanguage(UserPreferences.MAP_LANGUAGE_NATIVE) },
             )
+            AppConfig.SUPPORTED_LANGUAGES.forEach { (code, label) ->
+                LanguageRow(
+                    flag = languageFlag(code),
+                    label = label,
+                    selected = code == mapLanguage,
+                    onClick = { viewModel.setMapLanguage(code) },
+                )
+            }
         }
     }
+}
+
+/** Appends "(AI-translated)" in the local language for machine-translated locales. */
+private fun languageLabel(code: String, base: String): String = when (code) {
+    "en", "fr" -> base
+    "de" -> "$base (KI-übersetzt)"
+    "it" -> "$base (tradotto da IA)"
+    "es" -> "$base (traducido por IA)"
+    "pt" -> "$base (traduzido por IA)"
+    "nl" -> "$base (AI-vertaald)"
+    "ru" -> "$base (ИИ-перевод)"
+    else -> base
 }
 
 @Composable
@@ -404,15 +438,14 @@ private fun LanguageRow(flag: String, label: String, selected: Boolean, onClick:
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = 6.dp, horizontal = 16.dp),
     ) {
-        Text(flag, modifier = Modifier.padding(end = 16.dp))
+        Text(flag, modifier = Modifier.padding(end = 12.dp))
         Text(label, modifier = Modifier.weight(1f))
         if (selected) {
             Text("✓", color = MaterialTheme.colorScheme.primary)
         }
     }
-    HorizontalDivider()
 }
 
 /** Flag emoji of the language's main country; a globe for "native". */
@@ -523,7 +556,8 @@ fun ProfileScreen(
     }
 }
 
-/** Units submenu: miles and feet switches, GPS coordinate format. */
+/** Preferred format for units: distance, height, GPS coordinates, temperature. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnitsScreen(
     onBack: () -> Unit,
@@ -532,30 +566,177 @@ fun UnitsScreen(
     val useMiles by viewModel.useMiles.collectAsState()
     val useFeet by viewModel.useFeet.collectAsState()
     val gpsFormat by viewModel.gpsFormat.collectAsState()
+    val useFahrenheit by viewModel.useFahrenheit.collectAsState()
 
-    SettingsSubScreen(title = stringResource(R.string.settings_units), onBack = onBack) {
-        SwitchRow(
-            label = stringResource(R.string.units_use_miles),
-            checked = useMiles,
-            onChange = viewModel::setUseMiles,
-        )
-        SwitchRow(
-            label = stringResource(R.string.units_use_feet),
-            checked = useFeet,
-            onChange = viewModel::setUseFeet,
-        )
-
-        Text(
-            stringResource(R.string.gps_format),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
-        )
-        GpsFormat.entries.forEach { format ->
-            GpsFormatRow(
-                label = format.label,
-                selected = format == gpsFormat,
-                onClick = { viewModel.setGpsFormat(format) },
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_units)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
             )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState()),
+        ) {
+        // ── Distance ────────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.units_distance))
+        RadioRow(
+            emoji = "\uD83C\uDF0D",
+            label = stringResource(R.string.units_metric),
+            selected = !useMiles,
+            onClick = { viewModel.setUseMiles(false) },
+        )
+        RadioRow(
+            emoji = "\uD83C\uDDFA\uD83C\uDDF8",
+            label = stringResource(R.string.units_imperial),
+            selected = useMiles,
+            onClick = { viewModel.setUseMiles(true) },
+        )
+
+        // ── Height ──────────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.units_height))
+        RadioRow(
+            emoji = "\uD83C\uDF0D",
+            label = stringResource(R.string.units_metric),
+            selected = !useFeet,
+            onClick = { viewModel.setUseFeet(false) },
+        )
+        RadioRow(
+            emoji = "\uD83C\uDDFA\uD83C\uDDF8",
+            label = stringResource(R.string.units_imperial),
+            selected = useFeet,
+            onClick = { viewModel.setUseFeet(true) },
+        )
+
+        // ── GPS coordinates ─────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.gps_format))
+        RadioRow(
+            label = stringResource(R.string.gps_dd),
+            selected = gpsFormat == GpsFormat.DD,
+            onClick = { viewModel.setGpsFormat(GpsFormat.DD) },
+        )
+        RadioRow(
+            label = stringResource(R.string.gps_ddmm),
+            selected = gpsFormat == GpsFormat.DDMM,
+            onClick = { viewModel.setGpsFormat(GpsFormat.DDMM) },
+        )
+        RadioRow(
+            label = stringResource(R.string.gps_ddmmss),
+            selected = gpsFormat == GpsFormat.DDMMSS,
+            onClick = { viewModel.setGpsFormat(GpsFormat.DDMMSS) },
+        )
+
+        // ── Temperature ─────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.units_temperature))
+        RadioRow(
+            emoji = "\uD83C\uDF0D",
+            label = stringResource(R.string.units_celsius),
+            selected = !useFahrenheit,
+            onClick = { viewModel.setUseFahrenheit(false) },
+        )
+        RadioRow(
+            emoji = "\uD83C\uDDFA\uD83C\uDDF8",
+            label = stringResource(R.string.units_fahrenheit),
+            selected = useFahrenheit,
+            onClick = { viewModel.setUseFahrenheit(true) },
+        )
+
+        // ── Sample ──────────────────────────────────────────────────────────
+        HorizontalDivider(modifier = Modifier.padding(top = 16.dp))
+        Column(modifier = Modifier.padding(start = 16.dp, top = 12.dp)) {
+            Text(
+                stringResource(R.string.units_sample),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            val distSample = if (useMiles) "328 ft, 18.6 mi" else "100 m, 30 km"
+            val eleSample = if (useFeet) "29029 ft" else "8848 m"
+            val gpsSample = UserPreferences.formatCoordinates(86.9259, 27.9871, gpsFormat)
+            val tempSample = if (useFahrenheit) "68 °F" else "20 °C"
+            Text(distSample, style = MaterialTheme.typography.bodyMedium)
+            Text(eleSample, style = MaterialTheme.typography.bodyMedium)
+            Text(gpsSample, style = MaterialTheme.typography.bodyMedium)
+            Text(tempSample, style = MaterialTheme.typography.bodyMedium)
+        }
+        }
+    }
+}
+
+/**
+ * Text-size submenu: pick the size of displayed-object content (itineraries,
+ * steps, waypoints, articles, countries, comments, check-ins — names,
+ * descriptions, road conditions, highlights, …). Fixed UI such as buttons and
+ * labels keeps its size. A live sample below the choices shows the effect,
+ * including the proportionally larger titles in formatted text.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TextSizeScreen(
+    onBack: () -> Unit,
+    viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
+) {
+    val fontSize by viewModel.fontSize.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_text_size)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            RadioRow(
+                label = stringResource(R.string.text_size_small),
+                selected = fontSize == FontSize.SMALL,
+                onClick = { viewModel.setFontSize(FontSize.SMALL) },
+            )
+            RadioRow(
+                label = stringResource(R.string.text_size_medium),
+                selected = fontSize == FontSize.MEDIUM,
+                onClick = { viewModel.setFontSize(FontSize.MEDIUM) },
+            )
+            RadioRow(
+                label = stringResource(R.string.text_size_large),
+                selected = fontSize == FontSize.LARGE,
+                onClick = { viewModel.setFontSize(FontSize.LARGE) },
+            )
+            RadioRow(
+                label = stringResource(R.string.text_size_very_large),
+                selected = fontSize == FontSize.VERY_LARGE,
+                onClick = { viewModel.setFontSize(FontSize.VERY_LARGE) },
+            )
+
+            // Live sample: scales with the current selection (the choice is saved
+            // immediately, so the whole app — and this preview — updates at once).
+            HorizontalDivider(modifier = Modifier.padding(top = 16.dp))
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    stringResource(R.string.units_sample),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                MarkupText(
+                    text = stringResource(R.string.text_size_sample),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
 }
@@ -602,18 +783,40 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 }
 
 @Composable
-private fun GpsFormatRow(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun SectionHeader(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun RadioRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    emoji: String? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(horizontal = 8.dp),
     ) {
-        Text(label, modifier = Modifier.weight(1f))
-        if (selected) {
-            Text("✓", color = MaterialTheme.colorScheme.primary)
+        // Remove the default 48dp min touch target to pack rows tightly.
+        RadioButton(
+            selected = selected,
+            onClick = onClick,
+            modifier = Modifier.size(32.dp).padding(6.dp),
+        )
+        if (emoji != null) {
+            Text(emoji, modifier = Modifier.padding(end = 8.dp))
         }
+        Text(label)
     }
-    HorizontalDivider()
 }

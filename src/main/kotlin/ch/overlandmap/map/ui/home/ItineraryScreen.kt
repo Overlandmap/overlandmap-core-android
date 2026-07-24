@@ -91,6 +91,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,6 +123,7 @@ import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.shop.CommentsTab
+import ch.overlandmap.map.ui.theme.contentTextStyle
 import ch.overlandmap.map.ui.zoomToItineraryMapbox
 import ch.overlandmap.map.ui.zoomToPopupObjectMapbox
 import coil.compose.AsyncImage
@@ -735,20 +737,26 @@ private fun ItineraryActions(
 private fun PropertiesBox(itinerary: Itinerary, useMiles: Boolean) {
     Card {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             var length = UserPreferences.formatDistanceKm(itinerary.lengthKM, useMiles)
             if (itinerary.lengthDays > 0) {
-                length += " · " + stringResource(R.string.length_days, itinerary.lengthDays)
+                val days = itinerary.lengthDays.toInt()
+                length += " · " + pluralStringResource(R.plurals.length_days, days, days)
             }
             PropertyRow(Icons.Filled.Route, MaterialTheme.colorScheme.primary, length)
 
-            itinerary.fuelRange?.let {
+            itinerary.fuelRange?.let { rangeKm ->
+                val fuelText = if (useMiles) {
+                    "${(rangeKm * 0.621371).toInt()} mi"
+                } else {
+                    "${rangeKm.toInt()} km"
+                }
                 PropertyRow(
                     Icons.Filled.LocalGasStation,
                     MaterialTheme.colorScheme.primary,
-                    stringResource(R.string.fuel_range, it),
+                    fuelText,
                 )
             }
 
@@ -769,9 +777,9 @@ private fun PropertiesBox(itinerary: Itinerary, useMiles: Boolean) {
 @Composable
 private fun PropertyRow(icon: ImageVector, tint: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label, style = MaterialTheme.typography.bodySmall)
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = contentTextStyle(MaterialTheme.typography.bodySmall))
     }
 }
 
@@ -961,13 +969,13 @@ private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, use
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     "${step.stepId}.${step.name(lang)}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = contentTextStyle(MaterialTheme.typography.titleMedium),
                     fontWeight = FontWeight.Bold,
                 )
                 if (subtitle.isNotEmpty()) {
                     Text(
                         subtitle,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = contentTextStyle(MaterialTheme.typography.bodySmall),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .padding(top = 2.dp)
@@ -995,7 +1003,7 @@ private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, use
             }
             Text(
                 distText,
-                style = MaterialTheme.typography.titleMedium,
+                style = contentTextStyle(MaterialTheme.typography.titleMedium),
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
@@ -1254,7 +1262,7 @@ private fun FullScreenPhotoViewer(
                                 Text(
                                     Markup.plainText(pageCaption),
                                     color = Color.White,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = contentTextStyle(MaterialTheme.typography.bodyMedium),
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier
                                         .fillMaxWidth()

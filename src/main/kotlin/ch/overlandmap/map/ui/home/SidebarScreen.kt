@@ -41,6 +41,7 @@ import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.markup.Markup
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
+import ch.overlandmap.map.ui.theme.contentTextStyle
 import coil.compose.AsyncImage
 
 /**
@@ -175,14 +176,14 @@ fun SidebarPreviewDialog(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         sidebar.name(lang),
-                        style = MaterialTheme.typography.titleSmall,
+                        style = contentTextStyle(MaterialTheme.typography.titleSmall),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     sidebar.description(lang)?.let { desc ->
                         Text(
                             Markup.plainText(desc),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = contentTextStyle(MaterialTheme.typography.bodySmall),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,

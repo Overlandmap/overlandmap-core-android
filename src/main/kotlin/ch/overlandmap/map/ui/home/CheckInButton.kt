@@ -48,6 +48,7 @@ import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.data.local.CheckInRow
 import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.ui.theme.contentTextStyle
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -183,7 +184,7 @@ private fun CheckInListItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     checkIn.userName ?: checkIn.userId ?: "",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = contentTextStyle(MaterialTheme.typography.bodyMedium),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
@@ -192,7 +193,7 @@ private fun CheckInListItem(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(ts)),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = contentTextStyle(MaterialTheme.typography.labelSmall),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -200,14 +201,14 @@ private fun CheckInListItem(
             checkIn.reason?.let {
                 Text(
                     it,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = contentTextStyle(MaterialTheme.typography.bodySmall),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             checkIn.content?.let {
                 Text(
                     it,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = contentTextStyle(MaterialTheme.typography.bodySmall),
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )

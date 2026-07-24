@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import ch.overlandmap.map.OverlandApp
+import ch.overlandmap.map.ui.theme.LocalContentTextScale
+import ch.overlandmap.map.ui.theme.scaledBy
 
 /** Same red as the Flutter app's textLinkColor. */
 private val LinkColor = Color(0xFFF44336)
@@ -62,8 +64,11 @@ fun MarkupText(
     val units = MarkupUnits(useMiles, useFeet)
     val paragraphs = remember(text, units) { Markup.parse(text, units) }
 
+    // Content markup scales with the user's text-size setting; titles are
+    // derived from this base size (see spanStyleFor), so they scale with it.
+    val scaledStyle = style.scaledBy(LocalContentTextScale.current)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        paragraphs.forEach { nodes -> MarkupParagraph(nodes, style, onLinkClick) }
+        paragraphs.forEach { nodes -> MarkupParagraph(nodes, scaledStyle, onLinkClick) }
     }
 }
 

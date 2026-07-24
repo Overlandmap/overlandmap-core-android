@@ -52,7 +52,6 @@
     <string name="itinerary_count">%d itineraries</string>
     <string name="itineraries">Itineraries</string>
     <string name="steps">Steps</string>
-    <string name="length_days">%1$.0f days</string>
     <string name="free">Free</string>
 
     <string name="shop_offline">The shop is not available offline</string>
@@ -130,13 +129,30 @@
     <string name="expired">Expired</string>
     <string name="or_divider">or</string>
     <string name="settings_language">Language</string>
-    <string name="ui_language">App language</string>
+    <string name="ui_language">Interface language</string>
     <string name="map_language">Map language</string>
     <string name="map_language_native">Native names</string>
-    <string name="settings_units">Units</string>
+    <string name="settings_units">Preferred format for units</string>
     <string name="units_use_miles">Distances in miles</string>
     <string name="units_use_feet">Elevations in feet</string>
-    <string name="gps_format">Coordinates format</string>
+    <string name="gps_format">GPS coordinates</string>
+    <string name="units_distance">Units for distance</string>
+    <string name="units_height">Units for height (elevation)</string>
+    <string name="units_temperature">Units for temperature</string>
+    <string name="units_metric">metric</string>
+    <string name="units_imperial">imperial</string>
+    <string name="units_celsius">Celsius</string>
+    <string name="units_fahrenheit">Fahrenheit</string>
+    <string name="units_sample">Sample:</string>
+    <string name="settings_text_size">Text size</string>
+    <string name="text_size_small">Small</string>
+    <string name="text_size_medium">Medium</string>
+    <string name="text_size_large">Large</string>
+    <string name="text_size_very_large">Very large</string>
+    <string name="text_size_sample">::Sample title::\nThe quick brown fox jumps over the lazy dog. This is how descriptions, road conditions and highlights will look at this size.</string>
+    <string name="gps_dd">decimal degrees</string>
+    <string name="gps_ddmm">degrees / minutes</string>
+    <string name="gps_ddmmss">degrees / minutes / seconds</string>
     <string name="last_used">Last used</string>
     <string name="local_library">Local library</string>
     <string name="sidebars">Articles</string>
@@ -159,4 +175,9 @@
     <string name="partly_offroad">Partly off-road</string>
     <string name="mostly_offroad">Mostly off-road</string>
     <string name="fully_offroad">Off-road</string>
+
+    <plurals name="length_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
 </resources>

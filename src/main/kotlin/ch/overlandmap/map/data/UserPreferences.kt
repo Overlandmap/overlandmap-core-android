@@ -43,6 +43,8 @@ class UserPreferences(private val context: Context) {
     private val debugShowZoomKey = booleanPreferencesKey("debug_show_zoom")
     private val lastCheckInsFetchKey = longPreferencesKey("last_check_ins_fetch")
     private val gpsFormatKey = stringPreferencesKey("gps_format")
+    private val useFahrenheitKey = booleanPreferencesKey("use_fahrenheit")
+    private val fontSizeKey = stringPreferencesKey("font_size")
 
     val useMiles: Flow<Boolean> = context.dataStore.data.map { it[useMilesKey] ?: false }
     val useFeet: Flow<Boolean> = context.dataStore.data.map { it[useFeetKey] ?: false }
@@ -77,6 +79,25 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setGpsFormat(format: GpsFormat) {
         context.dataStore.edit { it[gpsFormatKey] = format.name }
+    }
+
+    /** Temperature unit preference: Fahrenheit when true, Celsius when false. */
+    val useFahrenheit: Flow<Boolean> = context.dataStore.data.map { it[useFahrenheitKey] ?: false }
+
+    suspend fun setUseFahrenheit(value: Boolean) {
+        context.dataStore.edit { it[useFahrenheitKey] = value }
+    }
+
+    /** Text-size preference for displayed-object content (default [FontSize.MEDIUM]). */
+    val fontSize: Flow<FontSize> = context.dataStore.data.map { p ->
+        p[fontSizeKey]?.let { runCatching { FontSize.valueOf(it) }.getOrNull() } ?: FontSize.MEDIUM
+    }
+
+    /** [fontSize] read synchronously, to seed the theme before the flow emits. */
+    fun fontSizeNow(): FontSize = runBlocking { fontSize.first() }
+
+    suspend fun setFontSize(value: FontSize) {
+        context.dataStore.edit { it[fontSizeKey] = value.name }
     }
 
     /** The route of the screen last shown, restored after the app is killed. */
@@ -192,6 +213,9 @@ class UserPreferences(private val context: Context) {
         fun formatElevationM(meters: Int, useFeet: Boolean): String =
             if (useFeet) "${(meters * 3.28084).toInt()} ft" else "$meters m"
 
+        fun formatTemperature(celsius: Int, useFahrenheit: Boolean): String =
+            if (useFahrenheit) "${(celsius * 9 / 5) + 32} °F" else "$celsius °C"
+
         /** Format coordinates according to the chosen GPS format. */
         fun formatCoordinates(lat: Double, lon: Double, format: GpsFormat): String =
             when (format) {
@@ -220,6 +244,19 @@ class UserPreferences(private val context: Context) {
             return "%d°%02d'%04.1f\"%s".format(deg, min, sec, suffix)
         }
     }
+}
+
+/**
+ * Text-size preference for displayed-object content. [scale] multiplies the
+ * font size of content text (names, descriptions, road conditions, highlights,
+ * …); fixed UI chrome such as buttons and labels is not scaled. Titles inside
+ * formatted text are derived from the content size, so they grow with it.
+ */
+enum class FontSize(val scale: Float) {
+    SMALL(0.85f),
+    MEDIUM(1f),
+    LARGE(1.2f),
+    VERY_LARGE(1.45f),
 }
 
 /** GPS coordinate display formats. */

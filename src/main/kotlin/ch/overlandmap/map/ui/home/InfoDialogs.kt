@@ -19,6 +19,7 @@ import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
+import ch.overlandmap.map.ui.theme.contentTextStyle
 
 /**
  * Small popups for objects that markup links can open. Their descriptions are
@@ -69,7 +70,7 @@ fun WaypointDialog(
                 waypoint.ele?.let {
                     Text(
                         UserPreferences.formatElevationM(it, useFeet),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = contentTextStyle(MaterialTheme.typography.labelLarge),
                     )
                 }
                 waypoint.description(lang)?.let {
