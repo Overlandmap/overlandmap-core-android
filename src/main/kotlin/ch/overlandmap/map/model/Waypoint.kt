@@ -14,6 +14,8 @@ data class Waypoint(
     val description: String? = null,
     val translatedDesc: Map<String, String>? = null,
     val type: String? = null,
+    /** Marker icon name (a maki-png id); selects the map marker. */
+    val maki: String? = null,
     val lat: Double? = null,
     val lon: Double? = null,
     val ele: Int? = null,
@@ -50,6 +52,7 @@ data class Waypoint(
             description = FS.str(data["description"]),
             translatedDesc = FS.stringMap(data["translatedDesc"]),
             type = FS.str(data["type"]),
+            maki = FS.str(data["maki"]),
             lat = FS.geoLat(data["location"]),
             lon = FS.geoLon(data["location"]),
             ele = FS.int(data["ele"]),

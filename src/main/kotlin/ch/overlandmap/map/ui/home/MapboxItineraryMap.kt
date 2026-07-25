@@ -1,6 +1,5 @@
 package ch.overlandmap.map.ui.home
 
-import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -27,10 +26,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.map.MapStyles
+import ch.overlandmap.map.ui.WaypointMarkers
 import ch.overlandmap.map.map.MapboxMapView
 import ch.overlandmap.map.map.enableSky
 import ch.overlandmap.map.map.enableTerrain
@@ -63,6 +61,9 @@ import com.mapbox.maps.extension.style.layers.getLayerAs
 import com.mapbox.maps.extension.style.layers.properties.generated.IconAnchor
 import com.mapbox.maps.extension.style.layers.properties.generated.LineCap
 import com.mapbox.maps.extension.style.layers.properties.generated.LineJoin
+import com.mapbox.maps.extension.style.layers.properties.generated.ProjectionName
+import com.mapbox.maps.extension.style.projection.generated.projection
+import com.mapbox.maps.extension.style.projection.generated.setProjection
 import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
 import com.mapbox.maps.extension.style.sources.generated.vectorSource
@@ -95,8 +96,8 @@ private const val NO_STEP = "__none__"
 
 private const val WAYPOINTS_SOURCE = "itin-waypoints"
 private const val WAYPOINTS_LAYER = "itin-waypoints-markers"
-private const val WAYPOINT_ICON = "itin-waypoint-icon"
 private const val WAYPOINT_DOC_ID = "documentId"
+private const val WAYPOINT_ICON_KEY = "iconKey"
 
 /** What a tap on the itinerary map hit, at which map-view pixel position. */
 sealed interface ItineraryMapTap {
@@ -146,6 +147,8 @@ fun MapboxItineraryMap(
     val styleUrl = remember(styleOptions, hasMapboxToken) {
         MapStyles.resolve(context, styleOptions, hasMapboxToken)
     }
+    // All maki marker icons, decoded once and registered when the style loads.
+    val makiIcons = remember { WaypointMarkers.bitmaps(context) }
     var fitted by remember { mutableStateOf(false) }
     var mapZoom by remember { mutableStateOf<Double?>(null) }
     var localMapView by remember { mutableStateOf<MapView?>(null) }
@@ -175,9 +178,15 @@ fun MapboxItineraryMap(
                 }
             },
             onStyleLoaded = { map, style ->
+                // Flatten to Mercator. On the default globe projection a
+                // BOTTOM-anchored marker icon drifts by roughly its height when
+                // zoomed out (its upward anchor offset is applied along the
+                // screen, not the curved surface), so waypoints appear shifted.
+                style.setProjection(projection(ProjectionName.MERCATOR))
+                makiIcons.forEach { (name, bitmap) -> style.addImage(name, bitmap) }
                 addTracksLayer(style, trackPackId)
                 addItineraryLayer(style, tracks)
-                addWaypointLayer(context, style, waypoints)
+                addWaypointLayer(style, waypoints)
                 addStepLayers(style, steps)
                 if (!fitted) {
                     // Restored at cold start: the saved camera; otherwise the
@@ -366,28 +375,29 @@ private fun addStepLayers(style: Style, steps: List<ItineraryStep>) {
     style.getLayerAs<SymbolLayer>(STEPS_NUMBERS_SELECTED)?.filter(hideAll)
 }
 
-private fun addWaypointLayer(context: Context, style: Style, waypoints: List<Waypoint>) {
+private fun addWaypointLayer(style: Style, waypoints: List<Waypoint>) {
     val features = waypoints.mapNotNull { waypoint ->
         val lat = waypoint.lat ?: return@mapNotNull null
         val lon = waypoint.lon ?: return@mapNotNull null
         Feature.fromGeometry(Point.fromLngLat(lon, lat)).also {
             it.addStringProperty(WAYPOINT_DOC_ID, waypoint.documentId)
+            it.addStringProperty(WAYPOINT_ICON_KEY, WaypointMarkers.iconFor(waypoint.maki))
         }
     }
     if (features.isEmpty()) return
-    val marker = ContextCompat.getDrawable(
-        context,
-        org.maplibre.android.R.drawable.maplibre_marker_icon_default,
-    )?.toBitmap() ?: return
-    style.addImage(WAYPOINT_ICON, marker)
     style.addSource(
         geoJsonSource(WAYPOINTS_SOURCE) { featureCollection(FeatureCollection.fromFeatures(features)) }
     )
+    // The waypoint's maki icon, center-anchored. A center anchor draws the icon
+    // at the exact projected point at every zoom; a bottom anchor offsets it in
+    // screen space, which diverges from the surface and drifts when zoomed out
+    // (the step numbers, center-anchored, stay put too).
     style.addLayer(
         symbolLayer(WAYPOINTS_LAYER, WAYPOINTS_SOURCE) {
-            iconImage(WAYPOINT_ICON)
-            iconAnchor(IconAnchor.BOTTOM)
+            iconImage(Expression.get(WAYPOINT_ICON_KEY))
+            iconAnchor(IconAnchor.CENTER)
             iconAllowOverlap(true)
+            iconSize(2.0)
         }
     )
 }

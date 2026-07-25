@@ -333,6 +333,7 @@ fun Waypoint.toRow() = WaypointRow(
         putIfNotNull("description", description)
         putIfNotEmpty("translatedDesc", translatedDesc)
         putIfNotNull("type", type)
+        putIfNotNull("maki", maki)
         putIfNotNull("lat", lat)
         putIfNotNull("lon", lon)
         putIfNotNull("ele", ele)
@@ -365,6 +366,7 @@ fun WaypointRow.toModel(): Waypoint = parseJsonColumn(json).let { j ->
         description = j.stringOrNull("description"),
         translatedDesc = j.stringMapOrNull("translatedDesc"),
         type = j.stringOrNull("type"),
+        maki = j.stringOrNull("maki"),
         lat = j.doubleOrNull("lat"),
         lon = j.doubleOrNull("lon"),
         ele = j.intOrNull("ele"),
