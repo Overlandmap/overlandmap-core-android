@@ -107,6 +107,9 @@ fun PackDetailScreen(
     packId: String,
     onBack: () -> Unit,
     onOpenSignIn: () -> Unit,
+    // Opens this pack's viewer on the Home tab (a different screen). No-op in
+    // the tab-less single-pack app, which has no separate Home tab.
+    onOpenLocalPack: (packId: String) -> Unit = {},
     // When set, a Settings action appears in the top bar. The tab-less
     // single-pack app uses it to reach Settings while this is the root screen.
     onOpenSettings: (() -> Unit)? = null,
@@ -134,6 +137,12 @@ fun PackDetailScreen(
     LaunchedEffect(map, state.pack) {
         val pack = state.pack ?: return@LaunchedEffect
         map?.let { zoomToPack(it, pack) }
+    }
+
+    // When a download finishes installing (deserializing), switch to this
+    // pack's viewer on the Home tab.
+    LaunchedEffect(downloadProgress?.done) {
+        if (downloadProgress?.done == true) onOpenLocalPack(packId)
     }
 
     val landscape =
@@ -200,6 +209,7 @@ fun PackDetailScreen(
                             },
                             onDownloadPack = { showFullPackDialog = true },
                             onDownloadSample = { showDownloadDialog = true },
+                            onOpenLocalPack = { onOpenLocalPack(packId) },
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
                                 .padding(start = 16.dp, bottom = 16.dp),
@@ -351,6 +361,7 @@ private fun MapActions(
     onBuy: () -> Unit,
     onDownloadPack: () -> Unit,
     onDownloadSample: () -> Unit,
+    onOpenLocalPack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -371,22 +382,28 @@ private fun MapActions(
         when {
             downloading -> Unit // the progress overlay is already showing
             purchasing -> CircularProgressIndicator()
-            owned && !state.isLocal -> Button(onClick = onDownloadPack) {
+            // Downloaded (full pack or sample) → open the Home-tab viewer.
+            owned && state.isLocal -> Button(onClick = onOpenLocalPack) {
+                Text(stringResource(R.string.downloaded))
+            }
+            owned -> Button(onClick = onDownloadPack) {
                 Text(stringResource(R.string.download))
             }
-            !owned -> {
+            else -> {
                 // The sample: the pack's free itinerary, downloadable
                 // without purchase.
                 val sample = state.itineraries.firstOrNull { it.isFree }
                 val hasZip = PackAssetKind.FREE_ITINERARY in state.assets
                 if (sample != null && hasZip) {
                     val downloaded = sample.documentId in state.downloadedItineraryIds
-                    Button(onClick = onDownloadSample, enabled = !downloaded) {
-                        Text(
-                            stringResource(
-                                if (downloaded) R.string.downloaded else R.string.download_sample
-                            )
-                        )
+                    if (downloaded) {
+                        Button(onClick = onOpenLocalPack) {
+                            Text(stringResource(R.string.downloaded))
+                        }
+                    } else {
+                        Button(onClick = onDownloadSample) {
+                            Text(stringResource(R.string.download_sample))
+                        }
                     }
                 }
                 if (price.isNullOrBlank()) {
