@@ -41,10 +41,12 @@ class UserPreferences(private val context: Context) {
     private val lastLatKey = doublePreferencesKey("last_lat")
     private val lastLonKey = doublePreferencesKey("last_lon")
     private val debugShowZoomKey = booleanPreferencesKey("debug_show_zoom")
+    private val debugShowPhotoSourceKey = booleanPreferencesKey("debug_show_photo_source")
     private val lastCheckInsFetchKey = longPreferencesKey("last_check_ins_fetch")
     private val gpsFormatKey = stringPreferencesKey("gps_format")
     private val useFahrenheitKey = booleanPreferencesKey("use_fahrenheit")
     private val fontSizeKey = stringPreferencesKey("font_size")
+    private val onboardingShownKey = booleanPreferencesKey("onboarding_shown")
 
     val useMiles: Flow<Boolean> = context.dataStore.data.map { it[useMilesKey] ?: false }
     val useFeet: Flow<Boolean> = context.dataStore.data.map { it[useFeetKey] ?: false }
@@ -56,6 +58,16 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setDebugShowZoom(value: Boolean) {
         context.dataStore.edit { it[debugShowZoomKey] = value }
+    }
+
+    /** Debug: overlay "hi-res online photo"/"offline photo" in the viewer (default off). */
+    val debugShowPhotoSource: Flow<Boolean> =
+        context.dataStore.data.map { it[debugShowPhotoSourceKey] ?: false }
+
+    fun debugShowPhotoSourceNow(): Boolean = runBlocking { debugShowPhotoSource.first() }
+
+    suspend fun setDebugShowPhotoSource(value: Boolean) {
+        context.dataStore.edit { it[debugShowPhotoSourceKey] = value }
     }
 
     /** Epoch millis when check-ins were last fetched from Firestore (0 = never). */
@@ -98,6 +110,14 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setFontSize(value: FontSize) {
         context.dataStore.edit { it[fontSizeKey] = value.name }
+    }
+
+    /** Whether the help/tutorial onboarding has been shown (first-launch gate). */
+    fun onboardingShownNow(): Boolean =
+        runBlocking { context.dataStore.data.first()[onboardingShownKey] ?: false }
+
+    suspend fun setOnboardingShown(value: Boolean) {
+        context.dataStore.edit { it[onboardingShownKey] = value }
     }
 
     /** The route of the screen last shown, restored after the app is killed. */

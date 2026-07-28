@@ -80,4 +80,7 @@ dependencies {
 
     // Images
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // YAML parsing for the help/tutorial content shipped as app assets
+    implementation("org.yaml:snakeyaml:2.3")
 }

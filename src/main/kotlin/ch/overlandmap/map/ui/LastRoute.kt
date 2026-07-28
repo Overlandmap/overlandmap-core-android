@@ -47,7 +47,8 @@ fun RestoreAndPersistLastRoute(navController: NavController) {
                 .onFailure { Log.w(TAG, "could not restore '$saved'", it) }
         }
         navController.currentBackStackEntryFlow.collect { entry ->
-            entry.fullRoute()?.let {
+            // The help/tutorial is a transient overlay; never restore into it.
+            entry.fullRoute()?.takeUnless { it.startsWith("help") }?.let {
                 Log.d(TAG, "save $it")
                 prefs.setLastRoute(it)
             }

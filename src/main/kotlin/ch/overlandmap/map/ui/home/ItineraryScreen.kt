@@ -1258,6 +1258,11 @@ private fun FullScreenPhotoViewer(
     startIndex: Int,
     onDismiss: () -> Unit,
 ) {
+    // Debug: whether to overlay which image (online/offline) is shown.
+    val app = LocalContext.current.applicationContext as OverlandApp
+    val showPhotoSource by app.userPreferences.debugShowPhotoSource.collectAsState(
+        initial = app.userPreferences.debugShowPhotoSourceNow(),
+    )
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         // A tap toggles the caption and the close button together.
         var chromeVisible by remember { mutableStateOf(true) }
@@ -1397,17 +1402,20 @@ private fun FullScreenPhotoViewer(
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                 )
                             }
-                            // DEBUG (remove for release): which image is shown.
-                            Text(
-                                if (showingOnline) "hi-res online photo" else "offline photo",
-                                color = Color.Yellow,
-                                style = MaterialTheme.typography.bodySmall,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.Black.copy(alpha = 0.5f))
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                            )
+                            // Debug overlay (toggled from the debug menu): which
+                            // image is actually shown.
+                            if (showPhotoSource) {
+                                Text(
+                                    if (showingOnline) "hi-res online photo" else "offline photo",
+                                    color = Color.Yellow,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                )
+                            }
                         }
                     }
                 }

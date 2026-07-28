@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Download
@@ -88,6 +89,7 @@ fun SettingsScreen(
     onOpenUnits: () -> Unit,
     onOpenTextSize: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenHelp: () -> Unit,
     onOpenDebug: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
 ) {
@@ -190,6 +192,12 @@ fun SettingsScreen(
             icon = Icons.Filled.Download,
             label = stringResource(R.string.downloads),
             onClick = onOpenDownloads,
+        )
+        HorizontalDivider()
+        SubmenuRow(
+            icon = Icons.AutoMirrored.Filled.HelpOutline,
+            label = stringResource(R.string.help),
+            onClick = onOpenHelp,
         )
         HorizontalDivider()
         // Debug tools — only in debuggable builds; absent from release.
@@ -756,11 +764,20 @@ fun DebugScreen(
     val showZoom by app.userPreferences.debugShowZoom.collectAsState(
         initial = app.userPreferences.debugShowZoomNow(),
     )
+    val showPhotoSource by app.userPreferences.debugShowPhotoSource.collectAsState(
+        initial = app.userPreferences.debugShowPhotoSourceNow(),
+    )
     SettingsSubScreen(title = stringResource(R.string.debug), onBack = onBack) {
         SwitchRow(
             label = stringResource(R.string.debug_show_zoom),
             checked = showZoom,
             onChange = { scope.launch { app.userPreferences.setDebugShowZoom(it) } },
+        )
+        HorizontalDivider()
+        SwitchRow(
+            label = stringResource(R.string.debug_show_photo_source),
+            checked = showPhotoSource,
+            onChange = { scope.launch { app.userPreferences.setDebugShowPhotoSource(it) } },
         )
         HorizontalDivider()
         SubmenuRow(

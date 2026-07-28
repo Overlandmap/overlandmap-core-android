@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -50,6 +51,7 @@ fun HomeScreen(
     onOpenItinerary: (String) -> Unit,
     onOpenPack: (String) -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenHelp: () -> Unit,
     viewModel: HomeViewModel = viewModel { HomeViewModel(overlandApp()) },
 ) {
     val packs by viewModel.packs.collectAsState()
@@ -70,6 +72,13 @@ fun HomeScreen(
         ) {
             IconButton(onClick = onOpenSearch) {
                 Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search))
+            }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onOpenHelp) {
+                Icon(
+                    Icons.AutoMirrored.Filled.HelpOutline,
+                    contentDescription = stringResource(R.string.help),
+                )
             }
         }
         val packList = packs
