@@ -76,6 +76,12 @@ class LocalPackViewModel(
     /** One-shot result of the last "check for update"; consumer clears it. */
     val updateCheck = MutableStateFlow<UpdateCheck?>(null)
 
+    /** True from the moment "update" is tapped until the re-download finishes. */
+    val updating = MutableStateFlow(false)
+
+    /** One-shot: the update finished installing (drives a toast); consumer clears. */
+    val updated = MutableStateFlow(false)
+
     fun selectItinerary(itineraryId: String?) {
         selectedItineraryId.value = itineraryId
     }
@@ -111,9 +117,21 @@ class LocalPackViewModel(
         viewModelScope.launch {
             runCatching { library.refreshComments(packId) }
         }
-        // An update's re-download finished: show the fresh content.
+        // Follow an update's re-download: toast + reload on success, and clear
+        // the "updating" flag on success or failure.
         viewModelScope.launch {
-            downloadProgress.collect { if (it?.done == true) load() }
+            downloadProgress.collect { progress ->
+                when {
+                    progress?.done == true -> {
+                        if (updating.value) {
+                            updating.value = false
+                            updated.value = true
+                        }
+                        load()
+                    }
+                    progress?.error != null -> updating.value = false
+                }
+            }
         }
     }
 
@@ -196,21 +214,13 @@ class LocalPackViewModel(
     fun checkForUpdate() {
         val pack = state.value.pack ?: return
         viewModelScope.launch {
-            updateCheck.value = try {
-                val online = app.shopRepository.trackPack(packId)
-                val assetId = online?.trackPackZip
-                val onlineVersion = assetId?.let { app.shopRepository.asset(it) }?.version
-                    ?: online?.version
-                if (onlineVersion != null && onlineVersion > (pack.version ?: 0)) {
-                    library.setNeedsUpdate(packId, true)
-                    load()
-                    UpdateCheck.AVAILABLE
-                } else {
-                    UpdateCheck.UP_TO_DATE
-                }
-            } catch (e: Exception) {
-                UpdateCheck.FAILED
+            // Force a check now (bypassing the throttle); persists the result.
+            updateCheck.value = when (app.packUpdateChecker.check(pack)) {
+                true -> UpdateCheck.AVAILABLE
+                false -> UpdateCheck.UP_TO_DATE
+                null -> UpdateCheck.FAILED
             }
+            load()
         }
     }
 
@@ -224,6 +234,9 @@ class LocalPackViewModel(
      */
     fun update() {
         val pack = state.value.pack ?: return
+        // Show the progress overlay right away, before the (possibly networked)
+        // download source is even resolved.
+        updating.value = true
         viewModelScope.launch {
             if (pack.isFreeSample) {
                 val assetId = runCatching { app.shopRepository.trackPack(packId) }
@@ -231,6 +244,7 @@ class LocalPackViewModel(
                     ?: pack.freeItineraryZip?.takeIf { it.isNotEmpty() }
                 val asset = assetId?.let { runCatching { app.shopRepository.asset(it) }.getOrNull() }
                 if (asset == null) {
+                    updating.value = false
                     updateCheck.value = UpdateCheck.FAILED
                     return@launch
                 }

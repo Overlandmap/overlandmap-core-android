@@ -7,6 +7,7 @@ import ch.overlandmap.map.data.AuthRepository
 import ch.overlandmap.map.data.LibraryRepository
 import ch.overlandmap.map.data.MapboxTokenManager
 import ch.overlandmap.map.data.PackDownloadManager
+import ch.overlandmap.map.data.PackUpdateChecker
 import ch.overlandmap.map.data.PlanetMapManager
 import ch.overlandmap.map.data.SatelliteTileManager
 import ch.overlandmap.map.data.SearchRepository
@@ -38,7 +39,18 @@ class OverlandApp : Application() {
     val ftsIndex by lazy { FtsIndex(database) }
     val authRepository by lazy { AuthRepository() }
     val shopRepository by lazy { ShopRepository(authRepository) }
-    val libraryRepository by lazy { LibraryRepository(database.libraryDao(), authRepository, ftsIndex) }
+    val packUpdateChecker by lazy {
+        PackUpdateChecker(
+            database.libraryDao(),
+            shopRepository,
+            appScope,
+            if (isDebugBuild(this)) PackUpdateChecker.DEBUG_DELAY_MS
+            else PackUpdateChecker.RELEASE_DELAY_MS,
+        )
+    }
+    val libraryRepository by lazy {
+        LibraryRepository(database.libraryDao(), authRepository, ftsIndex, packUpdateChecker)
+    }
     val socialRepository by lazy { SocialRepository(database.socialDao(), database.libraryDao(), authRepository) }
     val worldRepository by lazy { WorldRepository(database.worldDao(), authRepository, ftsIndex) }
     val searchRepository by lazy { SearchRepository(ftsIndex, libraryRepository) }
@@ -97,6 +109,14 @@ class OverlandApp : Application() {
                 packs.forEach { packId ->
                     runCatching { socialRepository.syncIfNeeded(packId) }
                 }
+            }
+        }
+        // Check each local pack for a newer version online, throttled per pack
+        // (10 min debug / 1 week release — see PackUpdateChecker).
+        appScope.launch {
+            runCatching {
+                authRepository.awaitUser()
+                packUpdateChecker.checkStale()
             }
         }
     }

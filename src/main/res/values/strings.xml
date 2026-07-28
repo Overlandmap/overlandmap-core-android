@@ -13,6 +13,7 @@
     <string name="update">Update</string>
     <string name="share_link">Share a link</string>
     <string name="update_available">An update is available</string>
+    <string name="pack_updated">Pack updated</string>
     <string name="no_update_available">No update available</string>
     <string name="update_check_failed">Could not check for updates</string>
     <string name="delete">Delete</string>
@@ -39,6 +40,7 @@
     <string name="menu">Menu</string>
     <string name="debug">Debug</string>
     <string name="debug_show_zoom">Show zoom level</string>
+    <string name="debug_show_photo_source">Show photo source overlay</string>
     <string name="debug_latest_check_ins">Latest checkIns</string>
     <string name="calculate">Calculate</string>
     <string name="satellite_area_too_large">Region too large, zoom in and try again</string>
@@ -153,6 +155,9 @@
     <string name="open_kind_restricted">Restricted</string>
     <string name="open_kind_toll">Toll</string>
     <string name="settings_text_size">Text size</string>
+    <string name="help">Help</string>
+    <string name="help_continue">Continue</string>
+    <string name="help_done">Done</string>
     <string name="text_size_small">Small</string>
     <string name="text_size_medium">Medium</string>
     <string name="text_size_large">Large</string>

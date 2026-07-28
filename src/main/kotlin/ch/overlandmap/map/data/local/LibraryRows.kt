@@ -70,6 +70,7 @@ fun TrackPack.toRow() = TrackPackRow(
         putIfNotNull("email", email)
         putIfNotNull("createdAt", createdAt)
         putIfNotNull("lastUpdate", lastUpdate)
+        putIfNotNull("lastUpdateCheck", lastUpdateCheck)
         putIfNotNull("freeItineraryZip", freeItineraryZip)
         putIfNotNull("trackPackZip", trackPackZip)
         putIfNotNull("pmtilesMap", pmtilesMap)
@@ -108,6 +109,7 @@ fun TrackPackRow.toModel(): TrackPack = parseJsonColumn(json).let { j ->
         email = j.stringOrNull("email"),
         createdAt = j.longOrNull("createdAt"),
         lastUpdate = j.longOrNull("lastUpdate"),
+        lastUpdateCheck = j.longOrNull("lastUpdateCheck"),
         freeItineraryZip = j.stringOrNull("freeItineraryZip"),
         trackPackZip = j.stringOrNull("trackPackZip"),
         pmtilesMap = j.stringOrNull("pmtilesMap"),

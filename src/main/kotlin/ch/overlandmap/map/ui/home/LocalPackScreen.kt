@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.res.Configuration
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -69,6 +70,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.AppMode
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.data.PackDownloadProgress
 import ch.overlandmap.map.data.SearchResult
 import ch.overlandmap.map.data.local.FtsIndex
 import ch.overlandmap.map.model.Itinerary
@@ -126,6 +128,8 @@ fun LocalPackScreen(
     val selectedItineraryId by viewModel.selectedItineraryId.collectAsState()
     val updateCheck by viewModel.updateCheck.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val updating by viewModel.updating.collectAsState()
+    val updated by viewModel.updated.collectAsState()
     val owned by viewModel.owned.collectAsState()
     val signedIn by viewModel.signedIn.collectAsState()
     val prices by viewModel.prices.collectAsState()
@@ -183,6 +187,13 @@ fun LocalPackScreen(
         snackbar.showSnackbar(message)
         // Clearing restarts this effect, which then no-ops on null.
         viewModel.updateCheck.value = null
+    }
+
+    // Toast once the update's re-download has finished installing.
+    LaunchedEffect(updated) {
+        if (!updated) return@LaunchedEffect
+        Toast.makeText(context, context.getString(R.string.pack_updated), Toast.LENGTH_SHORT).show()
+        viewModel.updated.value = false
     }
 
     LaunchedEffect(map, state.pack) {
@@ -407,8 +418,9 @@ fun LocalPackScreen(
                 }
             },
         )
-        // An update's re-download, running in the background.
-        downloadProgress?.let {
+        // An update's re-download. Show the overlay from the moment "update" is
+        // tapped (an empty progress) until the real download progress arrives.
+        (downloadProgress ?: PackDownloadProgress().takeIf { updating })?.let {
             DownloadOverlay(it, modifier = Modifier.align(Alignment.BottomCenter))
         }
         }

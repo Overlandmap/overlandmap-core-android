@@ -14,6 +14,7 @@ import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.model.Waypoint
 import com.google.firebase.firestore.FirebaseFirestore
 import java.io.File
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -24,6 +25,7 @@ class LibraryRepository(
     private val dao: LibraryDao,
     private val auth: AuthRepository,
     private val fts: FtsIndex,
+    private val updateChecker: PackUpdateChecker,
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
 ) {
 
@@ -32,7 +34,9 @@ class LibraryRepository(
 
     suspend fun waypointByDocumentId(documentId: String) = dao.waypointByDocumentId(documentId)
 
-    fun observeTrackPacks() = dao.observeTrackPacks()
+    // Reading packs opportunistically triggers a throttled online update check.
+    fun observeTrackPacks() =
+        dao.observeTrackPacks().onEach { packs -> packs.forEach(updateChecker::maybeCheck) }
 
     fun observeItineraries(trackPackId: String) = dao.observeItineraries(trackPackId)
 
@@ -45,7 +49,7 @@ class LibraryRepository(
 
     suspend fun itinerariesOf(trackPackId: String) = dao.itinerariesOf(trackPackId)
 
-    suspend fun trackPack(id: String) = dao.trackPack(id)
+    suspend fun trackPack(id: String) = dao.trackPack(id)?.also(updateChecker::maybeCheck)
 
     /** All locally downloaded track pack IDs. */
     suspend fun allTrackPackIds(): List<String> = dao.allTrackPackIds()

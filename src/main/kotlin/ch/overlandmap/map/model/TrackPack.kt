@@ -54,6 +54,11 @@ data class TrackPack(
      * cleared by re-downloading (the fresh row starts at false).
      */
     val needsUpdate: Boolean = false,
+    /**
+     * Epoch millis of the last online version check (null = never). Local-only;
+     * throttles the automatic check (see PackUpdateChecker).
+     */
+    val lastUpdateCheck: Long? = null,
 ) {
     /**
      * Play Store product ID used to purchase this pack. A single-track-pack app
