@@ -23,10 +23,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ch.overlandmap.map.R
 import coil.compose.AsyncImage
 
@@ -43,6 +46,8 @@ fun PhotoGridTile(
     freeBanner: Boolean = false,
     /** Shows the little clock badge: a newer version exists online. */
     updateBadge: Boolean = false,
+    /** Large outlined text overlaid on the photo (e.g. an itinerary slug). */
+    overlayText: String? = null,
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -65,6 +70,9 @@ fun PhotoGridTile(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentScale = ContentScale.Crop,
                 )
+                overlayText?.let {
+                    OutlinedId(it, Modifier.align(Alignment.TopStart).padding(6.dp))
+                }
                 if (freeBanner) FreeRibbon(Modifier.align(Alignment.TopStart))
                 if (updateBadge) {
                     Icon(
@@ -88,6 +96,19 @@ fun PhotoGridTile(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             )
         }
+    }
+}
+
+/** Black text with a white outline, for overlaying a slug on a photo. */
+@Composable
+internal fun OutlinedId(text: String, modifier: Modifier = Modifier) {
+    val style = MaterialTheme.typography.titleLarge.copy(
+        fontWeight = FontWeight.Bold,
+        fontSize = 20.sp,
+    )
+    Box(modifier = modifier) {
+        Text(text, style = style.copy(color = Color.White, drawStyle = Stroke(width = 5f)))
+        Text(text, style = style.copy(color = Color.Black))
     }
 }
 

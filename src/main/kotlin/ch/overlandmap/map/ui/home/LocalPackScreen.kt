@@ -679,6 +679,7 @@ private fun LocalItinerariesTab(
                 photoUrl = itinerary.titlePhotoUrl,
                 label = itinerary.name(lang),
                 freeBanner = itinerary.isFree && isSampleDownload,
+                overlayText = itinerary.itineraryId.ifEmpty { null },
                 onClick = {
                     // A buyable teaser has no steps or tracks to show, so it
                     // gets a description popup instead of the full screen.

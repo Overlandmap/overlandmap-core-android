@@ -104,6 +104,7 @@ fun HomeScreen(
                         label = itinerary.name(lang),
                         freeBanner = itinerary.isFree &&
                             itinerary.trackPackId in freeSamplePackIds,
+                        overlayText = itinerary.itineraryId.ifEmpty { null },
                         onClick = { onOpenItinerary(itinerary.documentId) },
                     )
                 }
