@@ -74,7 +74,7 @@ fun WaypointDialog(
                         style = contentTextStyle(MaterialTheme.typography.labelLarge),
                     )
                 }
-                openStatusText(waypoint.openKind, waypoint.openDetails)?.let { status ->
+                openStatusText(waypoint)?.let { status ->
                     Text(status, style = contentTextStyle(MaterialTheme.typography.bodyMedium))
                 }
                 waypoint.description(lang)?.let {

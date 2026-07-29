@@ -9,6 +9,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import ch.overlandmap.map.R
 import ch.overlandmap.map.model.OpenKind
+import ch.overlandmap.map.model.WaypointType
 
 /** The label shown for an [OpenKind]; empty for [OpenKind.OTHER] (no label). */
 @Composable
@@ -44,3 +45,8 @@ fun openStatusText(kind: OpenKind?, details: String?): AnnotatedString? {
         }
     }
 }
+
+/** The access-status line for any [WaypointType] (step or waypoint). */
+@Composable
+fun openStatusText(waypoint: WaypointType): AnnotatedString? =
+    openStatusText(waypoint.openKind, waypoint.openDetails)

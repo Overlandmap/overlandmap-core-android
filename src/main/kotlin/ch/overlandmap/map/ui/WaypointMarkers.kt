@@ -6,6 +6,7 @@ import android.util.DisplayMetrics
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import ch.overlandmap.map.R
+import ch.overlandmap.map.model.WaypointType
 
 /**
  * The maki-png marker icons (res/drawable-nodpi), keyed by the name stored in a
@@ -39,13 +40,26 @@ object WaypointMarkers {
     )
 
     /**
-     * The marker image id for a waypoint's [maki] value, falling back to
-     * [DEFAULT] when it's absent or not one of the bundled icons. Hyphens are
-     * accepted as underscores (older data stored e.g. "marker-stroked").
+     * The marker image id for any [WaypointType] (step or waypoint), derived
+     * from its point-of-interest flags — a port of the Flutter app's
+     * `translateToMaki`. The stored `maki` field is unreliable (often absent or
+     * a generic "marker-stroked"), so the flags are the source of truth. Falls
+     * back to [DEFAULT] when no flag applies. Every result is a bundled icon.
      */
-    fun iconFor(maki: String?): String {
-        val key = maki?.replace('-', '_')
-        return if (key != null && key in drawables) key else DEFAULT
+    fun makiFor(o: WaypointType): String = when {
+        o.isBorder -> "police_"
+        o.isPoliceCheckpoint -> "checkpoint"
+        o.isMountainPass -> "mountain_pass"
+        o.isEmbassy -> "information_"
+        o.isViewpoint -> "camera"
+        o.isReligiousSite -> "religious"
+        o.isHistoricalSite -> "historic_"
+        o.isHotSpring -> "hot_spring"
+        o.hasFuel -> "fuel_"
+        o.isBridge -> "bridge_"
+        o.isWaterCrossing -> "water_crossing"
+        o.isBivouac -> "camp_site"
+        else -> DEFAULT
     }
 
     /** Every maki icon as a bitmap keyed by its image id, for `style.addImage`. */

@@ -394,7 +394,7 @@ private fun addWaypointLayer(style: Style, waypoints: List<Waypoint>) {
         val lon = waypoint.lon ?: return@mapNotNull null
         Feature.fromGeometry(Point.fromLngLat(lon, lat)).also {
             it.addStringProperty(WAYPOINT_DOC_ID, waypoint.documentId)
-            it.addStringProperty(WAYPOINT_ICON_KEY, WaypointMarkers.iconFor(waypoint.maki))
+            it.addStringProperty(WAYPOINT_ICON_KEY, WaypointMarkers.makiFor(waypoint))
         }
     }
     if (features.isEmpty()) return

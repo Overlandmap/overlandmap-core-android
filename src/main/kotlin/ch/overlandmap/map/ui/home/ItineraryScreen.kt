@@ -986,7 +986,7 @@ private fun StepsTab(
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 StepHeader(step, lang, useMiles, useFeet, gpsFormat)
                 // Access status (e.g. "Permit needed: …"), bold kind + details.
-                openStatusText(step.openKind, step.openDetails)?.let { status ->
+                openStatusText(step)?.let { status ->
                     Text(
                         status,
                         style = contentTextStyle(MaterialTheme.typography.bodyMedium),
