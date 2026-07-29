@@ -71,6 +71,10 @@ import com.mapbox.maps.extension.style.sources.generated.vectorSource
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.plugin.animation.camera
 import com.mapbox.maps.plugin.animation.easeTo
+import com.mapbox.android.gestures.MoveGestureDetector
+import com.mapbox.android.gestures.StandardScaleGestureDetector
+import com.mapbox.maps.plugin.gestures.OnMoveListener
+import com.mapbox.maps.plugin.gestures.OnScaleListener
 import com.mapbox.maps.plugin.gestures.gestures
 import kotlinx.coroutines.launch
 
@@ -130,6 +134,7 @@ fun MapboxItineraryMap(
     initialCameraLat: Double? = null,
     initialCameraLon: Double? = null,
     onCameraChanged: (zoom: Double, lat: Double, lon: Double) -> Unit = { _, _, _ -> },
+    onUserGesture: () -> Unit = {},
     is3D: Boolean = false,
     onSet3D: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -189,6 +194,18 @@ fun MapboxItineraryMap(
                     mapZoom = camera.zoom
                     onCameraChanged(camera.zoom, camera.center.latitude(), camera.center.longitude())
                 }
+                // A user pan or pinch-zoom (only these gestures fire, not the
+                // programmatic camera moves auto-zoom makes) cancels auto-zoom.
+                mapView.gestures.addOnMoveListener(object : OnMoveListener {
+                    override fun onMoveBegin(detector: MoveGestureDetector) { onUserGesture() }
+                    override fun onMove(detector: MoveGestureDetector): Boolean = false
+                    override fun onMoveEnd(detector: MoveGestureDetector) {}
+                })
+                mapView.gestures.addOnScaleListener(object : OnScaleListener {
+                    override fun onScaleBegin(detector: StandardScaleGestureDetector) { onUserGesture() }
+                    override fun onScale(detector: StandardScaleGestureDetector) {}
+                    override fun onScaleEnd(detector: StandardScaleGestureDetector) {}
+                })
             },
             onStyleLoaded = { map, style ->
                 // Flatten to Mercator. On the default globe projection a

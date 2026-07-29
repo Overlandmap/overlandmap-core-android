@@ -1,11 +1,16 @@
 package ch.overlandmap.map.ui
 
 import ch.overlandmap.map.model.Itinerary
+import ch.overlandmap.map.model.ItineraryStep
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.CoordinateBounds
 import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.MapView
 import com.mapbox.maps.MapboxMap
+import com.mapbox.maps.plugin.animation.MapAnimationOptions
+import com.mapbox.maps.plugin.animation.camera
+import com.mapbox.maps.plugin.animation.easeTo
 
 /**
  * Camera helpers for the itinerary screen's Mapbox map — the Mapbox-SDK
@@ -42,6 +47,32 @@ fun zoomToItineraryMapbox(map: MapboxMap, itinerary: Itinerary) {
     map.setCamera(camera)
 }
 
-fun zoomToPointMapbox(map: MapboxMap, lat: Double, lon: Double) {
-    map.setCamera(CameraOptions.Builder().center(Point.fromLngLat(lon, lat)).zoom(11.0).build())
+fun zoomToPointMapbox(map: MapboxMap, lat: Double, lon: Double, zoom: Double = 11.0) {
+    map.setCamera(CameraOptions.Builder().center(Point.fromLngLat(lon, lat)).zoom(zoom).build())
+}
+
+/**
+ * Eases the camera to show both [a] and its neighbour [b] as tightly as possible
+ * (the itinerary auto-zoom). With no neighbour (an end step) it centres on [a]
+ * at a fixed close zoom. The move is animated so the view shifts progressively.
+ */
+fun fitStepsMapbox(mapView: MapView, a: ItineraryStep, b: ItineraryStep?) {
+    val aLat = a.lat ?: return
+    val aLon = a.lon ?: return
+    val bLat = b?.lat
+    val bLon = b?.lon
+    val camera = if (bLat != null && bLon != null) {
+        mapView.mapboxMap.cameraForCoordinateBounds(
+            CoordinateBounds(
+                Point.fromLngLat(minOf(aLon, bLon), minOf(aLat, bLat)),
+                Point.fromLngLat(maxOf(aLon, bLon), maxOf(aLat, bLat)),
+            ),
+            EdgeInsets(80.0, 80.0, 80.0, 80.0),
+            null,
+            null,
+        )
+    } else {
+        CameraOptions.Builder().center(Point.fromLngLat(aLon, aLat)).zoom(12.0).build()
+    }
+    mapView.camera.easeTo(camera, MapAnimationOptions.Builder().duration(600L).build())
 }

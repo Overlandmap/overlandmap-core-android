@@ -46,7 +46,7 @@ import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Route
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SentimentNeutral
 import androidx.compose.material.icons.filled.SentimentSatisfied
@@ -131,6 +131,7 @@ import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.shop.CommentsTab
 import ch.overlandmap.map.ui.theme.contentTextStyle
 import ch.overlandmap.map.ui.zoomToItineraryMapbox
+import ch.overlandmap.map.ui.fitStepsMapbox
 import ch.overlandmap.map.ui.zoomToPopupObjectMapbox
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
@@ -251,6 +252,21 @@ fun ItineraryScreen(
     var openWaypoint by remember { mutableStateOf<Waypoint?>(null) }
     var showAddWaypoint by remember { mutableStateOf(false) }
     var satelliteMode by remember { mutableStateOf(false) }
+    // Auto-zoom: while on, stepping to the next/previous step reframes the map to
+    // fit that step and its neighbour. The step viewer's zoom button turns it on;
+    // any map pan or pinch (onUserGesture) turns it off.
+    var enableAutoZoom by remember { mutableStateOf(false) }
+    var prevAutoZoomIndex by remember { mutableStateOf(selectedStepIndex) }
+    LaunchedEffect(selectedStepIndex) {
+        val prev = prevAutoZoomIndex
+        prevAutoZoomIndex = selectedStepIndex
+        if (enableAutoZoom && selectedStepIndex != prev) {
+            // Frame the transition: the step just left and the one arrived at.
+            val cur = state.steps.getOrNull(selectedStepIndex)
+            val from = state.steps.getOrNull(prev)
+            if (cur != null) mapView?.let { fitStepsMapbox(it, cur, from) }
+        }
+    }
     val styleOptions by app.userPreferences.mapStyle.collectAsState(
         initial = app.userPreferences.mapStyleNow(),
     )
@@ -416,6 +432,7 @@ fun ItineraryScreen(
                         onCameraChanged = { zoom, lat, lon ->
                             cameraSink.value = Triple(zoom, lat, lon)
                         },
+                        onUserGesture = { enableAutoZoom = false },
                         is3D = is3D,
                         onSet3D = { is3D = it },
                         modifier = Modifier.fillMaxSize(),
@@ -542,6 +559,14 @@ fun ItineraryScreen(
                         1 -> StepsTab(
                             state, selectedStepIndex, lang, useMiles, useFeet, gpsFormat,
                             onLink, viewModel::selectStep,
+                            onCenterOnStep = { step ->
+                                // Turn on auto-zoom and frame the current step
+                                // with the next one right away.
+                                enableAutoZoom = true
+                                val idx = state.steps.indexOfFirst { it.stepId == step.stepId }
+                                val neighbor = if (idx >= 0) state.steps.getOrNull(idx + 1) else null
+                                mapView?.let { fitStepsMapbox(it, step, neighbor) }
+                            },
                         )
                         2 -> PhotosTab(state)
                         3 -> CommentsTab(comments, lang)
@@ -954,6 +979,7 @@ private fun StepsTab(
     gpsFormat: GpsFormat,
     onLink: (MarkupLink, String) -> Unit,
     onSelectStep: (Int) -> Unit,
+    onCenterOnStep: (ItineraryStep) -> Unit,
 ) {
     val steps = state.steps
     if (steps.isEmpty()) {
@@ -988,7 +1014,7 @@ private fun StepsTab(
             val step = steps[page]
             var openPhoto by remember(page) { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                StepHeader(step, lang, useMiles, useFeet, gpsFormat)
+                StepHeader(step, lang, useMiles, useFeet, gpsFormat, onCenterOnStep)
                 // Access status (e.g. "Permit needed: …"), bold kind + details.
                 openStatusText(step)?.let { status ->
                     Text(
@@ -1075,7 +1101,14 @@ private fun ItineraryStep.coordText(gpsFormat: GpsFormat): String? {
  * right (actions TBD).
  */
 @Composable
-private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, useFeet: Boolean, gpsFormat: GpsFormat) {
+private fun StepHeader(
+    step: ItineraryStep,
+    lang: String,
+    useMiles: Boolean,
+    useFeet: Boolean,
+    gpsFormat: GpsFormat,
+    onCenterOnStep: (ItineraryStep) -> Unit,
+) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val coords = step.coordText(gpsFormat)
@@ -1146,8 +1179,8 @@ private fun StepHeader(step: ItineraryStep, lang: String, useMiles: Boolean, use
             IconButton(onClick = {}) {
                 Icon(Icons.Filled.Help, contentDescription = null, tint = RED)
             }
-            IconButton(onClick = {}) {
-                Icon(Icons.Filled.Search, contentDescription = null)
+            IconButton(onClick = { onCenterOnStep(step) }) {
+                Icon(Icons.Filled.ZoomIn, contentDescription = null)
             }
             IconButton(onClick = {}) {
                 Icon(Icons.Filled.Share, contentDescription = null)
