@@ -41,17 +41,17 @@ interface WorldDao {
     suspend fun countryWithCode(isoA2: String): Country? = _countryWithCode(isoA2)?.toModel()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertCountries(countries: List<CountryRow>)
-    suspend fun insertCountries(countries: List<Country>) =
+    suspend fun _insertCountries(countries: List<CountryRow>): Unit
+    suspend fun insertCountries(countries: List<Country>): Unit =
         _insertCountries(countries.map { it.toRow() })
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertBorders(borders: List<CountryBorderRow>)
-    suspend fun insertBorders(borders: List<CountryBorder>) =
+    suspend fun _insertBorders(borders: List<CountryBorderRow>): Unit
+    suspend fun insertBorders(borders: List<CountryBorder>): Unit =
         _insertBorders(borders.map { it.toRow() })
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertBorderPosts(posts: List<BorderPostRow>)
-    suspend fun insertBorderPosts(posts: List<BorderPost>) =
+    suspend fun _insertBorderPosts(posts: List<BorderPostRow>): Unit
+    suspend fun insertBorderPosts(posts: List<BorderPost>): Unit =
         _insertBorderPosts(posts.map { it.toRow() })
 }

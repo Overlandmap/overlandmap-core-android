@@ -20,7 +20,7 @@ interface SocialDao {
     suspend fun lastSyncedAt(trackPackId: String): Long?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertSync(row: SocialSyncRow)
+    suspend fun upsertSync(row: SocialSyncRow): Unit
 
     // ── Check-ins ───────────────────────────────────────────────────────────
 
@@ -37,22 +37,22 @@ interface SocialDao {
     suspend fun latestCheckIns(): List<CheckInRow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCheckIns(rows: List<CheckInRow>)
+    suspend fun insertCheckIns(rows: List<CheckInRow>): Unit
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCheckIn(row: CheckInRow)
+    suspend fun insertCheckIn(row: CheckInRow): Unit
 
     @Query("DELETE FROM check_in WHERE trackPackId = :trackPackId")
-    suspend fun deleteCheckInsForPack(trackPackId: String)
+    suspend fun deleteCheckInsForPack(trackPackId: String): Unit
 
     @Query("DELETE FROM check_in WHERE documentId = :documentId")
-    suspend fun deleteCheckIn(documentId: String)
+    suspend fun deleteCheckIn(documentId: String): Unit
 
     @Query("DELETE FROM check_in")
-    suspend fun deleteAllCheckIns()
+    suspend fun deleteAllCheckIns(): Unit
 
     @Transaction
-    suspend fun replaceCheckInsForPack(trackPackId: String, rows: List<CheckInRow>) {
+    suspend fun replaceCheckInsForPack(trackPackId: String, rows: List<CheckInRow>): Unit {
         deleteCheckInsForPack(trackPackId)
         insertCheckIns(rows)
     }
@@ -66,13 +66,13 @@ interface SocialDao {
     suspend fun votesForObject(objectId: String): List<VoteRow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertVotes(rows: List<VoteRow>)
+    suspend fun insertVotes(rows: List<VoteRow>): Unit
 
     @Query("DELETE FROM vote WHERE trackPackId = :trackPackId")
-    suspend fun deleteVotesForPack(trackPackId: String)
+    suspend fun deleteVotesForPack(trackPackId: String): Unit
 
     @Transaction
-    suspend fun replaceVotesForPack(trackPackId: String, rows: List<VoteRow>) {
+    suspend fun replaceVotesForPack(trackPackId: String, rows: List<VoteRow>): Unit {
         deleteVotesForPack(trackPackId)
         insertVotes(rows)
     }
@@ -80,16 +80,16 @@ interface SocialDao {
     // ── Contributed waypoints ───────────────────────────────────────────────
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertContributedWaypoints(rows: List<ContributedWaypointRow>)
+    suspend fun insertContributedWaypoints(rows: List<ContributedWaypointRow>): Unit
 
     @Query("DELETE FROM contributed_waypoint WHERE trackPackId = :trackPackId")
-    suspend fun deleteContributedWaypointsForPack(trackPackId: String)
+    suspend fun deleteContributedWaypointsForPack(trackPackId: String): Unit
 
     @Transaction
     suspend fun replaceContributedWaypointsForPack(
         trackPackId: String,
         rows: List<ContributedWaypointRow>,
-    ) {
+    ): Unit {
         deleteContributedWaypointsForPack(trackPackId)
         insertContributedWaypoints(rows)
     }

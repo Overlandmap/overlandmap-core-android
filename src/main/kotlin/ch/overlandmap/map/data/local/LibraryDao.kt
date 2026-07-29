@@ -49,7 +49,7 @@ interface LibraryDao {
         _observeLastOpened(limit).map { rows -> rows.map { it.toModel() } }
 
     @Query("UPDATE itinerary SET lastOpenedAt = :time WHERE documentId = :id")
-    suspend fun touchItinerary(id: String, time: Long)
+    suspend fun touchItinerary(id: String, time: Long): Unit
 
     @Query("SELECT * FROM track_pack WHERE documentId = :id")
     suspend fun _trackPack(id: String): TrackPackRow?
@@ -97,7 +97,7 @@ interface LibraryDao {
     suspend fun waypointIdsOfPack(trackPackId: String): List<String>
 
     @Query("UPDATE track_pack SET needsUpdate = :value WHERE documentId = :trackPackId")
-    suspend fun setNeedsUpdate(trackPackId: String, value: Boolean)
+    suspend fun setNeedsUpdate(trackPackId: String, value: Boolean): Unit
 
     @Query("SELECT * FROM track WHERE itineraryId = :itineraryId")
     suspend fun _tracks(itineraryId: String): List<TrackRow>
@@ -154,30 +154,30 @@ interface LibraryDao {
     suspend fun sidebarById(documentId: String): Sidebar? = _sidebarById(documentId)?.toModel()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertTrackPack(pack: TrackPackRow)
-    suspend fun insertTrackPack(pack: TrackPack) = _insertTrackPack(pack.toRow())
+    suspend fun _insertTrackPack(pack: TrackPackRow): Unit
+    suspend fun insertTrackPack(pack: TrackPack): Unit = _insertTrackPack(pack.toRow())
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertItineraries(itineraries: List<ItineraryRow>)
-    suspend fun insertItineraries(itineraries: List<Itinerary>) =
+    suspend fun _insertItineraries(itineraries: List<ItineraryRow>): Unit
+    suspend fun insertItineraries(itineraries: List<Itinerary>): Unit =
         _insertItineraries(itineraries.map { it.toRow() })
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertSteps(steps: List<ItineraryStepRow>)
-    suspend fun insertSteps(steps: List<ItineraryStep>) = _insertSteps(steps.map { it.toRow() })
+    suspend fun _insertSteps(steps: List<ItineraryStepRow>): Unit
+    suspend fun insertSteps(steps: List<ItineraryStep>): Unit = _insertSteps(steps.map { it.toRow() })
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertTracks(tracks: List<TrackRow>)
-    suspend fun insertTracks(tracks: List<Track>) = _insertTracks(tracks.map { it.toRow() })
+    suspend fun _insertTracks(tracks: List<TrackRow>): Unit
+    suspend fun insertTracks(tracks: List<Track>): Unit = _insertTracks(tracks.map { it.toRow() })
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertWaypoints(waypoints: List<WaypointRow>)
-    suspend fun insertWaypoints(waypoints: List<Waypoint>) =
+    suspend fun _insertWaypoints(waypoints: List<WaypointRow>): Unit
+    suspend fun insertWaypoints(waypoints: List<Waypoint>): Unit =
         _insertWaypoints(waypoints.map { it.toRow() })
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertSidebars(sidebars: List<SidebarRow>)
-    suspend fun insertSidebars(sidebars: List<Sidebar>) = _insertSidebars(sidebars.map { it.toRow() })
+    suspend fun _insertSidebars(sidebars: List<SidebarRow>): Unit
+    suspend fun insertSidebars(sidebars: List<Sidebar>): Unit = _insertSidebars(sidebars.map { it.toRow() })
 
     @Query("SELECT * FROM comment WHERE objectId = :objectId ORDER BY createdAt DESC")
     fun _observeComments(objectId: String): Flow<List<CommentRow>>
@@ -185,21 +185,21 @@ interface LibraryDao {
         _observeComments(objectId).map { rows -> rows.map { it.toModel() } }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertComments(comments: List<CommentRow>)
-    suspend fun insertComments(comments: List<Comment>) = _insertComments(comments.map { it.toRow() })
+    suspend fun _insertComments(comments: List<CommentRow>): Unit
+    suspend fun insertComments(comments: List<Comment>): Unit = _insertComments(comments.map { it.toRow() })
 
     @Query("DELETE FROM comment WHERE objectId = :objectId")
-    suspend fun deleteComments(objectId: String)
+    suspend fun deleteComments(objectId: String): Unit
 
     @Transaction
-    suspend fun replaceComments(objectId: String, comments: List<Comment>) {
+    suspend fun replaceComments(objectId: String, comments: List<Comment>): Unit {
         deleteComments(objectId)
         insertComments(comments)
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun _insertPackAssets(assets: List<PackAssetRow>)
-    suspend fun insertPackAssets(assets: List<PackAsset>) =
+    suspend fun _insertPackAssets(assets: List<PackAssetRow>): Unit
+    suspend fun insertPackAssets(assets: List<PackAsset>): Unit =
         _insertPackAssets(assets.map { it.toRow() })
 
     @Query("SELECT * FROM pack_asset WHERE trackPackId = :trackPackId")
@@ -208,28 +208,28 @@ interface LibraryDao {
         _packAssets(trackPackId).map { it.toModel() }
 
     @Query("DELETE FROM pack_asset WHERE trackPackId = :trackPackId")
-    suspend fun deletePackAssets(trackPackId: String)
+    suspend fun deletePackAssets(trackPackId: String): Unit
 
     @Query("DELETE FROM track_pack WHERE documentId = :trackPackId")
-    suspend fun deleteTrackPack(trackPackId: String)
+    suspend fun deleteTrackPack(trackPackId: String): Unit
 
     @Query("DELETE FROM itinerary WHERE trackPackId = :trackPackId")
-    suspend fun deleteItineraries(trackPackId: String)
+    suspend fun deleteItineraries(trackPackId: String): Unit
 
     @Query("DELETE FROM itinerary_step WHERE trackPackId = :trackPackId")
-    suspend fun deleteSteps(trackPackId: String)
+    suspend fun deleteSteps(trackPackId: String): Unit
 
     @Query("DELETE FROM track WHERE trackPackId = :trackPackId")
-    suspend fun deleteTracks(trackPackId: String)
+    suspend fun deleteTracks(trackPackId: String): Unit
 
     @Query("DELETE FROM waypoint WHERE trackPackId = :trackPackId")
-    suspend fun deleteWaypoints(trackPackId: String)
+    suspend fun deleteWaypoints(trackPackId: String): Unit
 
     @Query("DELETE FROM sidebar WHERE trackPackId = :trackPackId")
-    suspend fun deleteSidebars(trackPackId: String)
+    suspend fun deleteSidebars(trackPackId: String): Unit
 
     @Transaction
-    suspend fun deletePackContent(trackPackId: String) {
+    suspend fun deletePackContent(trackPackId: String): Unit {
         deleteItineraries(trackPackId)
         deleteSteps(trackPackId)
         deleteTracks(trackPackId)
