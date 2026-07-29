@@ -43,6 +43,37 @@ fun JSONObject.putIfNotEmpty(key: String, value: List<String>?) {
     if (!value.isNullOrEmpty()) put(key, JSONArray(value))
 }
 
+/**
+ * Writes the fields shared by every [WaypointType] — localizable
+ * name/description, location, the point-of-interest flags and the open status.
+ * Type-specific fields (photos, step distance, waypoint type/maki, and where
+ * `name`/`geohash` are stored) are written by each row's own mapper. The keys
+ * match the per-model mappers exactly, so the stored json stays compatible.
+ */
+fun JSONObject.putWaypointCommon(o: WaypointType) {
+    putIfNotEmpty("translatedName", o.translatedName)
+    putIfNotNull("description", o.description)
+    putIfNotEmpty("translatedDesc", o.translatedDesc)
+    putIfNotNull("lat", o.lat)
+    putIfNotNull("lon", o.lon)
+    putIfNotNull("ele", o.ele)
+    putIfTrue("hasFuel", o.hasFuel)
+    putIfTrue("hasHotel", o.hasHotel)
+    putIfTrue("isViewpoint", o.isViewpoint)
+    putIfTrue("isBivouac", o.isBivouac)
+    putIfTrue("isPoliceCheckpoint", o.isPoliceCheckpoint)
+    putIfTrue("isBorder", o.isBorder)
+    putIfTrue("isEmbassy", o.isEmbassy)
+    putIfTrue("isMountainPass", o.isMountainPass)
+    putIfTrue("isBridge", o.isBridge)
+    putIfTrue("isWaterCrossing", o.isWaterCrossing)
+    putIfTrue("isHistoricalSite", o.isHistoricalSite)
+    putIfTrue("isReligiousSite", o.isReligiousSite)
+    putIfTrue("isHotSpring", o.isHotSpring)
+    putIfNotNull("openKind", o.openKind?.raw)
+    putIfNotNull("openDetails", o.openDetails)
+}
+
 fun JSONObject.stringOrNull(key: String): String? =
     if (has(key) && !isNull(key)) optString(key) else null
 

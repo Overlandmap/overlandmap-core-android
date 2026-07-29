@@ -7,50 +7,47 @@ import ch.overlandmap.map.AppConfig
  * `itinerary/{id}/steps`). Port of ItineraryStep in `models/itinerary.dart`.
  */
 data class ItineraryStep(
-    val documentId: String,
+    override val documentId: String,
     val itineraryId: String,
     val trackPackId: String,
     /** Step number, 1-based and consecutive along the track. */
     val stepId: Int,
-    val name: String,
-    val translatedName: Map<String, String>? = null,
-    val description: String? = null,
-    val translatedDesc: Map<String, String>? = null,
+    override val name: String,
+    override val translatedName: Map<String, String>? = null,
+    override val description: String? = null,
+    override val translatedDesc: Map<String, String>? = null,
     /** Distance from the start of the main track, in km. */
     val distanceKm: Double = 0.0,
-    val lat: Double? = null,
-    val lon: Double? = null,
-    val ele: Int? = null,
+    override val lat: Double? = null,
+    override val lon: Double? = null,
+    override val ele: Int? = null,
+    override val geohash: String? = null,
     /** Point-of-interest flags at this step (Firestore booleans, null = false). */
-    val hasFuel: Boolean = false,
-    val hasHotel: Boolean = false,
-    val isViewpoint: Boolean = false,
-    val isBivouac: Boolean = false,
-    val isPoliceCheckpoint: Boolean = false,
-    val isBorder: Boolean = false,
-    val isEmbassy: Boolean = false,
-    val isMountainPass: Boolean = false,
-    val isBridge: Boolean = false,
-    val isWaterCrossing: Boolean = false,
-    val isHistoricalSite: Boolean = false,
-    val isReligiousSite: Boolean = false,
-    val isHotSpring: Boolean = false,
+    override val hasFuel: Boolean = false,
+    override val hasHotel: Boolean = false,
+    override val isViewpoint: Boolean = false,
+    override val isBivouac: Boolean = false,
+    override val isPoliceCheckpoint: Boolean = false,
+    override val isBorder: Boolean = false,
+    override val isEmbassy: Boolean = false,
+    override val isMountainPass: Boolean = false,
+    override val isBridge: Boolean = false,
+    override val isWaterCrossing: Boolean = false,
+    override val isHistoricalSite: Boolean = false,
+    override val isReligiousSite: Boolean = false,
+    override val isHotSpring: Boolean = false,
     val titlePhotoId: String? = null,
     val titlePhotoCaption: String? = null,
     /** Access / opening status of this step, and its free-text detail. */
-    val openKind: OpenKind? = null,
-    val openDetails: String? = null,
+    override val openKind: OpenKind? = null,
+    override val openDetails: String? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
     val localPhotoPath: String? = null,
-) {
+) : WaypointType {
     val titlePhotoUrl: String?
         get() = localPhotoPath?.let { "file://$it" } ?: titlePhotoId?.let(AppConfig::photoUrl)
 
-    fun name(lang: String): String = localized(name, translatedName, lang) ?: name
-
     fun fullName(lang: String): String = "$stepId. ${name(lang)}"
-
-    fun description(lang: String): String? = localized(description, translatedDesc, lang)
 
     companion object {
         fun fromFirestore(documentId: String, itineraryId: String, data: Map<String, Any?>) =
@@ -67,6 +64,7 @@ data class ItineraryStep(
                 lat = FS.geoLat(data["location"]),
                 lon = FS.geoLon(data["location"]),
                 ele = FS.int(data["ele"]),
+                geohash = FS.str(data["geohash"]),
                 hasFuel = FS.bool(data["hasFuel"]),
                 hasHotel = FS.bool(data["hasHotel"]),
                 isViewpoint = FS.bool(data["isViewpoint"]),

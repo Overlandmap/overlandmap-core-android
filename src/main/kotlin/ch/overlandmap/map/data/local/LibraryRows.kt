@@ -21,6 +21,7 @@ import ch.overlandmap.map.model.parseJsonColumn
 import ch.overlandmap.map.model.putIfNotEmpty
 import ch.overlandmap.map.model.putIfNotNull
 import ch.overlandmap.map.model.putIfTrue
+import ch.overlandmap.map.model.putWaypointCommon
 import ch.overlandmap.map.model.stringListOrNull
 import ch.overlandmap.map.model.stringMapOrNull
 import ch.overlandmap.map.model.stringOrNull
@@ -223,30 +224,11 @@ fun ItineraryStep.toRow() = ItineraryStepRow(
     stepId = stepId,
     json = buildJsonColumn {
         putIfNotNull("name", name)
-        putIfNotEmpty("translatedName", translatedName)
-        putIfNotNull("description", description)
-        putIfNotEmpty("translatedDesc", translatedDesc)
+        putWaypointCommon(this@toRow)
         putIfNotNull("distanceKm", distanceKm)
-        putIfNotNull("lat", lat)
-        putIfNotNull("lon", lon)
-        putIfNotNull("ele", ele)
-        putIfTrue("hasFuel", hasFuel)
-        putIfTrue("hasHotel", hasHotel)
-        putIfTrue("isViewpoint", isViewpoint)
-        putIfTrue("isBivouac", isBivouac)
-        putIfTrue("isPoliceCheckpoint", isPoliceCheckpoint)
-        putIfTrue("isBorder", isBorder)
-        putIfTrue("isEmbassy", isEmbassy)
-        putIfTrue("isMountainPass", isMountainPass)
-        putIfTrue("isBridge", isBridge)
-        putIfTrue("isWaterCrossing", isWaterCrossing)
-        putIfTrue("isHistoricalSite", isHistoricalSite)
-        putIfTrue("isReligiousSite", isReligiousSite)
-        putIfTrue("isHotSpring", isHotSpring)
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titlePhotoCaption", titlePhotoCaption)
-        putIfNotNull("openKind", openKind?.raw)
-        putIfNotNull("openDetails", openDetails)
+        putIfNotNull("geohash", geohash)
         putIfNotNull("localPhotoPath", localPhotoPath)
     },
 )
@@ -265,6 +247,7 @@ fun ItineraryStepRow.toModel(): ItineraryStep = parseJsonColumn(json).let { j ->
         lat = j.doubleOrNull("lat"),
         lon = j.doubleOrNull("lon"),
         ele = j.intOrNull("ele"),
+        geohash = j.stringOrNull("geohash"),
         hasFuel = j.flag("hasFuel"),
         hasHotel = j.flag("hasHotel"),
         isViewpoint = j.flag("isViewpoint"),
@@ -331,29 +314,9 @@ fun Waypoint.toRow() = WaypointRow(
     name = name,
     geohash = geohash,
     json = buildJsonColumn {
-        putIfNotEmpty("translatedName", translatedName)
-        putIfNotNull("description", description)
-        putIfNotEmpty("translatedDesc", translatedDesc)
+        putWaypointCommon(this@toRow)
         putIfNotNull("type", type)
         putIfNotNull("maki", maki)
-        putIfNotNull("lat", lat)
-        putIfNotNull("lon", lon)
-        putIfNotNull("ele", ele)
-        putIfTrue("hasFuel", hasFuel)
-        putIfTrue("hasHotel", hasHotel)
-        putIfTrue("isViewpoint", isViewpoint)
-        putIfTrue("isBivouac", isBivouac)
-        putIfTrue("isPoliceCheckpoint", isPoliceCheckpoint)
-        putIfTrue("isBorder", isBorder)
-        putIfTrue("isEmbassy", isEmbassy)
-        putIfTrue("isMountainPass", isMountainPass)
-        putIfTrue("isBridge", isBridge)
-        putIfTrue("isWaterCrossing", isWaterCrossing)
-        putIfTrue("isHistoricalSite", isHistoricalSite)
-        putIfTrue("isReligiousSite", isReligiousSite)
-        putIfTrue("isHotSpring", isHotSpring)
-        putIfNotNull("openKind", openKind?.raw)
-        putIfNotNull("openDetails", openDetails)
     },
 )
 
