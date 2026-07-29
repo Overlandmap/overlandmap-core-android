@@ -79,6 +79,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
@@ -972,10 +973,13 @@ private fun StepsTab(
         if (pagerState.currentPage != target) pagerState.animateScrollToPage(target)
     }
     // A swipe that lands on another step updates the selection (so the map and
-    // the rest of the screen follow).
+    // the rest of the screen follow). This effect isn't restarted on selection
+    // changes, so read the latest value (not the one captured at launch) —
+    // otherwise swiping back onto the launch-time step would be a no-op.
+    val currentSelected by rememberUpdatedState(selectedStepIndex)
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
-            if (page != selectedStepIndex) onSelectStep(page)
+            if (page != currentSelected) onSelectStep(page)
         }
     }
 
@@ -1043,8 +1047,7 @@ private fun StepsTab(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color.White.copy(alpha = 0.7f)),
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
