@@ -54,26 +54,37 @@ object MapStyles {
      * and satellite styles are `mapbox://` URLs, falling back to the offline
      * detailed style when no Mapbox token is available.
      */
-    fun resolve(context: Context, options: MapStyleOptions, hasMapboxToken: Boolean): String =
+    fun resolve(
+        context: Context,
+        options: MapStyleOptions,
+        hasMapboxToken: Boolean,
+        mapLanguage: String,
+    ): String =
         when (options.base) {
-            BaseMapStyle.OFFLINE_LIGHT -> offlineStyle(context, LIGHT_STYLE_PATH, options)
-            BaseMapStyle.OFFLINE_DETAILED -> offlineStyle(context, OFFLINE_STYLE_PATH, options)
+            BaseMapStyle.OFFLINE_LIGHT -> offlineStyle(context, LIGHT_STYLE_PATH, options, mapLanguage)
+            BaseMapStyle.OFFLINE_DETAILED -> offlineStyle(context, OFFLINE_STYLE_PATH, options, mapLanguage)
             BaseMapStyle.MAPBOX ->
                 if (hasMapboxToken) options.mapboxKind.styleUrl
-                else offlineStyle(context, OFFLINE_STYLE_PATH, options)
+                else offlineStyle(context, OFFLINE_STYLE_PATH, options, mapLanguage)
             BaseMapStyle.SATELLITE ->
                 if (hasMapboxToken) {
                     if (options.satelliteRoads) MapStyleOptions.SATELLITE_WITH_ROADS
                     else MapStyleOptions.SATELLITE_NO_ROADS
                 } else {
-                    offlineStyle(context, OFFLINE_STYLE_PATH, options)
+                    offlineStyle(context, OFFLINE_STYLE_PATH, options, mapLanguage)
                 }
         }
 
-    private fun offlineStyle(context: Context, path: String, options: MapStyleOptions): String =
+    private fun offlineStyle(
+        context: Context,
+        path: String,
+        options: MapStyleOptions,
+        mapLanguage: String,
+    ): String =
         if (LocalTileServer.hasPlanet() && StyleAssetsManager(context).ready()) {
             "${LocalTileServer.baseUrl}/$path" +
-                "?hillshade=${bit(options.hillshade)}&contour=${bit(options.contour)}"
+                "?hillshade=${bit(options.hillshade)}&contour=${bit(options.contour)}" +
+                "&lang=$mapLanguage"
         } else {
             AppConfig.GLOBAL_STYLE_URL
         }

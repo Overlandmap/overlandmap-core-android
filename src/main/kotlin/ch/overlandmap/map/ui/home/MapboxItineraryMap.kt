@@ -58,6 +58,7 @@ import com.mapbox.maps.extension.style.layers.generated.circleLayer
 import com.mapbox.maps.extension.style.layers.generated.lineLayer
 import com.mapbox.maps.extension.style.layers.generated.symbolLayer
 import com.mapbox.maps.extension.style.layers.getLayerAs
+import com.mapbox.maps.extension.localization.localizeLabels
 import com.mapbox.maps.extension.style.layers.properties.generated.IconAnchor
 import com.mapbox.maps.extension.style.layers.properties.generated.LineCap
 import com.mapbox.maps.extension.style.layers.properties.generated.LineJoin
@@ -144,8 +145,20 @@ fun MapboxItineraryMap(
     val showZoom by app.userPreferences.debugShowZoom.collectAsState(
         initial = app.userPreferences.debugShowZoomNow(),
     )
-    val styleUrl = remember(styleOptions, hasMapboxToken) {
-        MapStyles.resolve(context, styleOptions, hasMapboxToken)
+    val mapLanguage by app.userPreferences.mapLanguage.collectAsState(
+        initial = app.userPreferences.mapLanguageNow(),
+    )
+    val styleUrl = remember(styleOptions, hasMapboxToken, mapLanguage) {
+        MapStyles.resolve(context, styleOptions, hasMapboxToken, mapLanguage)
+    }
+    // Mapbox online styles carry their labels in the style itself; localize them
+    // to the map language (offline styles are localized by the tile server via
+    // the &lang= query). Re-applied when the style reloads or the language changes.
+    LaunchedEffect(loadedStyle, mapLanguage) {
+        val style = loadedStyle ?: return@LaunchedEffect
+        if (styleUrl.startsWith("mapbox://") && mapLanguage != "native") {
+            style.localizeLabels(java.util.Locale(mapLanguage), null)
+        }
     }
     // All maki marker icons, decoded once and registered when the style loads.
     val makiIcons = remember { WaypointMarkers.bitmaps(context) }

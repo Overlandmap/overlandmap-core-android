@@ -160,4 +160,39 @@ object OfflineStyle {
                     .put("text-halo-width", 1),
             )
     }
+
+    /**
+     * Rewrites label `text-field`s to the map-language [lang] — a `name:<lang>`
+     * field with fallbacks — mirroring the Flutter app's `translateStyle`.
+     * "native" keeps each feature's local name.
+     */
+    fun translateLabels(styleJson: String, lang: String): String {
+        val root = JSONObject(styleJson)
+        val layers = root.optJSONArray("layers") ?: return styleJson
+        for (i in 0 until layers.length()) {
+            val layout = layers.getJSONObject(i).optJSONObject("layout") ?: continue
+            when (val textField = layout.opt("text-field")) {
+                "{name}" -> layout.put("text-field", languageExpression(lang))
+                is JSONArray -> for (j in 0 until textField.length()) {
+                    val element = textField.opt(j)
+                    if (element is JSONArray && isGetName(element)) {
+                        textField.put(j, languageExpression(lang))
+                    }
+                }
+            }
+        }
+        return root.toString()
+    }
+
+    private fun isGetName(expr: JSONArray): Boolean =
+        expr.length() == 2 && expr.optString(0) == "get" && expr.optString(1) == "name"
+
+    /** The `text-field` expression selecting the label for [lang], with fallbacks. */
+    private fun languageExpression(lang: String): JSONArray = when (lang) {
+        "native" -> get("name")
+        "en" -> JSONArray().put("coalesce").put(get("name:en")).put(get("name"))
+        else -> JSONArray().put("coalesce").put(get("name:$lang")).put(get("name:en")).put(get("name"))
+    }
+
+    private fun get(field: String): JSONArray = JSONArray().put("get").put(field)
 }

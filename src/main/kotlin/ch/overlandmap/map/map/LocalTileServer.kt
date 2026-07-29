@@ -166,6 +166,8 @@ object LocalTileServer : Runnable {
                 hasOfflineHillshade = registry?.hasHillshade() == true,
                 hasContour = registry?.hasContour() == true,
             )
+            // Localize the labels to the chosen map language (see OfflineStyle).
+            params["lang"]?.let { json = OfflineStyle.translateLabels(json, it) }
         }
         // Styles are authored against port 8000; the server may have bound
         // another one.
