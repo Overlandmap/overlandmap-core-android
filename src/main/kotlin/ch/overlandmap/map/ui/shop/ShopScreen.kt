@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -226,7 +226,7 @@ private fun PackRow(
             }
             IconButton(onClick = onZoomToPack) {
                 Icon(
-                    Icons.Filled.Place,
+                    Icons.Filled.ZoomIn,
                     contentDescription = stringResource(R.string.show_on_map),
                     tint = MaterialTheme.colorScheme.primary,
                 )
