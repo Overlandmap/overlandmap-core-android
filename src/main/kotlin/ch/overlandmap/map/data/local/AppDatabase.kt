@@ -39,8 +39,8 @@ abstract class AppDatabase : RoomDatabase() {
                     // The column+json schema is a clean break from the old
                     // per-field columns; there is no upgrade path, so a stale
                     // database is discarded and re-downloaded.
-                    .fallbackToDestructiveMigration()
-                    .fallbackToDestructiveMigrationOnDowngrade()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                     // The full-text index spans every type and language, so it
                     // lives in raw FTS4 tables Room doesn't model; create them
                     // with the database (and defensively on every open).
