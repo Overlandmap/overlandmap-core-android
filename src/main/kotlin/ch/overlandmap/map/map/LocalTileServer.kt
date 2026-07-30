@@ -44,11 +44,25 @@ object LocalTileServer : Runnable {
     val baseUrl: String get() = "http://localhost:$port"
 
     fun start(context: Context) {
-        if (isRunning) return
+        if (isRunning) {
+            Log.d("LocalTileServer", "start() called but already running on port $port")
+            return
+        }
         assetsDirectory = File(context.filesDir, "assets").apply { mkdirs() }
+        Log.d("LocalTileServer", "Assets directory: $assetsDirectory (exists=${assetsDirectory.exists()})")
         registry = TileArchiveRegistry(context.filesDir).also { it.reload() }
-        serverSocket = bindSocket() ?: return
+        Log.d("LocalTileServer", "TileArchiveRegistry loaded: " +
+            "hasPlanet=${registry?.hasPlanet()}, " +
+            "hasDetail=${registry?.hasDetailTiles()}, " +
+            "hasHillshade=${registry?.hasHillshade()}, " +
+            "hasContour=${registry?.hasContour()}")
+        serverSocket = bindSocket()
+        if (serverSocket == null) {
+            Log.e("LocalTileServer", "Failed to bind any port — server not started")
+            return
+        }
         isRunning = true
+        Log.i("LocalTileServer", "Server started on port $port (baseUrl=$baseUrl)")
         Thread(this, "LocalTileServer").start()
     }
 
@@ -73,25 +87,37 @@ object LocalTileServer : Runnable {
 
     private fun bindSocket(): ServerSocket? =
         try {
-            ServerSocket(PREFERRED_PORT)
-        } catch (_: Exception) {
+            ServerSocket(PREFERRED_PORT).also {
+                Log.d("LocalTileServer", "Bound preferred port $PREFERRED_PORT")
+            }
+        } catch (e1: Exception) {
+            Log.w("LocalTileServer", "Cannot bind port $PREFERRED_PORT: ${e1.message}")
             try {
-                ServerSocket(0)
-            } catch (e: Exception) {
-                Log.e("LocalTileServer", "Cannot bind any port", e)
+                ServerSocket(0).also {
+                    Log.d("LocalTileServer", "Bound fallback port ${it.localPort}")
+                }
+            } catch (e2: Exception) {
+                Log.e("LocalTileServer", "Cannot bind any port", e2)
                 null
             }
         }
 
     override fun run() {
         val socket = serverSocket ?: return
+        Log.d("LocalTileServer", "Accept loop started on port ${socket.localPort}")
         try {
             while (isRunning) {
-                socket.accept().use { handle(it) }
+                val client = socket.accept()
+                // Handle each request on its own thread so MapLibre/Mapbox
+                // concurrent tile, sprite and glyph fetches don't queue up.
+                Thread {
+                    client.use { handle(it) }
+                }.start()
             }
         } catch (e: Exception) {
             if (isRunning) Log.w("LocalTileServer", "Server loop ended", e)
         } finally {
+            Log.d("LocalTileServer", "Accept loop exited (isRunning=$isRunning)")
             isRunning = false
         }
     }
@@ -169,9 +195,9 @@ object LocalTileServer : Runnable {
             // Localize the labels to the chosen map language (see OfflineStyle).
             params["lang"]?.let { json = OfflineStyle.translateLabels(json, it) }
         }
-        // Styles are authored against port 8000; the server may have bound
-        // another one.
-        if (port != PREFERRED_PORT) json = json.replace(AUTHORED_BASE_URL, baseUrl)
+        // Styles are authored against port 8000; always rewrite to the actual
+        // bound port so MapLibre/Mapbox fetches tiles from the running server.
+        json = json.replace(AUTHORED_BASE_URL, baseUrl)
         return json.toByteArray()
     }
 

@@ -160,7 +160,7 @@
     <!-- Legal documents and first-launch onboarding -->
     <string name="settings_privacy_policy">Политика конфиденциальности</string>
     <string name="settings_terms_of_service">Условия использования</string>
-    <string name="onboarding_welcome_title">Добро пожаловать в Overland Map</string>
+    <string name="onboarding_welcome_title_template">Добро пожаловать в %1$s</string>
     <string name="onboarding_welcome_subtitle">Прежде чем начать, ознакомьтесь с нашими политиками, примите их и загрузите карту мира.</string>
     <string name="onboarding_view_privacy">Посмотреть политику конфиденциальности</string>
     <string name="onboarding_view_terms">Посмотреть условия использования</string>

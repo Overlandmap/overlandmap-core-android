@@ -197,7 +197,7 @@
     <!-- Legal documents and first-launch onboarding -->
     <string name="settings_privacy_policy">Privacy Policy</string>
     <string name="settings_terms_of_service">Terms of Service</string>
-    <string name="onboarding_welcome_title">Welcome to Overland Map</string>
+    <string name="onboarding_welcome_title_template">Welcome to %1$s</string>
     <string name="onboarding_welcome_subtitle">Before you start, please review and accept our policies and download the world map.</string>
     <string name="onboarding_view_privacy">View the Privacy Policy</string>
     <string name="onboarding_view_terms">View the Terms of Service</string>

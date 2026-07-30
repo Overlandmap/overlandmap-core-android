@@ -1,6 +1,7 @@
 package ch.overlandmap.map.map
 
 import android.content.Context
+import android.util.Log
 import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.data.StyleAssetsManager
 import java.io.File
@@ -38,12 +39,15 @@ object MapStyles {
      * tracks layer is not part of the offline style; the map composables add
      * it through [ensureTracksLayer].
      */
-    fun globalStyleUrl(context: Context): String =
-        if (LocalTileServer.hasPlanet() && StyleAssetsManager(context).ready()) {
+    fun globalStyleUrl(context: Context): String {
+        val url = if (LocalTileServer.hasPlanet() && StyleAssetsManager(context).ready()) {
             offlineStyleUrl
         } else {
             AppConfig.GLOBAL_STYLE_URL
         }
+        Log.d("MapStyles", "globalStyleUrl → $url (serverPort=${LocalTileServer.port}, hasPlanet=${LocalTileServer.hasPlanet()}, assetsReady=${StyleAssetsManager(context).ready()})")
+        return url
+    }
 
     private const val LIGHT_STYLE_PATH = "styles/simplified.json"
 
@@ -80,14 +84,17 @@ object MapStyles {
         path: String,
         options: MapStyleOptions,
         mapLanguage: String,
-    ): String =
-        if (LocalTileServer.hasPlanet() && StyleAssetsManager(context).ready()) {
+    ): String {
+        val url = if (LocalTileServer.hasPlanet() && StyleAssetsManager(context).ready()) {
             "${LocalTileServer.baseUrl}/$path" +
                 "?hillshade=${bit(options.hillshade)}&contour=${bit(options.contour)}" +
                 "&lang=$mapLanguage"
         } else {
             AppConfig.GLOBAL_STYLE_URL
         }
+        Log.d("MapStyles", "offlineStyle → $url (serverPort=${LocalTileServer.port})")
+        return url
+    }
 
     private fun bit(value: Boolean) = if (value) 1 else 0
 }

@@ -51,6 +51,7 @@ import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PackDownloadProgress
 import ch.overlandmap.map.data.PlanetMapState
+import ch.overlandmap.map.model.Asset
 import ch.overlandmap.map.R
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -68,6 +69,8 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun OnboardingScreen(
+    appName: String,
+    logoRes: Int,
     onViewPrivacy: () -> Unit,
     onViewTerms: () -> Unit,
     onAcceptTutorial: () -> Unit,
@@ -123,6 +126,9 @@ fun OnboardingScreen(
                     .first { it != null && (it.done || it.error != null) }
             }
             downloadingSample = false
+            // Kick off offline map and hillshade downloads in background —
+            // the user can browse while these larger assets download.
+            launch { startBackgroundMapDownloads(app) }
             onAcceptSample()
         }
     }
@@ -135,13 +141,13 @@ fun OnboardingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Image(
-            painter = painterResource(R.drawable.app_logo),
+            painter = painterResource(logoRes),
             contentDescription = null,
             modifier = Modifier.size(96.dp),
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            stringResource(R.string.onboarding_welcome_title),
+            stringResource(R.string.onboarding_welcome_title_template, appName),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -254,6 +260,31 @@ private suspend fun startSampleDownload(app: OverlandApp): String? {
     val asset = runCatching { app.shopRepository.asset(assetId) }.getOrNull() ?: return null
     app.packDownloadManager.start(pack.documentId, mapOf(PackAssetKind.FREE_ITINERARY to asset))
     return pack.documentId
+}
+
+/**
+ * After the sample itinerary finishes, enqueue the offline map and hillshade
+ * assets in background so the user can browse while they download.
+ */
+private suspend fun startBackgroundMapDownloads(app: OverlandApp) {
+    val name = AppMode.trackPackName ?: return
+    val pack = app.libraryRepository.trackPackByName(name)
+        ?: runCatching { app.shopRepository.trackPackByName(name) }.getOrNull()
+        ?: return
+    val selection = mutableMapOf<PackAssetKind, Asset>()
+    pack.pmtilesMap?.takeIf { it.isNotEmpty() }?.let { id ->
+        runCatching { app.shopRepository.asset(id) }.getOrNull()?.let {
+            selection[PackAssetKind.OFFLINE_MAP] = it
+        }
+    }
+    pack.hillshade?.takeIf { it.isNotEmpty() }?.let { id ->
+        runCatching { app.shopRepository.asset(id) }.getOrNull()?.let {
+            selection[PackAssetKind.HILLSHADE] = it
+        }
+    }
+    if (selection.isNotEmpty()) {
+        app.packDownloadManager.start(pack.documentId, selection)
+    }
 }
 
 @Composable

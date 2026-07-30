@@ -67,6 +67,8 @@ object OfflineStyle {
             .put("source-layer", "earth")
             .put("paint", JSONObject().put("fill-color", "rgb(239,239,239)"))
 
+        val tileBaseUrl = LocalTileServer.baseUrl
+
         val hillshade = ArrayList<JSONObject>()
         if (showHillshade) {
             when {
@@ -78,7 +80,7 @@ object OfflineStyle {
                             .put("type", "raster")
                             .put(
                                 "tiles",
-                                JSONArray().put("$BASE_URL/tiles/hillshade/{z}/{x}/{y}.webp"),
+                                JSONArray().put("$tileBaseUrl/tiles/hillshade/{z}/{x}/{y}.webp"),
                             )
                             .put("tileSize", 256)
                             .put("minzoom", 7)

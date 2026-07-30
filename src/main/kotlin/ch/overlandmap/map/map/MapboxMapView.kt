@@ -1,5 +1,6 @@
 package ch.overlandmap.map.map
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -44,9 +45,23 @@ fun MapboxMapView(
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
-    // The Mapbox SDK reads the public token from MapboxOptions; apply it before
-    // the first map is created.
-    MapboxInit.ensure(app.mapboxTokenManager.cachedTokenNow())
+
+    // Wait for the Mapbox access token — MapView crashes without one.
+    var tokenReady by remember { mutableStateOf(app.mapboxTokenManager.cachedTokenNow() != null) }
+    LaunchedEffect(Unit) {
+        if (!tokenReady) {
+            // Fetch (or await the cached) token.
+            app.mapboxTokenManager.validToken()
+            tokenReady = true
+        }
+    }
+    val token = app.mapboxTokenManager.cachedTokenNow()
+    if (token == null && !tokenReady) {
+        // Show nothing while waiting for the token.
+        Box(modifier = modifier)
+        return
+    }
+    MapboxInit.ensure(token)
 
     val mapView = remember { MapView(context) }
     val map = mapView.mapboxMap
@@ -56,6 +71,7 @@ fun MapboxMapView(
     // (Re)load the style whenever [styleUrl] changes, so the style menu switches
     // live; the caller re-adds its sources/layers each time.
     LaunchedEffect(styleUrl) {
+        Log.d("MapboxMapView", "Loading style: $styleUrl")
         map.loadStyle(styleUrl) { style -> onStyleLoaded(map, style) }
     }
 
