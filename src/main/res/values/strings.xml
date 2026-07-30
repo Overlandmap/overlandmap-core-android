@@ -7,7 +7,7 @@
     <string name="tab_settings">Settings</string>
 
     <string name="library_empty">Your library is empty</string>
-    <string name="library_empty_hint">Download a track pack from the shop to get started.</string>
+    <string name="library_empty_hint">Download itineraries from the shop to get started.</string>
     <string name="library_delete_confirm">Remove this track pack from your device?</string>
     <string name="check_for_update">Check for update</string>
     <string name="update">Update</string>
@@ -193,4 +193,22 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
+
+    <!-- Legal documents and first-launch onboarding -->
+    <string name="settings_privacy_policy">Privacy Policy</string>
+    <string name="settings_terms_of_service">Terms of Service</string>
+    <string name="onboarding_welcome_title">Welcome to Overland Map</string>
+    <string name="onboarding_welcome_subtitle">Before you start, please review and accept our policies and download the world map.</string>
+    <string name="onboarding_view_privacy">View the Privacy Policy</string>
+    <string name="onboarding_view_terms">View the Terms of Service</string>
+    <string name="onboarding_accept_checkbox">I have read and accept the Privacy Policy and the Terms of Service</string>
+    <string name="onboarding_world_map_title">Offline world map</string>
+    <string name="onboarding_world_map_desc">The global base map (%1$s) lets you browse the world offline.</string>
+    <string name="onboarding_world_map_ready">World map ready</string>
+    <string name="onboarding_world_map_downloading">Downloading the world map…</string>
+    <string name="onboarding_world_map_pending">The world map will download in the background.</string>
+    <string name="onboarding_accept_tutorial">Accept and start the tutorial</string>
+    <string name="onboarding_accept_sample_multi">Accept and try a sample itinerary</string>
+    <string name="onboarding_accept_sample_single">Accept and download the sample itinerary</string>
+    <string name="onboarding_downloading_sample">Downloading the sample itinerary…</string>
 </resources>

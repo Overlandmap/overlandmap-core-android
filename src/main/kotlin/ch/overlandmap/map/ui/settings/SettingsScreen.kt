@@ -23,9 +23,11 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.AlertDialog
@@ -90,6 +92,8 @@ fun SettingsScreen(
     onOpenTextSize: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenHelp: () -> Unit,
+    onOpenPrivacy: () -> Unit,
+    onOpenTerms: () -> Unit,
     onOpenDebug: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
 ) {
@@ -198,6 +202,18 @@ fun SettingsScreen(
             icon = Icons.AutoMirrored.Filled.HelpOutline,
             label = stringResource(R.string.help),
             onClick = onOpenHelp,
+        )
+        HorizontalDivider()
+        SubmenuRow(
+            icon = Icons.Filled.PrivacyTip,
+            label = stringResource(R.string.settings_privacy_policy),
+            onClick = onOpenPrivacy,
+        )
+        HorizontalDivider()
+        SubmenuRow(
+            icon = Icons.Filled.Gavel,
+            label = stringResource(R.string.settings_terms_of_service),
+            onClick = onOpenTerms,
         )
         HorizontalDivider()
         // Debug tools — only in debuggable builds; absent from release.

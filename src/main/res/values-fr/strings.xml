@@ -7,7 +7,7 @@
     <string name="tab_settings">Réglages</string>
 
     <string name="library_empty">Votre bibliothèque est vide</string>
-    <string name="library_empty_hint">Téléchargez un track pack depuis la boutique pour commencer.</string>
+    <string name="library_empty_hint">Téléchargez des itinéraires depuis la boutique pour commencer.</string>
     <string name="library_delete_confirm">Supprimer ce track pack de votre appareil ?</string>
     <string name="check_for_update">Chercher une mise à jour</string>
     <string name="update">Mettre à jour</string>
@@ -154,4 +154,22 @@
     <string name="text_size_large">Grand</string>
     <string name="text_size_very_large">Très grand</string>
     <string name="text_size_sample">::Titre d\'exemple::\nPortez ce vieux whisky au juge blond qui fume. Voici à quoi ressembleront les descriptions, l\'état des routes et les points forts à cette taille.</string>
+
+    <!-- Legal documents and first-launch onboarding -->
+    <string name="settings_privacy_policy">Politique de confidentialité</string>
+    <string name="settings_terms_of_service">Conditions d\'utilisation</string>
+    <string name="onboarding_welcome_title">Bienvenue sur Overland Map</string>
+    <string name="onboarding_welcome_subtitle">Avant de commencer, veuillez lire et accepter nos politiques et télécharger la carte du monde.</string>
+    <string name="onboarding_view_privacy">Voir la politique de confidentialité</string>
+    <string name="onboarding_view_terms">Voir les conditions d\'utilisation</string>
+    <string name="onboarding_accept_checkbox">J\'ai lu et j\'accepte la politique de confidentialité et les conditions d\'utilisation</string>
+    <string name="onboarding_world_map_title">Carte du monde hors ligne</string>
+    <string name="onboarding_world_map_desc">Une vue globale du monde (%1$s) est disponible même hors ligne.</string>
+    <string name="onboarding_world_map_ready">Carte du monde prête</string>
+    <string name="onboarding_world_map_downloading">Téléchargement de la carte du monde…</string>
+    <string name="onboarding_world_map_pending">La carte du monde sera téléchargée en arrière-plan.</string>
+    <string name="onboarding_accept_tutorial">Accepter et démarrer le tutoriel</string>
+    <string name="onboarding_accept_sample_multi">Accepter et essayer un itinéraire d\'exemple</string>
+    <string name="onboarding_accept_sample_single">Accepter et télécharger l\'itinéraire d\'exemple</string>
+    <string name="onboarding_downloading_sample">Téléchargement de l\'itinéraire d\'exemple…</string>
 </resources>

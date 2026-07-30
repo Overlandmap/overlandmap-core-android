@@ -7,7 +7,7 @@
     <string name="tab_settings">Einstellungen</string>
 
     <string name="library_empty">Deine Bibliothek ist leer</string>
-    <string name="library_empty_hint">Lade ein Track Pack aus dem Shop herunter, um zu beginnen.</string>
+    <string name="library_empty_hint">Lade Reiserouten aus dem Shop herunter, um loszulegen.</string>
     <string name="library_delete_confirm">Dieses Track Pack vom Gerät entfernen?</string>
     <string name="check_for_update">Nach Updates suchen</string>
     <string name="update">Aktualisieren</string>
@@ -154,4 +154,22 @@
     <string name="text_size_large">Groß</string>
     <string name="text_size_very_large">Sehr groß</string>
     <string name="text_size_sample">::Beispieltitel::\nFranz jagt im komplett verwahrlosten Taxi quer durch Bayern. So sehen Beschreibungen, Straßenzustände und Höhepunkte in dieser Größe aus.</string>
+
+    <!-- Legal documents and first-launch onboarding -->
+    <string name="settings_privacy_policy">Datenschutzerklärung</string>
+    <string name="settings_terms_of_service">Nutzungsbedingungen</string>
+    <string name="onboarding_welcome_title">Willkommen bei Overland Map</string>
+    <string name="onboarding_welcome_subtitle">Bevor Sie beginnen, lesen und akzeptieren Sie bitte unsere Richtlinien und laden Sie die Weltkarte herunter.</string>
+    <string name="onboarding_view_privacy">Datenschutzerklärung ansehen</string>
+    <string name="onboarding_view_terms">Nutzungsbedingungen ansehen</string>
+    <string name="onboarding_accept_checkbox">Ich habe die Datenschutzerklärung und die Nutzungsbedingungen gelesen und akzeptiere sie</string>
+    <string name="onboarding_world_map_title">Offline-Weltkarte</string>
+    <string name="onboarding_world_map_desc">Mit der globalen Basiskarte (%1$s) können Sie die Welt offline erkunden.</string>
+    <string name="onboarding_world_map_ready">Weltkarte bereit</string>
+    <string name="onboarding_world_map_downloading">Weltkarte wird heruntergeladen…</string>
+    <string name="onboarding_world_map_pending">Die Weltkarte wird im Hintergrund heruntergeladen.</string>
+    <string name="onboarding_accept_tutorial">Akzeptieren und Tutorial starten</string>
+    <string name="onboarding_accept_sample_multi">Akzeptieren und eine Beispielroute testen</string>
+    <string name="onboarding_accept_sample_single">Akzeptieren und die Beispielroute herunterladen</string>
+    <string name="onboarding_downloading_sample">Beispielroute wird heruntergeladen…</string>
 </resources>

@@ -7,7 +7,7 @@
     <string name="tab_settings">Instellingen</string>
 
     <string name="library_empty">Je bibliotheek is leeg</string>
-    <string name="library_empty_hint">Download een track pack uit de winkel om te beginnen.</string>
+    <string name="library_empty_hint">Download routes uit de winkel om te beginnen.</string>
     <string name="library_delete_confirm">Dit track pack van je apparaat verwijderen?</string>
     <string name="check_for_update">Controleren op updates</string>
     <string name="update">Bijwerken</string>
@@ -154,4 +154,22 @@
     <string name="text_size_large">Groot</string>
     <string name="text_size_very_large">Zeer groot</string>
     <string name="text_size_sample">::Voorbeeldtitel::\nPa\'s wijze lynx bezag vroom het fikse aquaduct. Zo zien beschrijvingen, wegomstandigheden en hoogtepunten er op dit formaat uit.</string>
+
+    <!-- Legal documents and first-launch onboarding -->
+    <string name="settings_privacy_policy">Privacybeleid</string>
+    <string name="settings_terms_of_service">Servicevoorwaarden</string>
+    <string name="onboarding_welcome_title">Welkom bij Overland Map</string>
+    <string name="onboarding_welcome_subtitle">Lees en accepteer voordat je begint ons beleid en download de wereldkaart.</string>
+    <string name="onboarding_view_privacy">Bekijk het privacybeleid</string>
+    <string name="onboarding_view_terms">Bekijk de servicevoorwaarden</string>
+    <string name="onboarding_accept_checkbox">Ik heb het privacybeleid en de servicevoorwaarden gelezen en accepteer deze</string>
+    <string name="onboarding_world_map_title">Offline wereldkaart</string>
+    <string name="onboarding_world_map_desc">Met de wereldwijde basiskaart (%1$s) kun je de wereld offline verkennen.</string>
+    <string name="onboarding_world_map_ready">Wereldkaart gereed</string>
+    <string name="onboarding_world_map_downloading">Wereldkaart wordt gedownload…</string>
+    <string name="onboarding_world_map_pending">De wereldkaart wordt op de achtergrond gedownload.</string>
+    <string name="onboarding_accept_tutorial">Accepteren en de tutorial starten</string>
+    <string name="onboarding_accept_sample_multi">Accepteren en een voorbeeldroute proberen</string>
+    <string name="onboarding_accept_sample_single">Accepteren en de voorbeeldroute downloaden</string>
+    <string name="onboarding_downloading_sample">Voorbeeldroute wordt gedownload…</string>
 </resources>

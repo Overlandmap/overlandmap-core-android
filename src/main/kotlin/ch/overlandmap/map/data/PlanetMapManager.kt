@@ -50,6 +50,14 @@ class PlanetMapManager(
     )
     val state: StateFlow<PlanetMapState> = _state
 
+    /** Declared size of the planet asset, for the onboarding screen (null offline). */
+    suspend fun assetSizeBytes(): Long? = try {
+        shop.asset(ASSET_ID)?.fileSizeBytes
+    } catch (e: Exception) {
+        Log.i(TAG, "Planet asset size not reachable (offline?): ${e.message}")
+        null
+    }
+
     /** Call once at startup (and at will after connectivity returns). */
     fun ensurePlanet() {
         scope.launch { watchWork() }

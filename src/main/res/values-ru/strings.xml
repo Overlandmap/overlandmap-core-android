@@ -7,7 +7,7 @@
     <string name="tab_settings">Настройки</string>
 
     <string name="library_empty">Ваша библиотека пуста</string>
-    <string name="library_empty_hint">Скачайте трек-пак из магазина, чтобы начать.</string>
+    <string name="library_empty_hint">Загрузите маршруты из магазина, чтобы начать.</string>
     <string name="library_delete_confirm">Удалить этот трек-пак с устройства?</string>
     <string name="check_for_update">Проверить обновления</string>
     <string name="update">Обновить</string>
@@ -156,4 +156,22 @@
     <string name="text_size_large">Крупный</string>
     <string name="text_size_very_large">Очень крупный</string>
     <string name="text_size_sample">::Пример заголовка::\nСъешь же ещё этих мягких французских булок да выпей чаю. Так будут выглядеть описания, состояние дорог и основные моменты при этом размере.</string>
+
+    <!-- Legal documents and first-launch onboarding -->
+    <string name="settings_privacy_policy">Политика конфиденциальности</string>
+    <string name="settings_terms_of_service">Условия использования</string>
+    <string name="onboarding_welcome_title">Добро пожаловать в Overland Map</string>
+    <string name="onboarding_welcome_subtitle">Прежде чем начать, ознакомьтесь с нашими политиками, примите их и загрузите карту мира.</string>
+    <string name="onboarding_view_privacy">Посмотреть политику конфиденциальности</string>
+    <string name="onboarding_view_terms">Посмотреть условия использования</string>
+    <string name="onboarding_accept_checkbox">Я прочитал(а) и принимаю политику конфиденциальности и условия использования</string>
+    <string name="onboarding_world_map_title">Офлайн-карта мира</string>
+    <string name="onboarding_world_map_desc">Глобальная базовая карта (%1$s) позволяет просматривать мир офлайн.</string>
+    <string name="onboarding_world_map_ready">Карта мира готова</string>
+    <string name="onboarding_world_map_downloading">Загрузка карты мира…</string>
+    <string name="onboarding_world_map_pending">Карта мира будет загружена в фоновом режиме.</string>
+    <string name="onboarding_accept_tutorial">Принять и начать обучение</string>
+    <string name="onboarding_accept_sample_multi">Принять и попробовать пример маршрута</string>
+    <string name="onboarding_accept_sample_single">Принять и загрузить пример маршрута</string>
+    <string name="onboarding_downloading_sample">Загрузка примера маршрута…</string>
 </resources>

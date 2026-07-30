@@ -7,7 +7,7 @@
     <string name="tab_settings">Ajustes</string>
 
     <string name="library_empty">Tu biblioteca está vacía</string>
-    <string name="library_empty_hint">Descarga un track pack de la tienda para empezar.</string>
+    <string name="library_empty_hint">Descarga itinerarios de la tienda para empezar.</string>
     <string name="library_delete_confirm">¿Eliminar este track pack del dispositivo?</string>
     <string name="check_for_update">Buscar actualización</string>
     <string name="update">Actualizar</string>
@@ -154,4 +154,22 @@
     <string name="text_size_large">Grande</string>
     <string name="text_size_very_large">Muy grande</string>
     <string name="text_size_sample">::Título de ejemplo::\nEl veloz murciélago hindú comía feliz cardillo y kiwi. Así se verán las descripciones, el estado de las carreteras y lo más destacado con este tamaño.</string>
+
+    <!-- Legal documents and first-launch onboarding -->
+    <string name="settings_privacy_policy">Política de privacidad</string>
+    <string name="settings_terms_of_service">Términos del servicio</string>
+    <string name="onboarding_welcome_title">Bienvenido a Overland Map</string>
+    <string name="onboarding_welcome_subtitle">Antes de empezar, revisa y acepta nuestras políticas y descarga el mapa del mundo.</string>
+    <string name="onboarding_view_privacy">Ver la Política de privacidad</string>
+    <string name="onboarding_view_terms">Ver los Términos del servicio</string>
+    <string name="onboarding_accept_checkbox">He leído y acepto la Política de privacidad y los Términos del servicio</string>
+    <string name="onboarding_world_map_title">Mapa mundial sin conexión</string>
+    <string name="onboarding_world_map_desc">El mapa base global (%1$s) te permite explorar el mundo sin conexión.</string>
+    <string name="onboarding_world_map_ready">Mapa del mundo listo</string>
+    <string name="onboarding_world_map_downloading">Descargando el mapa del mundo…</string>
+    <string name="onboarding_world_map_pending">El mapa del mundo se descargará en segundo plano.</string>
+    <string name="onboarding_accept_tutorial">Aceptar y empezar el tutorial</string>
+    <string name="onboarding_accept_sample_multi">Aceptar y probar un itinerario de muestra</string>
+    <string name="onboarding_accept_sample_single">Aceptar y descargar el itinerario de muestra</string>
+    <string name="onboarding_downloading_sample">Descargando el itinerario de muestra…</string>
 </resources>

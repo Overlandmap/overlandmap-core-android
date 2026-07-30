@@ -7,7 +7,7 @@
     <string name="tab_settings">Definições</string>
 
     <string name="library_empty">A sua biblioteca está vazia</string>
-    <string name="library_empty_hint">Descarregue um track pack da loja para começar.</string>
+    <string name="library_empty_hint">Transfira itinerários da loja para começar.</string>
     <string name="library_delete_confirm">Remover este track pack do dispositivo?</string>
     <string name="check_for_update">Verificar atualização</string>
     <string name="update">Atualizar</string>
@@ -154,4 +154,22 @@
     <string name="text_size_large">Grande</string>
     <string name="text_size_very_large">Muito grande</string>
     <string name="text_size_sample">::Título de exemplo::\nUm pequeno jabuti xereta viu dez cegonhas felizes. É assim que as descrições, as condições da estrada e os destaques ficarão neste tamanho.</string>
+
+    <!-- Legal documents and first-launch onboarding -->
+    <string name="settings_privacy_policy">Política de Privacidade</string>
+    <string name="settings_terms_of_service">Termos de Serviço</string>
+    <string name="onboarding_welcome_title">Bem-vindo ao Overland Map</string>
+    <string name="onboarding_welcome_subtitle">Antes de começar, leia e aceite as nossas políticas e transfira o mapa do mundo.</string>
+    <string name="onboarding_view_privacy">Ver a Política de Privacidade</string>
+    <string name="onboarding_view_terms">Ver os Termos de Serviço</string>
+    <string name="onboarding_accept_checkbox">Li e aceito a Política de Privacidade e os Termos de Serviço</string>
+    <string name="onboarding_world_map_title">Mapa mundial offline</string>
+    <string name="onboarding_world_map_desc">O mapa base global (%1$s) permite explorar o mundo offline.</string>
+    <string name="onboarding_world_map_ready">Mapa do mundo pronto</string>
+    <string name="onboarding_world_map_downloading">A transferir o mapa do mundo…</string>
+    <string name="onboarding_world_map_pending">O mapa do mundo será transferido em segundo plano.</string>
+    <string name="onboarding_accept_tutorial">Aceitar e iniciar o tutorial</string>
+    <string name="onboarding_accept_sample_multi">Aceitar e experimentar um itinerário de amostra</string>
+    <string name="onboarding_accept_sample_single">Aceitar e transferir o itinerário de amostra</string>
+    <string name="onboarding_downloading_sample">A transferir o itinerário de amostra…</string>
 </resources>
