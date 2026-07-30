@@ -1,6 +1,7 @@
 package ch.overlandmap.map.ui.home
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.R
@@ -52,6 +54,7 @@ fun HomeScreen(
     onOpenPack: (String) -> Unit,
     onOpenSearch: () -> Unit,
     onOpenHelp: () -> Unit,
+    onOpenShop: () -> Unit,
     viewModel: HomeViewModel = viewModel { HomeViewModel(overlandApp()) },
 ) {
     val packs by viewModel.packs.collectAsState()
@@ -85,7 +88,7 @@ fun HomeScreen(
         if (packList == null) {
             // Still loading from Room — show nothing to avoid "empty" flash.
             Spacer(modifier = Modifier.weight(1f))
-        } else if (packList.isEmpty()) EmptyLibrary()
+        } else if (packList.isEmpty()) EmptyLibrary(onOpenShop)
         else LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
             contentPadding = PaddingValues(8.dp),
@@ -158,7 +161,7 @@ private fun SectionTitle(title: String) {
 }
 
 @Composable
-private fun EmptyLibrary() {
+private fun EmptyLibrary(onOpenShop: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
@@ -167,10 +170,13 @@ private fun EmptyLibrary() {
                 modifier = Modifier.size(180.dp).padding(bottom = 24.dp),
             )
             Text(stringResource(R.string.library_empty), style = MaterialTheme.typography.titleMedium)
+            // Tapping the hint jumps to the Shop tab.
             Text(
                 stringResource(R.string.library_empty_hint),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.clickable(onClick = onOpenShop),
             )
         }
     }
