@@ -24,10 +24,11 @@ import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.home.SidebarPreviewDialog
 import ch.overlandmap.map.ui.home.WaypointDialog
+import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.launch
 
 /** A link's popup: what it shows plus what its open (arrow/buy) action does. */
-private data class LinkPopup(val kind: MapPopupKind, val open: () -> Unit)
+private data class LinkPopup(val kind: MapPopupKind, val tapPosition: Offset?, val open: () -> Unit)
 
 /**
  * Returns the click handler to pass to the screen's [MarkupText]s, and owns
@@ -65,37 +66,35 @@ fun rememberMarkupLinkHandler(
     // The popups' own descriptions contain markup too, so they take this
     // same handler: following a link there replaces the open popup.
     fun handleLink(link: MarkupLink, shownText: String) {
+        // Capture the tap position recorded by MarkupText before the coroutine
+        // launches, so the popup can anchor near the tapped link.
+        val tapPos = lastLinkTapPosition.takeIf { it != Offset.Unspecified }
         scope.launch {
             when (val destination = router.resolve(link)) {
                 is MarkupDestination.JumpToStep -> {
                     val step = destination.step
-                    if (step == null) {
-                        onJumpToStep?.invoke(destination.stepId)
-                    } else {
-                        popup = LinkPopup(MapPopupKind.OfStep(sourceItineraryId ?: "", step)) {
-                            onJumpToStep?.invoke(step.stepId)
-                        }
-                    }
+                    // Same-itinerary step link (:::N): jump directly, no popup.
+                    onJumpToStep?.invoke(destination.stepId)
                 }
                 is MarkupDestination.OpenItinerary -> {
                     val kind = when (val step = destination.step) {
                         null -> MapPopupKind.OfItinerary(destination.itinerary)
                         else -> MapPopupKind.OfStep(destination.itinerary.itineraryId, step)
                     }
-                    popup = LinkPopup(kind) {
+                    popup = LinkPopup(kind, tapPos) {
                         onOpenItinerary(destination.itinerary.documentId, destination.stepId)
                     }
                 }
                 is MarkupDestination.ShowBuyable -> {
                     val packId = destination.itinerary.trackPackId
                     popup = LinkPopup(
-                        MapPopupKind.Buy(packId, packName = null, notInSample = true),
+                        MapPopupKind.Buy(packId, packName = null, notInSample = true), tapPos,
                     ) { onOpenShopPack?.invoke(packId) }
                 }
                 is MarkupDestination.ShowSidebar -> sidebarPreview = destination.sidebar
                 is MarkupDestination.ShowWaypoint -> {
                     val target = destination.waypoint
-                    popup = LinkPopup(MapPopupKind.OfWaypoint(target)) { waypoint = target }
+                    popup = LinkPopup(MapPopupKind.OfWaypoint(target), tapPos) { waypoint = target }
                 }
                 is MarkupDestination.OpenUrl -> try {
                     context.startActivity(Intent(Intent.ACTION_VIEW, destination.url.toUri()))
@@ -108,7 +107,11 @@ fun rememberMarkupLinkHandler(
 
     popup?.let { current ->
         MapObjectPopup(
-            state = MapPopupState(position = null, kind = current.kind),
+            state = MapPopupState(
+                position = current.tapPosition,
+                kind = current.kind,
+                positionIsWindowAbsolute = true,
+            ),
             onDismiss = { popup = null },
             onZoom = { kind -> onZoomToObject(kind) },
             onOpen = { current.open() },

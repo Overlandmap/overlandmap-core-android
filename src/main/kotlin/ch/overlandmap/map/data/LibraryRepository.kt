@@ -171,11 +171,25 @@ class LibraryRepository(
      * ([fullPack] true, obtained through `downloadTrackPackUrl` after a
      * purchase) marks the pack as full; the free sample keeps an existing
      * full download's status.
+     *
+     * When [assetVersion] / [assetVersionDate] are provided (from the
+     * downloaded asset's metadata), they are stamped onto the local TrackPack
+     * so the pack menu shows the installed version and its date.
      */
-    suspend fun importParsedPack(parsed: ParsedPack, fullPack: Boolean = false) {
+    suspend fun importParsedPack(
+        parsed: ParsedPack,
+        fullPack: Boolean = false,
+        assetVersion: Int? = null,
+        assetVersionDate: Long? = null,
+    ) {
         val existing = dao.trackPack(parsed.pack.documentId)
         val isFreeSample = if (fullPack) false else existing?.isFreeSample ?: true
-        dao.insertTrackPack(parsed.pack.copy(isFreeSample = isFreeSample))
+        val pack = parsed.pack.copy(
+            isFreeSample = isFreeSample,
+            version = assetVersion ?: parsed.pack.version,
+            lastUpdate = assetVersionDate ?: parsed.pack.lastUpdate,
+        )
+        dao.insertTrackPack(pack)
         dao.insertItineraries(parsed.itineraries)
         dao.insertSteps(parsed.steps)
         dao.insertTracks(parsed.tracks)

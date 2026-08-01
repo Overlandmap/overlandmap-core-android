@@ -80,8 +80,16 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
                     transferredTotal.set(doneBytes)
                     if (index == zipIndex) {
                         reporter.cancel() // installing shows as indeterminate
+                        val assetVersion = inputData.getInt(KEY_ASSET_VERSION, 0)
+                            .takeIf { it > 0 }
+                        val assetVersionDate = inputData.getLong(KEY_ASSET_VERSION_DATE, 0L)
+                            .takeIf { it > 0L }
                         try {
-                            installZip(target)
+                            installZip(
+                                target,
+                                assetVersion = assetVersion,
+                                assetVersionDate = assetVersionDate,
+                            )
                         } finally {
                             target.delete()
                         }
@@ -113,10 +121,20 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         val app = applicationContext as OverlandApp
         val target = File(applicationContext.cacheDir, "pack_full_$packId.zip")
         return try {
+            // Fetch the asset metadata (version/date) from the trackPackZip field.
+            val onlinePack = runCatching { app.shopRepository.trackPack(packId) }.getOrNull()
+            val asset = onlinePack?.trackPackZip?.let { assetId ->
+                runCatching { app.shopRepository.asset(assetId) }.getOrNull()
+            }
             val url = app.shopRepository.downloadPackUrl(packId)
             Downloads.download(url, target)
             try {
-                installZip(target, fullPack = true)
+                installZip(
+                    target,
+                    fullPack = true,
+                    assetVersion = asset?.version,
+                    assetVersionDate = asset?.versionDate,
+                )
             } finally {
                 target.delete()
             }
@@ -164,7 +182,12 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
     }
 
     /** Unzips the pack: `images/` into `files/photo`, `json/db.json` into Room. */
-    private suspend fun installZip(zip: File, fullPack: Boolean = false) {
+    private suspend fun installZip(
+        zip: File,
+        fullPack: Boolean = false,
+        assetVersion: Int? = null,
+        assetVersionDate: Long? = null,
+    ) {
         setProgress(workDataOf(PROGRESS_FRACTION to -1f, PROGRESS_MESSAGE to ""))
         val app = applicationContext as OverlandApp
         val photoDir = File(applicationContext.filesDir, "photo")
@@ -179,7 +202,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
             val dbJson = File(unzipDir, "json/db.json")
             if (!dbJson.isFile) throw IOException("Zip contains no json/db.json")
             val parsed = withContext(Dispatchers.Default) { PackJsonImporter.parse(dbJson, photoDir) }
-            app.libraryRepository.importParsedPack(parsed, fullPack)
+            app.libraryRepository.importParsedPack(parsed, fullPack, assetVersion, assetVersionDate)
         } finally {
             unzipDir.deleteRecursively()
         }
@@ -211,6 +234,8 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         const val KEY_NAMES = "names"
         const val KEY_SIZES = "sizes"
         const val KEY_ZIP_INDEX = "zipIndex"
+        const val KEY_ASSET_VERSION = "assetVersion"
+        const val KEY_ASSET_VERSION_DATE = "assetVersionDate"
         const val KEY_ERROR = "error"
         const val PROGRESS_FRACTION = "fraction"
         const val PROGRESS_MESSAGE = "message"

@@ -427,7 +427,7 @@ private fun addWaypointLayer(style: Style, waypoints: List<Waypoint>) {
             iconImage(Expression.get(WAYPOINT_ICON_KEY))
             iconAnchor(IconAnchor.CENTER)
             iconAllowOverlap(true)
-            iconSize(2.0)
+            iconSize(1.0)
         }
     )
 }

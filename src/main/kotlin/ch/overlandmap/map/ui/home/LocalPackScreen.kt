@@ -144,6 +144,7 @@ fun LocalPackScreen(
     var popup by remember { mutableStateOf<MapPopupState?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var showSignInDialog by remember { mutableStateOf(false) }
     var showFullPackDialog by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -437,6 +438,7 @@ fun LocalPackScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
+                    deleting = true
                     viewModel.deletePack(onDeleted = onBack)
                 }) { Text(stringResource(R.string.delete)) }
             },
@@ -446,6 +448,14 @@ fun LocalPackScreen(
                 }
             },
         )
+    }
+    if (deleting) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
     }
     if (showSignInDialog) {
         AlertDialog(

@@ -151,6 +151,8 @@ class PackDownloadManager(
         val names = mutableListOf<String>()
         val sizes = mutableListOf<Long>()
         var zipIndex = -1
+        var zipAssetVersion = 0
+        var zipAssetVersionDate = 0L
         entries.forEachIndexed { index, (kind, asset) ->
             val url = asset.url ?: run {
                 setProgress(packId, PackDownloadProgress(error = "No URL for ${asset.name}"))
@@ -162,6 +164,8 @@ class PackDownloadManager(
             destinations += when (kind) {
                 PackAssetKind.FREE_ITINERARY -> {
                     zipIndex = index
+                    zipAssetVersion = asset.version
+                    zipAssetVersionDate = asset.versionDate ?: 0L
                     File(context.cacheDir, "pack_$packId.zip").path
                 }
                 else -> mapFile(packId, kind, asset).path
@@ -178,6 +182,8 @@ class PackDownloadManager(
                     PackDownloadWorker.KEY_NAMES to names.toTypedArray(),
                     PackDownloadWorker.KEY_SIZES to sizes.toLongArray(),
                     PackDownloadWorker.KEY_ZIP_INDEX to zipIndex,
+                    PackDownloadWorker.KEY_ASSET_VERSION to zipAssetVersion,
+                    PackDownloadWorker.KEY_ASSET_VERSION_DATE to zipAssetVersionDate,
                 )
             )
             .setConstraints(

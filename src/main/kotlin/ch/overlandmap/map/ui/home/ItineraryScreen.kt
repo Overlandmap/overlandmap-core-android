@@ -155,9 +155,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.LocalPolice
+import androidx.compose.material.icons.filled.AltRoute
+import androidx.compose.material.icons.filled.DirectionsBoat
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
@@ -1176,9 +1178,7 @@ private fun StepHeader(
             Spacer(Modifier.weight(1f))
             // Check-in button with badge and dialog.
             CheckInButton(step)
-            IconButton(onClick = {}) {
-                Icon(Icons.Filled.Help, contentDescription = null, tint = RED)
-            }
+            CorrectionButton(step)
             IconButton(onClick = { onCenterOnStep(step) }) {
                 Icon(Icons.Filled.ZoomIn, contentDescription = null)
             }

@@ -22,7 +22,8 @@ private const val TAG = "LastRoute"
  */
 @Composable
 fun RestoreAndPersistLastRoute(navController: NavController) {
-    val prefs = (LocalContext.current.applicationContext as OverlandApp).userPreferences
+    val app = (LocalContext.current.applicationContext as OverlandApp)
+    val prefs = app.userPreferences
     LaunchedEffect(navController) {
         // Suspends until the NavHost has set the graph and pushed its start
         // destination — then it is safe to navigate.
@@ -30,21 +31,28 @@ fun RestoreAndPersistLastRoute(navController: NavController) {
         val saved = prefs.lastRouteNow()
         Log.d(TAG, "start=${start.fullRoute()} saved=$saved")
         if (!saved.isNullOrBlank() && saved != start.fullRoute()) {
-            // Hand the itinerary screen its saved tab/step/camera to reapply once.
-            if (saved.startsWith("itinerary/")) {
-                val docId = saved.removePrefix("itinerary/").substringBefore("?")
-                val camera = prefs.lastCameraNow()
-                RestoreState.pendingItinerary = ItineraryRestore(
-                    itineraryDocumentId = docId,
-                    tab = prefs.lastTabNow(),
-                    stepIndex = prefs.lastStepIndexNow(),
-                    zoom = camera?.first,
-                    lat = camera?.second,
-                    lon = camera?.third,
-                )
+            // Validate that the referenced object still exists in the local DB.
+            // If it doesn't (e.g. after a DB wipe), skip the restore.
+            if (!isRouteValid(app, saved)) {
+                Log.w(TAG, "saved route '$saved' references a missing object, skipping restore")
+                prefs.clearLastRoute()
+            } else {
+                // Hand the itinerary screen its saved tab/step/camera to reapply once.
+                if (saved.startsWith("itinerary/")) {
+                    val docId = saved.removePrefix("itinerary/").substringBefore("?")
+                    val camera = prefs.lastCameraNow()
+                    RestoreState.pendingItinerary = ItineraryRestore(
+                        itineraryDocumentId = docId,
+                        tab = prefs.lastTabNow(),
+                        stepIndex = prefs.lastStepIndexNow(),
+                        zoom = camera?.first,
+                        lat = camera?.second,
+                        lon = camera?.third,
+                    )
+                }
+                runCatching { navController.navigate(saved) }
+                    .onFailure { Log.w(TAG, "could not restore '$saved'", it) }
             }
-            runCatching { navController.navigate(saved) }
-                .onFailure { Log.w(TAG, "could not restore '$saved'", it) }
         }
         navController.currentBackStackEntryFlow.collect { entry ->
             // The help/tutorial is a transient overlay; never restore into it.
@@ -54,6 +62,36 @@ fun RestoreAndPersistLastRoute(navController: NavController) {
             }
         }
     }
+}
+
+/**
+ * Checks whether the saved route references an object that still exists in the
+ * local database. Returns true for routes that don't reference a specific
+ * object (tabs, settings, etc.) and for those where the object is found.
+ */
+private suspend fun isRouteValid(app: OverlandApp, route: String): Boolean = try {
+    when {
+        route.startsWith("itinerary/") -> {
+            val docId = route.removePrefix("itinerary/").substringBefore("?")
+            app.libraryRepository.itinerary(docId) != null
+        }
+        route.startsWith("localPack/") -> {
+            val packId = route.removePrefix("localPack/")
+            app.libraryRepository.trackPack(packId) != null
+        }
+        route.startsWith("sidebar/") -> {
+            val sidebarId = route.removePrefix("sidebar/")
+            app.libraryRepository.sidebarById(sidebarId) != null
+        }
+        route.startsWith("pack/") -> {
+            // Shop pack detail: always valid (it fetches from Firestore).
+            true
+        }
+        else -> true
+    }
+} catch (e: Exception) {
+    Log.w(TAG, "isRouteValid check failed for '$route'", e)
+    false
 }
 
 /**

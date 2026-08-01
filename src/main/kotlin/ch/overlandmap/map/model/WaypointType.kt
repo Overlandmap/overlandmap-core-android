@@ -35,6 +35,9 @@ interface WaypointType {
     val isHistoricalSite: Boolean
     val isReligiousSite: Boolean
     val isHotSpring: Boolean
+    val isIntersection: Boolean
+    val isCafe: Boolean
+    val isFerry: Boolean
 
     /** Access / opening status, and its free-text detail. */
     val openKind: OpenKind?

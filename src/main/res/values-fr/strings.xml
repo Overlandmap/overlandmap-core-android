@@ -18,8 +18,8 @@
     <string name="delete">Supprimer</string>
     <string name="cancel">Annuler</string>
     <string name="confirm">Confirmer</string>
-    <string name="check_in">Pointer</string>
-    <string name="check_ins_title">Pointages</string>
+    <string name="check_in">Valider</string>
+    <string name="check_ins_title">Validations</string>
     <string name="check_in_hint">Ajouter un message ici si nécessaire</string>
     <string name="close">Fermer</string>
     <string name="retry">Réessayer</string>
@@ -172,4 +172,13 @@
     <string name="onboarding_accept_sample_multi">Accepter et essayer un itinéraire d\'exemple</string>
     <string name="onboarding_accept_sample_single">Accepter et télécharger l\'itinéraire d\'exemple</string>
     <string name="onboarding_downloading_sample">Téléchargement de l\'itinéraire d\'exemple…</string>
+
+    <!-- Corrections and database upgrade -->
+    <string name="corrections">Corrections</string>
+    <string name="suggest_correction">Suggérer une correction</string>
+    <string name="correction_hint">Décrivez ce qui doit être corrigé</string>
+    <string name="db_upgrade_title">Mise à jour de la base de données</string>
+    <string name="db_upgrade_message">Vos données hors ligne ont été créées par une ancienne version de l\'application et ne sont plus compatibles. Elles doivent être réinitialisées. Vos packs téléchargés seront re-téléchargés automatiquement.</string>
+    <string name="db_upgrade_confirm">Réinitialiser et continuer</string>
+    <string name="db_upgrade_exit">Quitter</string>
 </resources>

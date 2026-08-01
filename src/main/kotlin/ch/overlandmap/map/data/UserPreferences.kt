@@ -127,6 +127,11 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { it[lastRouteKey] = route }
     }
 
+    /** Clears the saved route so the next launch starts on the home screen. */
+    fun clearLastRoute() {
+        runBlocking { context.dataStore.edit { it.remove(lastRouteKey) } }
+    }
+
     fun lastTabNow(): Int = runBlocking { context.dataStore.data.first()[lastTabKey] ?: 0 }
 
     fun lastStepIndexNow(): Int = runBlocking { context.dataStore.data.first()[lastStepKey] ?: 0 }
@@ -228,7 +233,7 @@ class UserPreferences(private val context: Context) {
         const val MAP_LANGUAGE_NATIVE = "native"
 
         fun formatDistanceKm(km: Double, useMiles: Boolean): String =
-            if (useMiles) "%.1f mi".format(km * 0.621371) else "%.1f km".format(km)
+            if (useMiles) "%.0f mi".format(km * 0.621371) else "%.0f km".format(km)
 
         fun formatElevationM(meters: Int, useFeet: Boolean): String =
             if (useFeet) "${(meters * 3.28084).toInt()} ft" else "$meters m"

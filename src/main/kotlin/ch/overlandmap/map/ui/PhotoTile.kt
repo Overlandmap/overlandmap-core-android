@@ -104,7 +104,7 @@ fun PhotoGridTile(
 internal fun OutlinedId(text: String, modifier: Modifier = Modifier) {
     val style = MaterialTheme.typography.titleLarge.copy(
         fontWeight = FontWeight.Bold,
-        fontSize = 20.sp,
+        fontSize = 16.sp,
     )
     Box(modifier = modifier) {
         Text(text, style = style.copy(color = Color.White, drawStyle = Stroke(width = 5f)))

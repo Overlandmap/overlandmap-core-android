@@ -35,6 +35,9 @@ data class Waypoint(
     override val isHistoricalSite: Boolean = false,
     override val isReligiousSite: Boolean = false,
     override val isHotSpring: Boolean = false,
+    override val isIntersection: Boolean = false,
+    override val isCafe: Boolean = false,
+    override val isFerry: Boolean = false,
     /** Access / opening status of this waypoint, and its free-text detail. */
     override val openKind: OpenKind? = null,
     override val openDetails: String? = null,
@@ -67,6 +70,9 @@ data class Waypoint(
             isHistoricalSite = FS.bool(data["isHistoricalSite"]),
             isReligiousSite = FS.bool(data["isReligiousSite"]),
             isHotSpring = FS.bool(data["isHotSpring"]),
+            isIntersection = FS.bool(data["isIntersection"]),
+            isCafe = FS.bool(data["isCafe"]),
+            isFerry = FS.bool(data["isFerry"]),
             openKind = OpenKind.fromRaw(FS.str(data["openKind"])),
             openDetails = FS.str(data["openDetails"]),
         )

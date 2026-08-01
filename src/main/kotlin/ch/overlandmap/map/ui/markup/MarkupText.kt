@@ -13,10 +13,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -67,10 +73,55 @@ fun MarkupText(
     // Content markup scales with the user's text-size setting; titles are
     // derived from this base size (see spanStyleFor), so they scale with it.
     val scaledStyle = style.scaledBy(LocalContentTextScale.current)
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        paragraphs.forEach { nodes -> MarkupParagraph(nodes, scaledStyle, onLinkClick) }
+
+    // Track the last pointer-down position (in window coordinates) so hyperlink
+    // popups can appear near the tap rather than dead center.
+    val lastTapInWindow = remember { mutableStateOf(Offset.Unspecified) }
+    val layoutCoords = remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+    Column(
+        modifier = modifier
+            .onGloballyPositioned { layoutCoords.value = it }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val press = event.changes.firstOrNull()
+                        if (press != null && press.pressed) {
+                            val coords = layoutCoords.value
+                            if (coords != null && coords.isAttached) {
+                                val windowPos = coords.positionInWindow()
+                                lastTapInWindow.value = Offset(
+                                    windowPos.x + press.position.x,
+                                    windowPos.y + press.position.y,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        paragraphs.forEach { nodes ->
+            MarkupParagraph(nodes, scaledStyle, onLinkClick?.let { callback ->
+                { link, shown ->
+                    // Stash the tap position so MarkupLinkHost can use it.
+                    val pos = lastTapInWindow.value
+                    if (pos != Offset.Unspecified) {
+                        lastLinkTapPosition = pos
+                    }
+                    callback(link, shown)
+                }
+            })
+        }
     }
 }
+
+/**
+ * The window-coordinate position of the last hyperlink tap. Read by
+ * [MarkupLinkHost] to anchor the popup near the link the user touched.
+ */
+internal var lastLinkTapPosition: Offset = Offset.Unspecified
 
 @Composable
 private fun MarkupParagraph(

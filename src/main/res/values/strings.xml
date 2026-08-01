@@ -22,6 +22,13 @@
     <string name="check_in">Check in</string>
     <string name="check_ins_title">Check-ins</string>
     <string name="check_in_hint">Add a message here if needed</string>
+    <string name="corrections">Corrections</string>
+    <string name="suggest_correction">Suggest a correction</string>
+    <string name="correction_hint">Describe what needs to be corrected</string>
+    <string name="db_upgrade_title">Database update required</string>
+    <string name="db_upgrade_message">Your offline data was created by an older version of the app and is no longer compatible. It needs to be reset. Your downloaded track packs will be re-downloaded automatically.</string>
+    <string name="db_upgrade_confirm">Reset and continue</string>
+    <string name="db_upgrade_exit">Quit</string>
     <string name="close">Close</string>
     <string name="retry">Retry</string>
     <string name="zoom_in">Zoom in</string>

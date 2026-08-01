@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.CarRepair
 import androidx.compose.material.icons.filled.Church
 import androidx.compose.material.icons.filled.Deck
+import androidx.compose.material.icons.filled.DirectionsBoat
 import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.Forest
 import androidx.compose.material.icons.filled.Hotel
@@ -109,10 +110,15 @@ sealed interface MapPopupKind {
 
 /**
  * A [MapPopupKind] anchored at the tap position, in pixels of the map view;
- * null centers the popup (used for taps on text links, which have no map
- * position).
+ * null centers the popup (used for contexts that have no spatial anchor).
+ * When [positionIsWindowAbsolute] is true the position is in window coordinates
+ * (e.g. from a text-link tap) instead of relative to the enclosing view.
  */
-data class MapPopupState(val position: Offset?, val kind: MapPopupKind)
+data class MapPopupState(
+    val position: Offset?,
+    val kind: MapPopupKind,
+    val positionIsWindowAbsolute: Boolean = false,
+)
 
 /**
  * The popup itself. Compose it inside the Box holding the map view so the
@@ -127,9 +133,10 @@ fun MapObjectPopup(
     onZoom: (MapPopupKind) -> Unit,
     onOpen: (MapPopupKind) -> Unit,
 ) {
-    val positionProvider = remember(state.position) {
+    val positionProvider = remember(state.position, state.positionIsWindowAbsolute) {
         TapPopupPositionProvider(
-            state.position?.let { IntOffset(it.x.roundToInt(), it.y.roundToInt()) }
+            state.position?.let { IntOffset(it.x.roundToInt(), it.y.roundToInt()) },
+            windowAbsolute = state.positionIsWindowAbsolute,
         )
     }
     Popup(
@@ -285,8 +292,13 @@ private fun StepCircle(stepId: Int) {
 /**
  * Centers the popup on the tap, above it when there is room and below it
  * otherwise, clamped to the window. Without a tap it centers in the window.
+ * When [windowAbsolute] is true the tap is already in window coordinates;
+ * otherwise it is relative to the anchor composable (map view).
  */
-private class TapPopupPositionProvider(private val tap: IntOffset?) : PopupPositionProvider {
+private class TapPopupPositionProvider(
+    private val tap: IntOffset?,
+    private val windowAbsolute: Boolean = false,
+) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
         windowSize: IntSize,
@@ -300,10 +312,12 @@ private class TapPopupPositionProvider(private val tap: IntOffset?) : PopupPosit
             )
         }
         val margin = 16
-        val x = (anchorBounds.left + tap.x - popupContentSize.width / 2)
+        val tapX = if (windowAbsolute) tap.x else anchorBounds.left + tap.x
+        val tapY = if (windowAbsolute) tap.y else anchorBounds.top + tap.y
+        val x = (tapX - popupContentSize.width / 2)
             .coerceIn(margin, maxOf(margin, windowSize.width - popupContentSize.width - margin))
-        val above = anchorBounds.top + tap.y - popupContentSize.height - margin
-        val y = if (above >= margin) above else anchorBounds.top + tap.y + margin
+        val above = tapY - popupContentSize.height - margin
+        val y = if (above >= margin) above else tapY + margin
         return IntOffset(x, y)
     }
 }
@@ -352,6 +366,9 @@ private fun waypointIcon(type: String?): ImageVector = when (garminTypeToMaki[ty
     "forest" -> Icons.Filled.Forest
     "religious-christian", "religious-buddhist" -> Icons.Filled.Church
     "police" -> Icons.Filled.LocalPolice
+    "cafe" -> Icons.Filled.Restaurant
+    "ferry" -> Icons.Filled.DirectionsBoat
+    "intersection" -> Icons.Filled.AltRoute
     else -> Icons.Filled.Place
 }
 
@@ -381,4 +398,7 @@ private val garminTypeToMaki = mapOf(
     "Forest" to "forest",
     "Church" to "religious-christian",
     "Police Station" to "police",
+    "Cafe" to "cafe",
+    "Ferry" to "ferry",
+    "Intersection" to "intersection",
 )

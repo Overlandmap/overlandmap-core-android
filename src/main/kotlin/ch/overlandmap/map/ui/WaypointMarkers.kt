@@ -21,14 +21,17 @@ object WaypointMarkers {
     /** maki name (= image id) → drawable. */
     private val drawables: Map<String, Int> = mapOf(
         "bridge_" to R.drawable.bridge_,
+        "cafe" to R.drawable.cafe,
         "camera" to R.drawable.camera,
         "camp_site" to R.drawable.camp_site,
         "checkpoint" to R.drawable.checkpoint,
         "cross_" to R.drawable.cross_,
+        "ferry" to R.drawable.ferry,
         "fuel_" to R.drawable.fuel_,
         "historic_" to R.drawable.historic_,
         "hot_spring" to R.drawable.hot_spring,
         "information_" to R.drawable.information_,
+        "intersection" to R.drawable.intersection,
         "marker_stroked" to R.drawable.marker_stroked,
         "mountain_pass" to R.drawable.mountain_pass,
         "police_" to R.drawable.police_,
@@ -59,8 +62,19 @@ object WaypointMarkers {
         o.isBridge -> "bridge_"
         o.isWaterCrossing -> "water_crossing"
         o.isBivouac -> "camp_site"
+        o.isCafe -> "cafe"
+        o.isFerry -> "ferry"
+        o.isIntersection -> "intersection"
         else -> DEFAULT
     }
+
+    /**
+     * Edge of every marker bitmap, in pixels. The bundled maki pngs are 30x30;
+     * the vector icons are rasterized to the same size so all markers come out
+     * the same size on the map (a vector's intrinsic size is dp-based, so it
+     * would otherwise scale with screen density while the pngs would not).
+     */
+    private const val SIZE_PX = 30
 
     /** Every maki icon as a bitmap keyed by its image id, for `style.addImage`. */
     fun bitmaps(context: Context): Map<String, Bitmap> =
@@ -69,9 +83,9 @@ object WaypointMarkers {
             // Copy (don't mutate the cached resource bitmap) and give it a real
             // density: a drawable-nodpi bitmap reports DENSITY_NONE, which makes
             // Mapbox's addImage compute a zero scale and draw nothing.
-            val bitmap = drawable.toBitmap().copy(Bitmap.Config.ARGB_8888, false).apply {
-                density = DisplayMetrics.DENSITY_DEFAULT
-            }
+            val bitmap = drawable.toBitmap(SIZE_PX, SIZE_PX)
+                .copy(Bitmap.Config.ARGB_8888, false)
+                .apply { density = DisplayMetrics.DENSITY_DEFAULT }
             name to bitmap
         }.toMap()
 }

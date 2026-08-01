@@ -93,4 +93,24 @@ interface SocialDao {
         deleteContributedWaypointsForPack(trackPackId)
         insertContributedWaypoints(rows)
     }
+
+    // ── Discussions ─────────────────────────────────────────────────────────
+
+    @Query("SELECT * FROM discussion WHERE objectId = :objectId AND reason = :reason ORDER BY createdAt DESC")
+    fun observeDiscussions(objectId: String, reason: String): Flow<List<DiscussionRow>>
+
+    @Query("SELECT * FROM discussion WHERE objectId = :objectId AND reason = :reason ORDER BY createdAt DESC")
+    suspend fun discussionsForObject(objectId: String, reason: String): List<DiscussionRow>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDiscussions(rows: List<DiscussionRow>)
+
+    @Query("DELETE FROM discussion WHERE objectId = :objectId")
+    suspend fun deleteDiscussionsForObject(objectId: String)
+
+    @Transaction
+    suspend fun replaceDiscussionsForObject(objectId: String, rows: List<DiscussionRow>) {
+        deleteDiscussionsForObject(objectId)
+        insertDiscussions(rows)
+    }
 }

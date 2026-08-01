@@ -73,6 +73,7 @@ data class ClimateRow(
 data class DiscussionRow(
     @PrimaryKey val documentId: String,
     val objectId: String?,
+    val reason: String?,
     val topic: String?,
     val geohash: String?,
     val createdAt: Long?,

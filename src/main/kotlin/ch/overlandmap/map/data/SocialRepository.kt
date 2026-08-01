@@ -2,6 +2,7 @@ package ch.overlandmap.map.data
 
 import ch.overlandmap.map.data.local.CheckInRow
 import ch.overlandmap.map.data.local.ContributedWaypointRow
+import ch.overlandmap.map.data.local.DiscussionRow
 import ch.overlandmap.map.data.local.LibraryDao
 import ch.overlandmap.map.data.local.SocialDao
 import ch.overlandmap.map.data.local.SocialSyncRow
@@ -116,6 +117,71 @@ class SocialRepository(
 
     fun observeVotesForObject(objectId: String): Flow<List<VoteRow>> =
         socialDao.observeVotesForObject(objectId)
+
+    // ── Discussions (corrections) ───────────────────────────────────────────
+
+    /** Observe corrections (discussions with reason='correction') for an object. */
+    fun observeCorrections(objectId: String): Flow<List<DiscussionRow>> =
+        socialDao.observeDiscussions(objectId, "correction")
+
+    /**
+     * Fetches discussions for [objectId] from Firestore and replaces the local
+     * cache. Called lazily the first time a step's corrections are observed.
+     */
+    suspend fun syncDiscussionsForObject(objectId: String) {
+        auth.awaitUser()
+        val snapshot = db.collection("discussion")
+            .whereEqualTo("objectId", objectId)
+            .get().await()
+        val rows = snapshot.documents.mapNotNull { doc ->
+            val data = doc.data ?: return@mapNotNull null
+            DiscussionRow(
+                documentId = doc.id,
+                objectId = FS.str(data["objectId"]),
+                reason = FS.str(data["reason"]),
+                topic = FS.str(data["topic"]),
+                geohash = FS.str(data["geohash"]),
+                createdAt = FS.millis(data["createdAt"]),
+                userId = FS.str(data["userId"]),
+                json = null, // not needed for display
+            )
+        }
+        socialDao.replaceDiscussionsForObject(objectId, rows)
+    }
+
+    /**
+     * Creates a correction discussion in Firestore and inserts it locally.
+     * Returns the new document ID.
+     */
+    suspend fun createCorrection(
+        objectId: String,
+        content: String,
+    ): String {
+        auth.awaitUser()
+        val user = auth.currentUser ?: error("Not signed in")
+        val data = buildMap<String, Any?> {
+            put("objectId", objectId)
+            put("reason", "correction")
+            put("topic", "general")
+            put("userId", user.uid)
+            put("userName", user.displayName ?: user.email ?: "")
+            put("content", content)
+            put("createdAt", com.google.firebase.Timestamp.now())
+        }
+        val docRef = db.collection("discussion").add(data).await()
+        val row = DiscussionRow(
+            documentId = docRef.id,
+            objectId = objectId,
+            reason = "correction",
+            topic = "general",
+            geohash = null,
+            createdAt = System.currentTimeMillis(),
+            userId = user.uid,
+            json = null,
+        )
+        socialDao.insertDiscussions(listOf(row))
+        return docRef.id
+    }
 
     // ── Private sync methods ────────────────────────────────────────────────
 
