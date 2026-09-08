@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
@@ -57,8 +58,10 @@ fun MapboxMapView(
     }
     val token = app.mapboxTokenManager.cachedTokenNow()
     if (token == null && !tokenReady) {
-        // Show nothing while waiting for the token.
-        Box(modifier = modifier)
+        // Show a loading indicator while waiting for the token.
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
         return
     }
     MapboxInit.ensure(token)
