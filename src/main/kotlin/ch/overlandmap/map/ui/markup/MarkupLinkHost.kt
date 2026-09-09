@@ -23,7 +23,7 @@ import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.home.SidebarPreviewDialog
-import ch.overlandmap.map.ui.home.WaypointDialog
+import ch.overlandmap.map.ui.home.WaypointBottomSheet
 import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.launch
 
@@ -93,8 +93,7 @@ fun rememberMarkupLinkHandler(
                 }
                 is MarkupDestination.ShowSidebar -> sidebarPreview = destination.sidebar
                 is MarkupDestination.ShowWaypoint -> {
-                    val target = destination.waypoint
-                    popup = LinkPopup(MapPopupKind.OfWaypoint(target), tapPos) { waypoint = target }
+                    waypoint = destination.waypoint
                 }
                 is MarkupDestination.OpenUrl -> try {
                     context.startActivity(Intent(Intent.ACTION_VIEW, destination.url.toUri()))
@@ -118,7 +117,13 @@ fun rememberMarkupLinkHandler(
         )
     }
     waypoint?.let {
-        WaypointDialog(it, lang, onLink = ::handleLink, onDismiss = { waypoint = null })
+        WaypointBottomSheet(
+            waypoint = it,
+            onDismiss = { waypoint = null },
+            onZoom = { onZoomToObject(MapPopupKind.OfWaypoint(it)) },
+            onCheckIn = { /* TODO */ },
+            onCorrection = { /* TODO */ },
+        )
     }
     sidebarPreview?.let { sb ->
         SidebarPreviewDialog(

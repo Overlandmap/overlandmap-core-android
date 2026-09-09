@@ -182,6 +182,7 @@ fun PackDetailScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             VerticalSplit(
                 modifier = Modifier.fillMaxSize(),
+                splitKey = "packDetail",
                 top = {
                     Box(modifier = Modifier.fillMaxSize()) {
                         PackTracksMap(

@@ -89,6 +89,7 @@ fun ShopScreen(
             }
         }
         else -> VerticalSplit(
+            splitKey = "shop",
             top = {
                 Box(modifier = Modifier.fillMaxSize()) {
                     GlobalItinerariesMap(

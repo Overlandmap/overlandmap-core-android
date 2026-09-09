@@ -262,6 +262,7 @@ fun LocalPackScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
         VerticalSplit(
             modifier = Modifier.fillMaxSize(),
+            splitKey = "localPack",
             top = {
                 Box(modifier = Modifier.fillMaxSize()) {
                     PackTracksMap(

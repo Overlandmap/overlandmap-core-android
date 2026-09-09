@@ -61,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -168,8 +169,19 @@ fun SettingsScreen(
             if (user == null) {
                 Button(onClick = onOpenSignIn) { Text(stringResource(R.string.sign_in)) }
             } else {
-                OutlinedButton(onClick = { showSignOutDialog = true }) {
-                    Text(stringResource(R.string.sign_out))
+                Column {
+                    val app = LocalContext.current.applicationContext as OverlandApp
+                    if (app.isAdmin) {
+                        Text(
+                            "ADMIN",
+                            color = Color.Red,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    OutlinedButton(onClick = { showSignOutDialog = true }) {
+                        Text(stringResource(R.string.sign_out))
+                    }
                 }
             }
         }

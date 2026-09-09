@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -248,6 +249,17 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setMapLanguage(value: String) {
         context.dataStore.edit { it[mapLanguageKey] = value }
+    }
+
+    // ── Split pane ratios (per screen key) ──────────────────────────────────
+
+    /** Reads the persisted split fraction for [key] synchronously; null if never saved. */
+    fun splitFractionNow(key: String): Float? = runBlocking {
+        context.dataStore.data.first()[floatPreferencesKey("split_$key")]
+    }
+
+    suspend fun setSplitFraction(key: String, fraction: Float) {
+        context.dataStore.edit { it[floatPreferencesKey("split_$key")] = fraction }
     }
 
     companion object {

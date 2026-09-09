@@ -73,6 +73,11 @@ class OverlandApp : Application() {
     var trackPackNames: Map<String, String> = emptyMap()
         private set
 
+    /** True when the signed-in user has the 'admin' entitlement. */
+    @Volatile
+    var isAdmin: Boolean = false
+        private set
+
     override fun onCreate() {
         super.onCreate()
         FirebaseApp.initializeApp(this)
@@ -127,6 +132,10 @@ class OverlandApp : Application() {
                     doc.id to ((doc.data?.get("name") as? String) ?: doc.id)
                 }
             }
+        }
+        // Check if the user has the admin entitlement.
+        appScope.launch {
+            runCatching { isAdmin = shopRepository.checkIsAdmin() }
         }
         // Sync social data (check-ins, votes, comments, contributed waypoints)
         // for each locally downloaded pack if the cache is older than 24 hours.

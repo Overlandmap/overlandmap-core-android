@@ -37,6 +37,30 @@ class ShopRepository(
             .sortedBy { it.name }
     }
 
+    /** All track packs regardless of online status (admin mode). */
+    suspend fun trackPacksAll(): List<TrackPack> {
+        auth.awaitUser()
+        return db.collection("track_pack")
+            .get().await()
+            .documents
+            .map { TrackPack.fromFirestore(it.id, it.data ?: emptyMap()) }
+            .sortedBy { it.name }
+    }
+
+    /**
+     * Whether the current user has the 'admin' entitlement — a document with
+     * documentId "admin" in their `users/{uid}/purchases` subcollection.
+     */
+    suspend fun checkIsAdmin(): Boolean {
+        val user = auth.awaitUser()
+        if (user.isAnonymous) return false
+        return runCatching {
+            val doc = db.collection("users").document(user.uid)
+                .collection("purchases").document("admin").get().await()
+            doc.exists()
+        }.getOrDefault(false)
+    }
+
     suspend fun trackPack(id: String): TrackPack? {
         auth.awaitUser()
         val doc = db.collection("track_pack").document(id).get().await()

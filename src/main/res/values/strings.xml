@@ -212,6 +212,8 @@
     <string name="add_waypoint_coming_soon">Contributing waypoints is coming soon.</string>
     <string name="share">Share</string>
     <string name="share_as_gpx">Share as GPX</string>
+    <string name="share_google_maps">Google Maps</string>
+    <string name="share_osmand">Open in OsmAnd</string>
     <string name="zoom_to_itinerary">Zoom to itinerary</string>
 
     <string name="paved">Paved</string>

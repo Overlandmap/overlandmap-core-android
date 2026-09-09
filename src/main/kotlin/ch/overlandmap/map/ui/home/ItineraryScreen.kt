@@ -132,6 +132,7 @@ import ch.overlandmap.map.ui.shop.CommentsTab
 import ch.overlandmap.map.ui.theme.contentTextStyle
 import ch.overlandmap.map.ui.zoomToItineraryMapbox
 import ch.overlandmap.map.ui.fitStepsMapbox
+import ch.overlandmap.map.ui.zoomToPointMapbox
 import ch.overlandmap.map.ui.zoomToPopupObjectMapbox
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
@@ -379,6 +380,7 @@ fun ItineraryScreen(
 
         VerticalSplit(
             modifier = Modifier.fillMaxSize().padding(padding),
+            splitKey = "itinerary",
             top = {
                 Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                     // Torn down while the full-screen dialog is open, so only one
@@ -634,7 +636,17 @@ fun ItineraryScreen(
         }
 
         openWaypoint?.let { waypoint ->
-            WaypointDialog(waypoint, lang, onLink = onLink, onDismiss = { openWaypoint = null })
+            WaypointBottomSheet(
+                waypoint = waypoint,
+                onDismiss = { openWaypoint = null },
+                onZoom = {
+                    val lat = waypoint.lat ?: return@WaypointBottomSheet
+                    val lon = waypoint.lon ?: return@WaypointBottomSheet
+                    mapView?.mapboxMap?.let { zoomToPointMapbox(it, lat, lon, zoom = 12.0) }
+                },
+                onCheckIn = { /* TODO: check-in for waypoint */ },
+                onCorrection = { /* TODO: correction for waypoint */ },
+            )
         }
 
         if (showAddWaypoint) {

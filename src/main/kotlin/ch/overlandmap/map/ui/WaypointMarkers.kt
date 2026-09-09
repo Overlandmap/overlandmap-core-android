@@ -42,6 +42,9 @@ object WaypointMarkers {
         "water_crossing" to R.drawable.water_crossing,
     )
 
+    /** Returns the drawable resource ID for a waypoint's maki icon. */
+    fun drawableFor(o: WaypointType): Int = drawables[makiFor(o)] ?: drawables[DEFAULT]!!
+
     /**
      * The marker image id for any [WaypointType] (step or waypoint), derived
      * from its point-of-interest flags — a port of the Flutter app's

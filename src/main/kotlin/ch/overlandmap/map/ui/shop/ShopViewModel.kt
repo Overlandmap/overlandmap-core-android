@@ -54,7 +54,7 @@ class ShopViewModel(private val app: OverlandApp) : ViewModel() {
         viewModelScope.launch {
             state.value = state.value.copy(loading = true, offline = false)
             try {
-                val packs = shop.trackPacks()
+                val packs = if (app.isAdmin) shop.trackPacksAll() else shop.trackPacks()
                 state.value = ShopState(loading = false, packs = packs)
                 app.billingManager.loadProducts(packs.mapNotNull { it.productId })
             } catch (e: Exception) {
