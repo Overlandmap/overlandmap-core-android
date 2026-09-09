@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "ch.overlandmap.map"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
@@ -64,7 +64,7 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // In-app purchases
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
+    implementation("com.android.billingclient:billing-ktx:8.0.0")
 
     // Background downloads that survive the app being suspended or killed
     implementation("androidx.work:work-runtime-ktx:2.10.0")

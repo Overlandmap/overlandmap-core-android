@@ -129,11 +129,12 @@ class BillingManager(
                 .build()
         }
         val params = QueryProductDetailsParams.newBuilder().setProductList(products).build()
-        val (result, list) = suspendCancellableCoroutine { cont ->
-            client.queryProductDetailsAsync(params) { result, list ->
-                cont.resume(result to list)
+        val (result, queryResult) = suspendCancellableCoroutine { cont ->
+            client.queryProductDetailsAsync(params) { result, queryResult ->
+                cont.resume(result to queryResult)
             }
         }
+        val list = queryResult.productDetailsList
 
         // Debug: exactly what Play returned, so "Purchase not available" can be
         // traced to a bad response code, a missing product, or an offer with no
