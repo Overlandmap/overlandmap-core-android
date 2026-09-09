@@ -1,5 +1,9 @@
 package ch.overlandmap.map.ui.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +28,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
@@ -59,9 +64,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Image
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.OverlandApp
@@ -86,6 +93,7 @@ import java.util.Date
 @Composable
 fun SettingsScreen(
     onOpenSignIn: () -> Unit,
+    onOpenAbout: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenUnits: () -> Unit,
@@ -167,6 +175,12 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        SubmenuRow(
+            icon = Icons.Filled.Info,
+            label = stringResource(R.string.settings_about),
+            onClick = onOpenAbout,
+        )
         HorizontalDivider()
         SubmenuRow(
             icon = Icons.Filled.Person,
@@ -483,6 +497,71 @@ private fun languageFlag(code: String): String = when (code) {
     "nl" -> "🇳🇱"
     "ru" -> "🇷🇺"
     else -> "🌐"
+}
+
+/** App logo, name, "Version <name>-<code>", and a mailto "Contact Us" button. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AboutScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_about)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+        ) {
+            Spacer(modifier = Modifier.height(32.dp))
+            Image(
+                painter = painterResource(R.drawable.app_logo),
+                contentDescription = null,
+                modifier = Modifier.size(96.dp),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(appLabel(context), style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.about_version_template, appVersionName(context), appVersionCode(context)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Button(
+                onClick = { openContactUsEmail(context) },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+            ) {
+                Text(stringResource(R.string.contact_us))
+            }
+        }
+    }
+}
+
+private fun appLabel(context: Context): String =
+    context.applicationInfo.loadLabel(context.packageManager).toString()
+
+private fun appVersionName(context: Context): String =
+    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+
+@Suppress("DEPRECATION")
+private fun appVersionCode(context: Context): Long {
+    val info = context.packageManager.getPackageInfo(context.packageName, 0)
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+}
+
+private fun openContactUsEmail(context: Context) {
+    val intent = Intent(Intent.ACTION_SENDTO).apply {
+        data = Uri.parse("mailto:contact@ride2ladakh.com")
+    }
+    context.startActivity(intent)
 }
 
 /**
