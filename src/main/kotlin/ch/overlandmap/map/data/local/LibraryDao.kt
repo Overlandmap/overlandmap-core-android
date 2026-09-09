@@ -41,14 +41,14 @@ interface LibraryDao {
         _itinerariesOf(trackPackId).map { it.toModel() }
 
     @Query(
-        "SELECT * FROM itinerary WHERE lastOpenedAt IS NOT NULL " +
-            "ORDER BY lastOpenedAt DESC LIMIT :limit"
+        "SELECT * FROM itinerary WHERE lastSeen IS NOT NULL " +
+            "ORDER BY lastSeen DESC LIMIT :limit"
     )
     fun _observeLastOpened(limit: Int): Flow<List<ItineraryRow>>
     fun observeLastOpened(limit: Int): Flow<List<Itinerary>> =
         _observeLastOpened(limit).map { rows -> rows.map { it.toModel() } }
 
-    @Query("UPDATE itinerary SET lastOpenedAt = :time WHERE documentId = :id")
+    @Query("UPDATE itinerary SET lastSeen = :time WHERE documentId = :id")
     suspend fun touchItinerary(id: String, time: Long): Unit
 
     @Query("SELECT * FROM track_pack WHERE documentId = :id")
@@ -96,14 +96,14 @@ interface LibraryDao {
     @Query("SELECT documentId FROM waypoint WHERE trackPackId = :trackPackId")
     suspend fun waypointIdsOfPack(trackPackId: String): List<String>
 
-    @Query("UPDATE track_pack SET needsUpdate = :value WHERE documentId = :trackPackId")
+    @Query("UPDATE track_pack SET isOld = :value WHERE documentId = :trackPackId")
     suspend fun setNeedsUpdate(trackPackId: String, value: Boolean): Unit
 
-    @Query("SELECT * FROM track WHERE itineraryId = :itineraryId")
+    @Query("SELECT * FROM track WHERE itineraryDocId = :itineraryId")
     suspend fun _tracks(itineraryId: String): List<TrackRow>
     suspend fun tracks(itineraryId: String): List<Track> = _tracks(itineraryId).map { it.toModel() }
 
-    @Query("SELECT * FROM waypoint WHERE itineraryId = :itineraryId")
+    @Query("SELECT * FROM waypoint WHERE itineraryDocId = :itineraryId")
     suspend fun _waypoints(itineraryId: String): List<WaypointRow>
     suspend fun waypoints(itineraryId: String): List<Waypoint> =
         _waypoints(itineraryId).map { it.toModel() }

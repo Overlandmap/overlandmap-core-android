@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ContributedWaypointRow::class, CheckInRow::class, VoteRow::class,
         ClimateRow::class, DiscussionRow::class, SocialSyncRow::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -35,13 +35,13 @@ abstract class AppDatabase : RoomDatabase() {
         private var instance: AppDatabase? = null
 
         /** The current schema version this build of the app expects. */
-        const val CURRENT_VERSION = 13
+        const val CURRENT_VERSION = 14
 
         /**
          * The minimum on-disk version we can migrate from without data loss.
          * Databases older than this require a destructive reset (user consent).
          */
-        const val MIN_COMPATIBLE_VERSION = 13
+        const val MIN_COMPATIBLE_VERSION = 14
 
         /** Database file name, shared with [onDiskVersion]. */
         private const val DB_NAME = "overlandmap.db"

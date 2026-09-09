@@ -1,6 +1,8 @@
 package ch.overlandmap.map.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
@@ -33,26 +35,47 @@ import ch.overlandmap.map.model.stringOrNull
  * migration. `toRow()` serializes, `toModel()` restores.
  */
 
-@Entity(tableName = "track_pack")
+@Entity(
+    tableName = "track_pack",
+    indices = [Index("name"), Index("region"), Index("editorId")],
+)
 data class TrackPackRow(
     @PrimaryKey val documentId: String,
+    // Queryable columns matching the iOS schema (Schema.swift). `isOld` is the
+    // iOS name for the local "needs update" flag; `isFreeSample` is Android-only
+    // (no iOS equivalent) and kept for the shop/library behaviour.
+    @ColumnInfo(name = "editorId") val editorId: String?,
     val name: String,
+    val description: String?,
+    val region: String?,
+    val latMin: Double?,
+    val latMax: Double?,
+    val lonMin: Double?,
+    val lonMax: Double?,
+    @ColumnInfo(name = "lastVersionCheck") val lastVersionCheck: Long?,
+    @ColumnInfo(name = "isOld") val isOld: Boolean,
     val isFreeSample: Boolean,
-    val needsUpdate: Boolean,
     val json: String?,
 )
 
 fun TrackPack.toRow() = TrackPackRow(
     documentId = documentId,
+    editorId = editor,
     name = name,
+    description = description,
+    region = region,
+    latMin = latMin,
+    latMax = latMax,
+    lonMin = lonMin,
+    lonMax = lonMax,
+    lastVersionCheck = lastUpdateCheck,
+    isOld = needsUpdate,
     isFreeSample = isFreeSample,
-    needsUpdate = needsUpdate,
     json = buildJsonColumn {
         putIfNotEmpty("translatedName", translatedName)
-        putIfNotNull("description", description)
+        // description, editor, region, latMin/Max, lonMin/Max and
+        // lastUpdateCheck are promoted to columns (see above).
         putIfNotEmpty("translatedDesc", translatedDesc)
-        putIfNotNull("editor", editor)
-        putIfNotNull("region", region)
         putIfNotNull("type", type)
         putIfNotNull("vehicle", vehicle)
         putIfNotNull("price", price)
@@ -63,15 +86,10 @@ fun TrackPack.toRow() = TrackPackRow(
         putIfNotNull("titleBlurHash", titleBlurHash)
         putIfTrue("online", online)
         putIfNotNull("lovesCount", lovesCount)
-        putIfNotNull("latMin", latMin)
-        putIfNotNull("latMax", latMax)
-        putIfNotNull("lonMin", lonMin)
-        putIfNotNull("lonMax", lonMax)
         putIfNotNull("website", website)
         putIfNotNull("email", email)
         putIfNotNull("createdAt", createdAt)
         putIfNotNull("lastUpdate", lastUpdate)
-        putIfNotNull("lastUpdateCheck", lastUpdateCheck)
         putIfNotNull("freeItineraryZip", freeItineraryZip)
         putIfNotNull("trackPackZip", trackPackZip)
         putIfNotNull("pmtilesMap", pmtilesMap)
@@ -87,12 +105,12 @@ fun TrackPackRow.toModel(): TrackPack = parseJsonColumn(json).let { j ->
         documentId = documentId,
         name = name,
         isFreeSample = isFreeSample,
-        needsUpdate = needsUpdate,
+        needsUpdate = isOld,
         translatedName = j.stringMapOrNull("translatedName"),
-        description = j.stringOrNull("description"),
+        description = description,
         translatedDesc = j.stringMapOrNull("translatedDesc"),
-        editor = j.stringOrNull("editor"),
-        region = j.stringOrNull("region"),
+        editor = editorId,
+        region = region,
         type = j.stringOrNull("type"),
         vehicle = j.stringOrNull("vehicle"),
         price = j.doubleOrNull("price"),
@@ -103,15 +121,15 @@ fun TrackPackRow.toModel(): TrackPack = parseJsonColumn(json).let { j ->
         titleBlurHash = j.stringOrNull("titleBlurHash"),
         online = j.flag("online"),
         lovesCount = j.intOrNull("lovesCount") ?: 0,
-        latMin = j.doubleOrNull("latMin"),
-        latMax = j.doubleOrNull("latMax"),
-        lonMin = j.doubleOrNull("lonMin"),
-        lonMax = j.doubleOrNull("lonMax"),
+        latMin = latMin,
+        latMax = latMax,
+        lonMin = lonMin,
+        lonMax = lonMax,
         website = j.stringOrNull("website"),
         email = j.stringOrNull("email"),
         createdAt = j.longOrNull("createdAt"),
         lastUpdate = j.longOrNull("lastUpdate"),
-        lastUpdateCheck = j.longOrNull("lastUpdateCheck"),
+        lastUpdateCheck = lastVersionCheck,
         freeItineraryZip = j.stringOrNull("freeItineraryZip"),
         trackPackZip = j.stringOrNull("trackPackZip"),
         pmtilesMap = j.stringOrNull("pmtilesMap"),
@@ -122,13 +140,35 @@ fun TrackPackRow.toModel(): TrackPack = parseJsonColumn(json).let { j ->
     )
 }
 
-@Entity(tableName = "itinerary")
+@Entity(
+    tableName = "itinerary",
+    indices = [
+        Index("trackPackId", "itineraryId"),
+        Index("itineraryId"),
+        Index("name"),
+        Index("lastSeen"),
+    ],
+)
 data class ItineraryRow(
     @PrimaryKey val documentId: String,
     val trackPackId: String,
     val itineraryId: String,
     val name: String,
-    val lastOpenedAt: Long?,
+    val description: String?,
+    // iOS names/types (Schema.swift): lengthKm, lengthDays, difficulty (ordinal
+    // 0–3), roadType (offroad %), bounds, centre, lastSeen, favourite.
+    @ColumnInfo(name = "lengthKm") val lengthKm: Double,
+    val lengthDays: Double,
+    val difficulty: Int,
+    @ColumnInfo(name = "roadType") val roadType: Int?,
+    val latMin: Double?,
+    val latMax: Double?,
+    val lonMin: Double?,
+    val lonMax: Double?,
+    val centerLat: Double?,
+    val centerLon: Double?,
+    @ColumnInfo(name = "lastSeen") val lastSeen: Long?,
+    val favourite: String?,
     val json: String?,
 )
 
@@ -137,33 +177,38 @@ fun Itinerary.toRow() = ItineraryRow(
     trackPackId = trackPackId,
     itineraryId = itineraryId,
     name = name,
-    lastOpenedAt = lastOpenedAt,
+    description = description,
+    lengthKm = lengthKM,
+    lengthDays = lengthDays,
+    // The itinerary grid facets, promoted to columns to match iOS. Difficulty
+    // is stored as its ordinal (easy=0 … extreme=3) like iOS's INTEGER column.
+    difficulty = ItineraryDifficulty.entries.indexOf(ItineraryDifficulty.fromRaw(difficulty)),
+    roadType = offroadPercent,
+    latMin = latMin,
+    latMax = latMax,
+    lonMin = lonMin,
+    lonMax = lonMax,
+    centerLat = centerLat,
+    centerLon = centerLon,
+    lastSeen = lastOpenedAt,
+    favourite = null,
     json = buildJsonColumn {
         putIfNotEmpty("translatedName", translatedName)
-        putIfNotNull("description", description)
+        // description, lengthKM, lengthDays, difficulty, offroadPercent, bounds,
+        // centre and lastSeen are promoted to columns (see above).
         putIfNotEmpty("translatedDesc", translatedDesc)
         putIfNotNull("roadConditions", roadConditions)
         putIfNotEmpty("translatedRoadConditions", translatedRoadConditions)
         putIfNotNull("highlights", highlights)
         putIfNotEmpty("translatedHighlights", translatedHighlights)
         putIfNotEmpty("trackIds", trackIds)
-        putIfNotNull("lengthKM", lengthKM)
-        putIfNotNull("lengthDays", lengthDays)
-        putIfNotNull("difficulty", difficulty)
         putIfNotNull("fuelRange", fuelRange)
-        putIfNotNull("offroadPercent", offroadPercent)
         putIfTrue("isFree", isFree)
         putIfTrue("isBuyable", isBuyable)
         putIfTrue("permit", permit)
         putIfNotNull("lovesCount", lovesCount)
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titleBlurHash", titleBlurHash)
-        putIfNotNull("latMin", latMin)
-        putIfNotNull("latMax", latMax)
-        putIfNotNull("lonMin", lonMin)
-        putIfNotNull("lonMax", lonMax)
-        putIfNotNull("centerLat", centerLat)
-        putIfNotNull("centerLon", centerLon)
         putIfNotNull("createdAt", createdAt)
         putIfNotNull("lastUpdate", lastUpdate)
         putIfNotNull("localPhotoPath", localPhotoPath)
@@ -177,32 +222,32 @@ fun ItineraryRow.toModel(): Itinerary = parseJsonColumn(json).let { j ->
         trackPackId = trackPackId,
         itineraryId = itineraryId,
         name = name,
-        lastOpenedAt = lastOpenedAt,
+        lastOpenedAt = lastSeen,
         translatedName = j.stringMapOrNull("translatedName"),
-        description = j.stringOrNull("description"),
+        description = description,
         translatedDesc = j.stringMapOrNull("translatedDesc"),
         roadConditions = j.stringOrNull("roadConditions"),
         translatedRoadConditions = j.stringMapOrNull("translatedRoadConditions"),
         highlights = j.stringOrNull("highlights"),
         translatedHighlights = j.stringMapOrNull("translatedHighlights"),
         trackIds = j.stringListOrNull("trackIds") ?: emptyList(),
-        lengthKM = j.doubleOrNull("lengthKM") ?: 0.0,
-        lengthDays = j.doubleOrNull("lengthDays") ?: 0.0,
-        difficulty = j.stringOrNull("difficulty") ?: ItineraryDifficulty.NORMAL.raw,
+        lengthKM = lengthKm,
+        lengthDays = lengthDays,
+        difficulty = ItineraryDifficulty.entries.getOrElse(difficulty) { ItineraryDifficulty.NORMAL }.raw,
         fuelRange = j.doubleOrNull("fuelRange"),
-        offroadPercent = j.intOrNull("offroadPercent"),
+        offroadPercent = roadType,
         isFree = j.flag("isFree"),
         isBuyable = j.flag("isBuyable"),
         permit = j.flag("permit"),
         lovesCount = j.intOrNull("lovesCount") ?: 0,
         titlePhotoId = j.stringOrNull("titlePhotoId"),
         titleBlurHash = j.stringOrNull("titleBlurHash"),
-        latMin = j.doubleOrNull("latMin"),
-        latMax = j.doubleOrNull("latMax"),
-        lonMin = j.doubleOrNull("lonMin"),
-        lonMax = j.doubleOrNull("lonMax"),
-        centerLat = j.doubleOrNull("centerLat"),
-        centerLon = j.doubleOrNull("centerLon"),
+        latMin = latMin,
+        latMax = latMax,
+        lonMin = lonMin,
+        lonMax = lonMax,
+        centerLat = centerLat,
+        centerLon = centerLon,
         createdAt = j.longOrNull("createdAt"),
         lastUpdate = j.longOrNull("lastUpdate"),
         localPhotoPath = j.stringOrNull("localPhotoPath"),
@@ -210,12 +255,19 @@ fun ItineraryRow.toModel(): Itinerary = parseJsonColumn(json).let { j ->
     )
 }
 
-@Entity(tableName = "itinerary_step", primaryKeys = ["itineraryId", "documentId"])
+@Entity(
+    tableName = "itinerary_step",
+    indices = [Index("itineraryId", "stepId"), Index("trackPackId"), Index("geohash")],
+)
 data class ItineraryStepRow(
-    val documentId: String,
+    @PrimaryKey val documentId: String,
     val itineraryId: String,
     val trackPackId: String,
     val stepId: Int,
+    // Promoted to columns to match iOS (Schema.swift itinerary_step).
+    val name: String?,
+    val description: String?,
+    val geohash: String?,
     val json: String?,
 )
 
@@ -224,13 +276,14 @@ fun ItineraryStep.toRow() = ItineraryStepRow(
     itineraryId = itineraryId,
     trackPackId = trackPackId,
     stepId = stepId,
+    name = name,
+    description = description,
+    geohash = geohash,
     json = buildJsonColumn {
-        putIfNotNull("name", name)
         putWaypointCommon(this@toRow)
         putIfNotNull("distanceKm", distanceKm)
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titlePhotoCaption", titlePhotoCaption)
-        putIfNotNull("geohash", geohash)
         putIfNotNull("localPhotoPath", localPhotoPath)
     },
 )
@@ -241,15 +294,15 @@ fun ItineraryStepRow.toModel(): ItineraryStep = parseJsonColumn(json).let { j ->
         itineraryId = itineraryId,
         trackPackId = trackPackId,
         stepId = stepId,
-        name = j.stringOrNull("name") ?: "",
+        name = name ?: "",
         translatedName = j.stringMapOrNull("translatedName"),
-        description = j.stringOrNull("description"),
+        description = description,
         translatedDesc = j.stringMapOrNull("translatedDesc"),
         distanceKm = j.doubleOrNull("distanceKm") ?: 0.0,
         lat = j.doubleOrNull("lat"),
         lon = j.doubleOrNull("lon"),
         ele = j.intOrNull("ele"),
-        geohash = j.stringOrNull("geohash"),
+        geohash = geohash,
         hasFuel = j.flag("hasFuel"),
         hasHotel = j.flag("hasHotel"),
         isViewpoint = j.flag("isViewpoint"),
@@ -274,20 +327,28 @@ fun ItineraryStepRow.toModel(): ItineraryStep = parseJsonColumn(json).let { j ->
     )
 }
 
-@Entity(tableName = "track")
+@Entity(
+    tableName = "track",
+    indices = [Index("trackPackId"), Index("itineraryDocId")],
+)
 data class TrackRow(
     @PrimaryKey val documentId: String,
     val trackPackId: String,
-    val itineraryId: String,
+    // iOS names the itinerary reference `itineraryDocId` (Schema.swift track).
+    @ColumnInfo(name = "itineraryDocId") val itineraryDocId: String,
+    val name: String?,
+    val description: String?,
     val json: String?,
 )
 
 fun Track.toRow() = TrackRow(
     documentId = documentId,
     trackPackId = trackPackId,
-    itineraryId = itineraryId,
+    itineraryDocId = itineraryId,
+    name = name,
+    // The Track model carries no description; the column exists for iOS parity.
+    description = null,
     json = buildJsonColumn {
-        putIfNotNull("name", name)
         putIfNotNull("coordsBase64", coordsBase64)
     },
 )
@@ -296,18 +357,23 @@ fun TrackRow.toModel(): Track = parseJsonColumn(json).let { j ->
     Track(
         documentId = documentId,
         trackPackId = trackPackId,
-        itineraryId = itineraryId,
-        name = j.stringOrNull("name"),
+        itineraryId = itineraryDocId,
+        name = name,
         coordsBase64 = j.stringOrNull("coordsBase64") ?: "",
     )
 }
 
-@Entity(tableName = "waypoint")
+@Entity(
+    tableName = "waypoint",
+    indices = [Index("trackPackId"), Index("itineraryDocId"), Index("geohash"), Index("name")],
+)
 data class WaypointRow(
     @PrimaryKey val documentId: String,
     val trackPackId: String,
-    val itineraryId: String?,
+    // iOS names the itinerary reference `itineraryDocId` (Schema.swift waypoint).
+    @ColumnInfo(name = "itineraryDocId") val itineraryDocId: String?,
     val name: String,
+    val description: String?,
     val geohash: String?,
     val json: String?,
 )
@@ -315,8 +381,9 @@ data class WaypointRow(
 fun Waypoint.toRow() = WaypointRow(
     documentId = documentId,
     trackPackId = trackPackId,
-    itineraryId = itineraryId,
+    itineraryDocId = itineraryId,
     name = name,
+    description = description,
     geohash = geohash,
     json = buildJsonColumn {
         putWaypointCommon(this@toRow)
@@ -329,11 +396,11 @@ fun WaypointRow.toModel(): Waypoint = parseJsonColumn(json).let { j ->
     Waypoint(
         documentId = documentId,
         trackPackId = trackPackId,
-        itineraryId = itineraryId,
+        itineraryId = itineraryDocId,
         name = name,
         geohash = geohash,
         translatedName = j.stringMapOrNull("translatedName"),
-        description = j.stringOrNull("description"),
+        description = description,
         translatedDesc = j.stringMapOrNull("translatedDesc"),
         type = j.stringOrNull("type"),
         maki = j.stringOrNull("maki"),
@@ -361,11 +428,15 @@ fun WaypointRow.toModel(): Waypoint = parseJsonColumn(json).let { j ->
     )
 }
 
-@Entity(tableName = "sidebar")
+@Entity(
+    tableName = "sidebar",
+    indices = [Index("trackPackId"), Index("name")],
+)
 data class SidebarRow(
     @PrimaryKey val documentId: String,
     val trackPackId: String,
     val name: String,
+    val description: String?,
     val json: String?,
 )
 
@@ -373,9 +444,9 @@ fun Sidebar.toRow() = SidebarRow(
     documentId = documentId,
     trackPackId = trackPackId,
     name = name,
+    description = description,
     json = buildJsonColumn {
         putIfNotEmpty("translatedName", translatedName)
-        putIfNotNull("description", description)
         putIfNotEmpty("translatedDesc", translatedDesc)
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titlePhotoCaption", titlePhotoCaption)
@@ -389,7 +460,7 @@ fun SidebarRow.toModel(): Sidebar = parseJsonColumn(json).let { j ->
         trackPackId = trackPackId,
         name = name,
         translatedName = j.stringMapOrNull("translatedName"),
-        description = j.stringOrNull("description"),
+        description = description,
         translatedDesc = j.stringMapOrNull("translatedDesc"),
         titlePhotoId = j.stringOrNull("titlePhotoId"),
         titlePhotoCaption = j.stringOrNull("titlePhotoCaption"),
@@ -397,23 +468,38 @@ fun SidebarRow.toModel(): Sidebar = parseJsonColumn(json).let { j ->
     )
 }
 
-@Entity(tableName = "comment", primaryKeys = ["objectId", "documentId"])
+@Entity(
+    tableName = "comment",
+    indices = [Index("objectId"), Index("itinDocumentId")],
+)
 data class CommentRow(
-    val documentId: String,
+    @PrimaryKey val documentId: String,
     val objectId: String,
+    // iOS comment columns (Schema.swift): geohash, type, rating, itinDocumentId,
+    // userId. The Android Comment model only carries rating; the rest are kept
+    // as nullable columns for schema parity (populated when the model gains them).
+    val geohash: String?,
+    val type: String?,
+    val rating: Int?,
+    val itinDocumentId: String?,
     val createdAt: Long?,
+    val userId: String?,
     val json: String?,
 )
 
 fun Comment.toRow() = CommentRow(
     documentId = documentId,
     objectId = objectId,
+    geohash = null,
+    type = null,
+    rating = rating,
+    itinDocumentId = null,
     createdAt = createdAt,
+    userId = null,
     json = buildJsonColumn {
         putIfNotNull("content", content)
         putIfNotNull("langCode", langCode)
         putIfNotNull("userName", userName)
-        putIfNotNull("rating", rating)
         putIfNotNull("englishTranslation", englishTranslation)
         putIfNotEmpty("translations", translations)
     },
@@ -427,7 +513,7 @@ fun CommentRow.toModel(): Comment = parseJsonColumn(json).let { j ->
         content = j.stringOrNull("content") ?: "",
         langCode = j.stringOrNull("langCode"),
         userName = j.stringOrNull("userName"),
-        rating = j.intOrNull("rating"),
+        rating = rating,
         englishTranslation = j.stringOrNull("englishTranslation"),
         translations = j.stringMapOrNull("translations"),
     )

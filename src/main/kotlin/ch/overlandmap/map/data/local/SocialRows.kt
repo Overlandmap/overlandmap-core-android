@@ -1,6 +1,7 @@
 package ch.overlandmap.map.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /*
@@ -20,7 +21,10 @@ data class SocialSyncRow(
     val lastSyncedAt: Long,
 )
 
-@Entity(tableName = "contributed_waypoint")
+@Entity(
+    tableName = "contributed_waypoint",
+    indices = [Index("trackPackId", "active"), Index("itinDocumentId", "active"), Index("geohash")],
+)
 data class ContributedWaypointRow(
     @PrimaryKey val documentId: String,
     val active: Int?,
@@ -33,7 +37,10 @@ data class ContributedWaypointRow(
     val json: String?,
 )
 
-@Entity(tableName = "check_in")
+@Entity(
+    tableName = "check_in",
+    indices = [Index("objectId"), Index("trackPackId")],
+)
 data class CheckInRow(
     @PrimaryKey val documentId: String,
     val objectId: String?,
@@ -48,7 +55,10 @@ data class CheckInRow(
     val json: String?,
 )
 
-@Entity(tableName = "vote")
+@Entity(
+    tableName = "vote",
+    indices = [Index("objectId"), Index("trackPackId")],
+)
 data class VoteRow(
     @PrimaryKey val documentId: String,
     val objectId: String?,
@@ -56,11 +66,17 @@ data class VoteRow(
     val content: String?,
     val createdAt: Long?,
     val userId: String?,
+    // Android-only: retained for the social UI (iOS keeps this in json).
     val userName: String?,
     val upVote: Int?,
+    // iOS keeps a json blob on vote (Schema.swift); kept here for parity.
+    val json: String? = null,
 )
 
-@Entity(tableName = "climate")
+@Entity(
+    tableName = "climate",
+    indices = [Index("geohash")],
+)
 data class ClimateRow(
     @PrimaryKey val documentId: String,
     val geohash: String?,
@@ -69,7 +85,10 @@ data class ClimateRow(
     val json: String?,
 )
 
-@Entity(tableName = "discussion")
+@Entity(
+    tableName = "discussion",
+    indices = [Index("objectId")],
+)
 data class DiscussionRow(
     @PrimaryKey val documentId: String,
     val objectId: String?,
