@@ -76,6 +76,7 @@ fun TrackPack.toRow() = TrackPackRow(
         putIfNotNull("trackPackZip", trackPackZip)
         putIfNotNull("pmtilesMap", pmtilesMap)
         putIfNotNull("hillshade", hillshade)
+        putIfNotNull("dem", dem)
         putIfNotNull("contour", contour)
         putIfNotNull("localPhotoPath", localPhotoPath)
     },
@@ -115,6 +116,7 @@ fun TrackPackRow.toModel(): TrackPack = parseJsonColumn(json).let { j ->
         trackPackZip = j.stringOrNull("trackPackZip"),
         pmtilesMap = j.stringOrNull("pmtilesMap"),
         hillshade = j.stringOrNull("hillshade"),
+        dem = j.stringOrNull("dem"),
         contour = j.stringOrNull("contour"),
         localPhotoPath = j.stringOrNull("localPhotoPath"),
     )

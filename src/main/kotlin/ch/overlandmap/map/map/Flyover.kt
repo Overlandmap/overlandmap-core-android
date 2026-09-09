@@ -35,17 +35,26 @@ private const val SKY_LAYER = "flyover-sky"
 private const val FLYOVER_ALTITUDE_M = 4000.0
 private const val FLYOVER_PITCH = 62.0
 
-/** Adds the Mapbox DEM source and binds it as the style's 3D terrain. */
+/**
+ * Adds the Mapbox DEM source and binds it as the style's 3D terrain.
+ *
+ * Settings mirror the iOS `MapboxTerrain`: Mapbox recommends tileSize 514 for
+ * `mapbox-terrain-dem-v1` (512 + a 1px skirt on each edge so neighbouring tiles
+ * line up without seams), maxzoom 14, and 1.5x exaggeration. The DEM is
+ * Mapbox-hosted, so it needs a valid access token and a network connection —
+ * there is no offline DEM terrain.
+ */
 fun enableTerrain(style: MapboxStyleManager) {
     if (!style.styleSourceExists(TERRAIN_SOURCE)) {
         style.addSource(
             rasterDemSource(TERRAIN_SOURCE) {
                 url("mapbox://mapbox.mapbox-terrain-dem-v1")
                 tileSize(514L)
+                maxzoom(14L)
             }
         )
     }
-    terrain(TERRAIN_SOURCE) { exaggeration(1.3) }.bindTo(style)
+    terrain(TERRAIN_SOURCE) { exaggeration(1.5) }.bindTo(style)
 }
 
 /** Adds an atmospheric sky layer (for the 3D/flyover horizon). */

@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -78,7 +79,17 @@ class AssetDownloadWorker(context: Context, params: WorkerParameters) :
             }
             Result.success()
         } catch (e: Exception) {
-            if (runAttemptCount < MAX_ATTEMPTS) {
+            // runAttemptCount is 0-based, so the first run is attempt 1.
+            val attempt = runAttemptCount + 1
+            val willRetry = attempt < MAX_ATTEMPTS
+            Log.w(
+                "AssetDownloadWorker",
+                "Download failed for \"$title\" (attempt $attempt/$MAX_ATTEMPTS" +
+                    ", ${if (willRetry) "will retry" else "giving up"}) url=$url dest=${destination.name}: " +
+                    (e.localizedMessage ?: e.javaClass.simpleName),
+                e,
+            )
+            if (willRetry) {
                 Result.retry()
             } else {
                 Result.failure(workDataOf(KEY_ERROR to (e.localizedMessage ?: "Download failed")))

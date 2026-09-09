@@ -84,6 +84,9 @@ class LibraryRepository(
 
     suspend fun waypoints(itineraryId: String) = dao.waypoints(itineraryId)
 
+    /** Every waypoint of the pack (across all its itineraries). */
+    suspend fun waypointsOfPack(trackPackId: String) = dao.waypointsOfPack(trackPackId)
+
     suspend fun sidebars(trackPackId: String) = dao.sidebars(trackPackId)
 
     // Markup-link lookups (see ui/markup/MarkupRouter).

@@ -66,6 +66,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * True when a database file exists but is older than
+         * [MIN_COMPATIBLE_VERSION] — i.e. it cannot be opened without a
+         * destructive wipe. A missing file (version 0) or a compatible one
+         * returns false. Checked before any Room access so the UI can warn the
+         * user and erase with consent instead of crashing on open.
+         */
+        fun needsDestructiveReset(context: Context): Boolean =
+            onDiskVersion(context) in 1 until MIN_COMPATIBLE_VERSION
+
         /** Deletes the database file(s) so Room recreates from scratch. */
         fun deleteDatabase(context: Context) {
             instance?.close()
@@ -79,9 +89,12 @@ abstract class AppDatabase : RoomDatabase() {
                     .databaseBuilder(context.applicationContext, AppDatabase::class.java, "overlandmap.db")
                     // The column+json schema is a clean break from the old
                     // per-field columns; there is no upgrade path, so a stale
-                    // database is discarded and re-downloaded.
-                    .fallbackToDestructiveMigration()
-                    .fallbackToDestructiveMigrationOnDowngrade()
+                    // database (any older version) is dropped and re-downloaded.
+                    // `dropAllTables = true` is required in Room 2.7+: the
+                    // deprecated no-arg form doesn't reliably fire on upgrades
+                    // (e.g. an OPPO device carrying a v12 db crashed with
+                    // "migration from 12 to 13 was required but not found").
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     // The full-text index spans every type and language, so it
                     // lives in raw FTS4 tables Room doesn't model; create them
                     // with the database (and defensively on every open).

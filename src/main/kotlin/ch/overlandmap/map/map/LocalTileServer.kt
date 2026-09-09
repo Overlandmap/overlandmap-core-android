@@ -55,7 +55,8 @@ object LocalTileServer : Runnable {
             "hasPlanet=${registry?.hasPlanet()}, " +
             "hasDetail=${registry?.hasDetailTiles()}, " +
             "hasHillshade=${registry?.hasHillshade()}, " +
-            "hasContour=${registry?.hasContour()}")
+            "hasContour=${registry?.hasContour()}, " +
+            "hasDem=${registry?.hasDem()}")
         serverSocket = bindSocket()
         if (serverSocket == null) {
             Log.e("LocalTileServer", "Failed to bind any port — server not started")
@@ -189,8 +190,12 @@ object LocalTileServer : Runnable {
                 json,
                 showHillshade = params["hillshade"] != "0",
                 showContour = params["contour"] != "0",
-                hasOfflineHillshade = registry?.hasHillshade() == true,
-                hasContour = registry?.hasContour() == true,
+                // Ride2Ladakh (single-track-pack) hides the bundled borders
+                // layer to reduce clutter, matching the iOS build.
+                removeBorders = ch.overlandmap.map.AppMode.singleTrackPack,
+                // Cap the DEM sources to the zoom actually on disk so the SDK
+                // overzooms the global planet-dem (z0–6) instead of 404ing z7+.
+                demMaxZoom = registry?.demMaxZoom(),
             )
             // Localize the labels to the chosen map language (see OfflineStyle).
             params["lang"]?.let { json = OfflineStyle.translateLabels(json, it) }

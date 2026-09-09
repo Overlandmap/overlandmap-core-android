@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** What one pack download can contain, mirroring the Flutter asset types. */
-enum class PackAssetKind { FREE_ITINERARY, OFFLINE_MAP, HILLSHADE, CONTOUR }
+enum class PackAssetKind { FREE_ITINERARY, OFFLINE_MAP, HILLSHADE, DEM, CONTOUR }
 
 /** Progress of one pack's download, keyed by pack ID in [PackDownloadManager.progress]. */
 data class PackDownloadProgress(
@@ -69,6 +69,8 @@ class PackDownloadManager(
         val (dir, extension) = when (kind) {
             PackAssetKind.OFFLINE_MAP -> "osm_pmtiles/detail" to "pmtiles"
             PackAssetKind.HILLSHADE -> "hillshade" to "mbtiles"
+            // Per-pack Terrain-RGB DEM (PMTiles), served for z7–11 via /tiles/dem.
+            PackAssetKind.DEM -> "dem" to "pmtiles"
             PackAssetKind.CONTOUR -> "contour" to "mbtiles"
             PackAssetKind.FREE_ITINERARY -> throw IllegalArgumentException("zip has no map file")
         }

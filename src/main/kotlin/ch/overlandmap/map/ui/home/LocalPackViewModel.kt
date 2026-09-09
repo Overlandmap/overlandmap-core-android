@@ -165,7 +165,7 @@ class LocalPackViewModel(
     private suspend fun fetchAssets(pack: TrackPack): Map<PackAssetKind, Asset> =
         listOf(
             PackAssetKind.OFFLINE_MAP to pack.pmtilesMap,
-            PackAssetKind.HILLSHADE to pack.hillshade,
+            PackAssetKind.DEM to pack.dem,
             PackAssetKind.CONTOUR to pack.contour,
         ).mapNotNull { (kind, assetId) ->
             assetId?.let { shop.asset(it) }?.let { kind to it }

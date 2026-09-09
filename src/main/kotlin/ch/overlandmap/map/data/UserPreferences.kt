@@ -8,9 +8,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import ch.overlandmap.map.map.BaseMapStyle
 import ch.overlandmap.map.map.MapStyleOptions
+import ch.overlandmap.map.model.WaypointCategory
 import ch.overlandmap.map.map.MapboxStyleKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -31,6 +33,7 @@ class UserPreferences(private val context: Context) {
     private val satelliteRoadsKey = booleanPreferencesKey("satellite_roads")
     private val offlineHillshadeKey = booleanPreferencesKey("offline_hillshade")
     private val offlineContourKey = booleanPreferencesKey("offline_contour")
+    private val waypointFilterKey = stringSetPreferencesKey("waypoint_filter")
     private val mapboxTokenKey = stringPreferencesKey("mapbox_token")
     private val mapboxTokenDateKey = longPreferencesKey("mapbox_token_date")
     private val lastRouteKey = stringPreferencesKey("last_route")
@@ -185,6 +188,25 @@ class UserPreferences(private val context: Context) {
             it[mapboxKindKey] = options.mapboxKind.name
             it[satelliteRoadsKey] = options.satelliteRoads
         }
+    }
+
+    /**
+     * Which waypoint categories are shown on the itinerary map. Defaults to all
+     * on. Stored as the set of enabled [WaypointCategory.key]s.
+     */
+    val waypointFilter: Flow<Set<WaypointCategory>> =
+        context.dataStore.data.map(::readWaypointFilter)
+
+    fun waypointFilterNow(): Set<WaypointCategory> = runBlocking { waypointFilter.first() }
+
+    private fun readWaypointFilter(p: Preferences): Set<WaypointCategory> {
+        val keys = p[waypointFilterKey] ?: return WaypointCategory.DEFAULT
+        return keys.mapNotNull { key -> WaypointCategory.entries.firstOrNull { it.key == key } }
+            .toSet()
+    }
+
+    suspend fun setWaypointFilter(categories: Set<WaypointCategory>) {
+        context.dataStore.edit { it[waypointFilterKey] = categories.map { c -> c.key }.toSet() }
     }
 
     /** The cached Mapbox token, or null; paired with when it was fetched. */

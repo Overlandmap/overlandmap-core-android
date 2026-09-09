@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -59,8 +60,10 @@ fun DownloadsScreen(
 ) {
     LaunchedEffect(Unit) { viewModel.start() }
     val state by viewModel.state.collectAsState()
-    val app = LocalContext.current.applicationContext as OverlandApp
+    val context = LocalContext.current
+    val app = context.applicationContext as OverlandApp
     val satellite by app.satelliteTileManager.progress.collectAsState()
+    var breakdown by remember { mutableStateOf<StorageBreakdown?>(null) }
 
     Scaffold(
         topBar = {
@@ -82,6 +85,15 @@ fun DownloadsScreen(
         }
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(modifier = Modifier.weight(1f)) {
+                if (state.general.isNotEmpty()) {
+                    item {
+                        GeneralSection(
+                            items = state.general,
+                            onRetry = { viewModel.retryGeneral(it) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
                 if (satellite.isNotEmpty()) {
                     item {
                         SatelliteSection(
@@ -100,8 +112,23 @@ fun DownloadsScreen(
                     HorizontalDivider()
                 }
             }
-            StorageFooter(state.freeSpaceBytes, state.appStorageBytes)
+            StorageFooter(
+                freeSpaceBytes = state.freeSpaceBytes,
+                appStorageBytes = state.appStorageBytes,
+                onClick = { viewModel.computeStorageBreakdown { breakdown = it } },
+            )
         }
+    }
+
+    breakdown?.let { data ->
+        StorageBreakdownDialog(
+            data = data,
+            onDismiss = { breakdown = null },
+            onReset = {
+                breakdown = null
+                viewModel.resetStorage { restartApp(context) }
+            },
+        )
     }
 }
 
@@ -234,11 +261,79 @@ private fun SatelliteSection(
 }
 
 @Composable
-private fun StorageFooter(freeSpaceBytes: Long, appStorageBytes: Long) {
+private fun GeneralSection(
+    items: List<GeneralItem>,
+    onRetry: (GeneralAssetKind) -> Unit,
+) {
+    Column {
+        Text(
+            stringResource(R.string.general_assets),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        items.forEach { item -> GeneralAssetRow(item, onRetry = { onRetry(item.kind) }) }
+    }
+}
+
+@Composable
+private fun GeneralAssetRow(item: GeneralItem, onRetry: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 32.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(generalLabel(item.kind)), style = MaterialTheme.typography.bodyLarge)
+                // Size is only known for the world map/relief; hidden ("—") for
+                // fonts and sprites, whose sizes the asset store doesn't publish.
+                if (item.sizeBytes > 0) {
+                    Text(
+                        formatBytes(item.sizeBytes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            when (item.status) {
+                // General assets are required, not user-managed: no delete. A
+                // present asset just reads "Downloaded".
+                is DownloadStatus.Downloaded -> Text(
+                    stringResource(R.string.downloaded),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                is DownloadStatus.NotDownloaded ->
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.download)) }
+                is DownloadStatus.Failed ->
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                is DownloadStatus.Downloading -> Unit // progress bar below
+            }
+        }
+        when (val status = item.status) {
+            is DownloadStatus.Downloading -> {
+                val fraction = status.fraction
+                if (fraction == null) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                } else {
+                    LinearProgressIndicator(
+                        progress = { fraction },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    )
+                }
+            }
+            is DownloadStatus.Failed -> Text(
+                status.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun StorageFooter(freeSpaceBytes: Long, appStorageBytes: Long, onClick: () -> Unit) {
     HorizontalDivider()
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
     ) {
         Text(
             stringResource(R.string.free_space_on_device, formatBytes(freeSpaceBytes)),
@@ -248,14 +343,106 @@ private fun StorageFooter(freeSpaceBytes: Long, appStorageBytes: Long) {
             stringResource(R.string.app_storage_used, formatBytes(appStorageBytes)),
             style = MaterialTheme.typography.bodyMedium,
         )
+        Text(
+            stringResource(R.string.tap_for_storage_details),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
+}
+
+@Composable
+private fun StorageBreakdownDialog(
+    data: StorageBreakdown,
+    onDismiss: () -> Unit,
+    onReset: () -> Unit,
+) {
+    var confirmReset by remember { mutableStateOf(false) }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text(stringResource(R.string.reset_storage)) },
+            text = { Text(stringResource(R.string.reset_storage_confirm)) },
+            confirmButton = {
+                TextButton(onClick = onReset) {
+                    Text(
+                        stringResource(R.string.reset_storage),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.storage_usage)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StorageRow(stringResource(R.string.itineraries), data.itinerariesBytes)
+                StorageRow(stringResource(R.string.storage_photos), data.photosBytes)
+                StorageRow(stringResource(R.string.offline_maps), data.offlineMapsBytes)
+                StorageRow(stringResource(R.string.storage_cache), data.cacheBytes)
+                HorizontalDivider()
+                StorageRow(stringResource(R.string.storage_total), data.totalBytes, bold = true)
+                StorageRow(stringResource(R.string.free_space), data.freeSpaceBytes)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { confirmReset = true }) {
+                Text(
+                    stringResource(R.string.reset_storage),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        },
+    )
+}
+
+@Composable
+private fun StorageRow(label: String, bytes: Long, bold: Boolean = false) {
+    val style = if (bold) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
+    Row(Modifier.fillMaxWidth()) {
+        Text(label, style = style, modifier = Modifier.weight(1f))
+        Text(formatBytes(bytes), style = style)
+    }
+}
+
+/**
+ * Restarts the app after a storage reset so [ch.overlandmap.map.OverlandApp]
+ * re-runs its startup path: it recreates the database and re-fetches the
+ * required general assets (world map, relief, fonts, sprites) from scratch.
+ */
+private fun restartApp(context: android.content.Context) {
+    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?.apply { addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+    context.startActivity(intent)
+    Runtime.getRuntime().exit(0)
 }
 
 private fun assetLabel(kind: DownloadKind): Int = when (kind) {
     DownloadKind.ITINERARIES -> R.string.itineraries
     DownloadKind.OFFLINE_MAP -> R.string.offline_map
     DownloadKind.HILLSHADE -> R.string.hillshade_map
+    DownloadKind.DEM -> R.string.relief_map
     DownloadKind.CONTOUR -> R.string.contour_map
+}
+
+private fun generalLabel(kind: GeneralAssetKind): Int = when (kind) {
+    GeneralAssetKind.WORLD_MAP -> R.string.world_map
+    GeneralAssetKind.WORLD_RELIEF -> R.string.world_relief
+    GeneralAssetKind.FONTS -> R.string.map_fonts
+    GeneralAssetKind.SPRITES -> R.string.map_icons
 }
 
 /** Human-readable byte size, base-1000 to match the assets' declared MB. */

@@ -181,4 +181,5 @@
     <string name="db_upgrade_message">Vos données hors ligne ont été créées par une ancienne version de l\'application et ne sont plus compatibles. Elles doivent être réinitialisées. Vos packs téléchargés seront re-téléchargés automatiquement.</string>
     <string name="db_upgrade_confirm">Réinitialiser et continuer</string>
     <string name="db_upgrade_exit">Quitter</string>
+    <string name="wp_police_checkpoint">Contrôle</string>
 </resources>

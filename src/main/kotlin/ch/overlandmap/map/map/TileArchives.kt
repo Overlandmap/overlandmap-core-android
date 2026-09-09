@@ -18,11 +18,22 @@ sealed interface TileArchive : AutoCloseable {
     fun tile(zoom: Int, x: Int, y: Int, isRaster: Boolean): ByteArray?
 
     companion object {
-        /** Opens [file] by extension; null when missing, unknown or corrupt. */
+        // PMTiles v3 files begin with the ASCII magic "PMTiles" then a version
+        // byte; SQLite (mbtiles) files begin with "SQLite format 3\u0000".
+        private val PMTILES_MAGIC = "PMTiles".toByteArray(Charsets.US_ASCII)
+        private val SQLITE_MAGIC = "SQLite format 3".toByteArray(Charsets.US_ASCII)
+
+        /**
+         * Opens [file] by its actual content (magic bytes), falling back to the
+         * extension. Assets are sometimes delivered with a mismatched extension
+         * — a PMTiles archive named `.mbtiles`, say — so trusting the extension
+         * alone silently loses those tiles. Returns null when missing, of an
+         * unknown format, or corrupt.
+         */
         fun open(file: File): TileArchive? {
             if (!file.isFile) return null
             return try {
-                when (file.extension) {
+                when (detectFormat(file) ?: file.extension) {
                     "mbtiles" -> MbtilesArchive(file)
                     "pmtiles" -> PmtilesArchive(file)
                     else -> null
@@ -31,6 +42,24 @@ sealed interface TileArchive : AutoCloseable {
                 Log.w("TileArchive", "Cannot open ${file.name}", e)
                 null
             }
+        }
+
+        /** The archive format from the file's magic bytes, or null if unknown. */
+        private fun detectFormat(file: File): String? {
+            val header = ByteArray(16)
+            val read = file.inputStream().use { it.read(header) }
+            if (read < PMTILES_MAGIC.size) return null
+            return when {
+                header.startsWith(PMTILES_MAGIC) -> "pmtiles"
+                header.startsWith(SQLITE_MAGIC) -> "mbtiles"
+                else -> null
+            }
+        }
+
+        private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
+            if (size < prefix.size) return false
+            for (i in prefix.indices) if (this[i] != prefix[i]) return false
+            return true
         }
     }
 }
@@ -96,8 +125,10 @@ class TileArchiveRegistry(private val filesDir: File) {
     private var detail: List<TileArchive> = emptyList()
     private var contour: List<TileArchive> = emptyList()
     private var hillshade: List<TileArchive> = emptyList()
+    private var dem: List<TileArchive> = emptyList()
 
     val planetFile: File get() = File(filesDir, "$PMTILES_DIR/planet.pmtiles")
+    val planetDemFile: File get() = File(filesDir, "$PMTILES_DIR/planet-dem.pmtiles")
 
     @Synchronized
     fun reload() {
@@ -108,6 +139,14 @@ class TileArchiveRegistry(private val filesDir: File) {
             openAll(File(filesDir, MBTILES_DIR), exclude = legacyPlanet)
         contour = openAll(File(filesDir, "contour"))
         hillshade = openAll(File(filesDir, "hillshade"))
+        // Terrain-RGB DEM tiles served (as raster PNGs) for the style's
+        // `demSource` (raster-dem hillshade) and `demColorSource` (elevation
+        // colour), matching the iOS tile server's `/tiles/dem` route. Per-pack
+        // DEM (files/dem, z7–11) is searched first so its higher-zoom tiles win
+        // where present; the global planet-dem (osm_pmtiles/planet-dem.pmtiles,
+        // z0–6) is appended to cover the low zooms everywhere else.
+        dem = openAll(File(filesDir, "dem")) +
+            listOfNotNull(TileArchive.open(planetDemFile))
     }
 
     @Synchronized
@@ -123,13 +162,29 @@ class TileArchiveRegistry(private val filesDir: File) {
     fun hasContour(): Boolean = contour.isNotEmpty()
 
     @Synchronized
+    fun hasDem(): Boolean = dem.isNotEmpty()
+
+    /**
+     * The highest zoom for which any DEM archive holds tiles, or null when no
+     * DEM is installed. The bundled style declares the DEM sources as
+     * `maxzoom 11` (assuming per-pack DEM), but when only the global
+     * `planet-dem` (z0–6) is present there are no z7+ tiles — so the tile
+     * server caps the served style's DEM `maxzoom` to this, letting the map
+     * SDK overzoom the coarser tiles instead of requesting 404s. Read from each
+     * archive's own metadata so it stays correct as new DEM packs arrive.
+     */
+    @Synchronized
+    fun demMaxZoom(): Int? = dem.mapNotNull { maxZoomOf(it.file) }.maxOrNull()
+
+    @Synchronized
     fun tile(source: String, zoom: Int, x: Int, y: Int, isRaster: Boolean): ByteArray? {
         val archives = when (source) {
             "planet" -> listOfNotNull(planet)
             "detail" -> detail
             "contour" -> contour
             "hillshade" -> hillshade
-            else -> (detail + contour + hillshade).filter { it.file.nameWithoutExtension == source }
+            "dem" -> dem
+            else -> (detail + contour + hillshade + dem).filter { it.file.nameWithoutExtension == source }
         }
         for (archive in archives) {
             try {
@@ -143,13 +198,14 @@ class TileArchiveRegistry(private val filesDir: File) {
 
     @Synchronized
     fun closeAll() {
-        (listOfNotNull(planet) + detail + contour + hillshade).forEach {
+        (listOfNotNull(planet) + detail + contour + hillshade + dem).forEach {
             runCatching { it.close() }
         }
         planet = null
         detail = emptyList()
         contour = emptyList()
         hillshade = emptyList()
+        dem = emptyList()
     }
 
     private fun openAll(directory: File, exclude: File? = null): List<TileArchive> =
@@ -158,6 +214,23 @@ class TileArchiveRegistry(private val filesDir: File) {
             ?.sortedBy { it.name }
             ?.mapNotNull { TileArchive.open(it) }
             ?: emptyList()
+
+    /** Max zoom declared by an archive's own metadata, or null if unreadable. */
+    private fun maxZoomOf(file: File): Int? = runCatching {
+        val header = ByteArray(128)
+        val read = file.inputStream().use { it.read(header) }
+        if (read >= 8 && header.copyOfRange(0, 7).toString(Charsets.US_ASCII) == "PMTiles") {
+            // PMTiles v3 header: max_zoom is a single byte at offset 101.
+            if (read > 101) (header[101].toInt() and 0xFF) else null
+        } else {
+            // MBTiles: read the maxzoom from the metadata table.
+            SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                db.rawQuery("SELECT value FROM metadata WHERE name='maxzoom'", null).use { c ->
+                    if (c.moveToFirst()) c.getString(0)?.trim()?.toIntOrNull() else null
+                }
+            }
+        }
+    }.getOrNull()
 
     private companion object {
         const val PMTILES_DIR = "osm_pmtiles"

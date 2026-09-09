@@ -8,6 +8,7 @@ import ch.overlandmap.map.data.LibraryRepository
 import ch.overlandmap.map.data.MapboxTokenManager
 import ch.overlandmap.map.data.PackDownloadManager
 import ch.overlandmap.map.data.PackUpdateChecker
+import ch.overlandmap.map.data.PlanetDemManager
 import ch.overlandmap.map.data.PlanetMapManager
 import ch.overlandmap.map.data.SatelliteTileManager
 import ch.overlandmap.map.data.SearchRepository
@@ -60,6 +61,8 @@ class OverlandApp : Application() {
     val billingManager by lazy { BillingManager(this, appScope) }
     val packDownloadManager by lazy { PackDownloadManager(this, appScope, libraryRepository) }
     val planetMapManager by lazy { PlanetMapManager(this, appScope, shopRepository) }
+    val planetDemManager by lazy { PlanetDemManager(this, appScope, shopRepository) }
+    val styleAssetsManager by lazy { StyleAssetsManager(this) }
 
     /**
      * Cached map of track pack document IDs to their display names, fetched
@@ -80,13 +83,38 @@ class OverlandApp : Application() {
         // reuse the cached sign-in from a previous run, or sign in anonymously.
         appScope.launch { authRepository.ensureSignedIn() }
         LocalTileServer.start(this)
+        // Warm the Mapbox token so mapbox:// styles can load (cached, refreshed
+        // when older than three months). Independent of local storage.
+        appScope.launch { runCatching { mapboxTokenManager.validToken() } }
+
+        // A database left by an older, incompatible build cannot be opened
+        // (Room has no migration path). Touching it — as the asset-download and
+        // sync work below would — crashes the process. Defer all
+        // storage-dependent startup until the UI's DatabaseUpgradeGate has the
+        // user confirm the wipe and calls [runStorageDependentStartup]. On a
+        // fresh install or a compatible database, run it right away.
+        if (AppDatabase.needsDestructiveReset(this)) {
+            android.util.Log.w(TAG, "Old database schema detected; deferring startup until reset is confirmed")
+        } else {
+            runStorageDependentStartup()
+        }
+    }
+
+    /**
+     * Startup work that reads or writes the local database and downloaded
+     * assets: the general map assets (world map, relief, fonts, sprites) plus
+     * the per-pack social sync and update checks. Held back when an
+     * incompatible database is found until the user confirms the reset (see
+     * [ch.overlandmap.map.ui.DatabaseUpgradeGate]).
+     */
+    fun runStorageDependentStartup() {
         // The world base map and the offline style's fonts/sprites download
         // in the background (WorkManager) and survive the app being suspended.
-        appScope.launch { StyleAssetsManager(this@OverlandApp).ensure() }
+        appScope.launch { styleAssetsManager.ensure() }
         planetMapManager.ensurePlanet()
-        // Warm the Mapbox token so mapbox:// styles can load (cached, refreshed
-        // when older than three months).
-        appScope.launch { runCatching { mapboxTokenManager.validToken() } }
+        // The world relief (Terrain-RGB DEM) the styles' hillshade and
+        // elevation-colour layers read; fetched once, like the world base map.
+        planetDemManager.ensurePlanetDem()
         // Cache track pack names from Firestore for debug tools.
         appScope.launch {
             runCatching {
@@ -122,6 +150,28 @@ class OverlandApp : Application() {
     }
 
     /**
+     * Erases all app-private local data — the database, downloaded photos and
+     * map archives (`.pmtiles`), and caches — then recreates the database and
+     * restarts the general-asset downloads. Called by the upgrade gate once the
+     * user accepts wiping an incompatible install.
+     */
+    fun wipeLocalDataAndRestart() {
+        // Drop the incompatible database (closes its handle first).
+        AppDatabase.deleteDatabase(this)
+        // Remove everything else under private storage: photos, pmtiles/mbtiles,
+        // style assets, and any cached scratch files.
+        filesDir.listFiles()?.forEach { it.deleteRecursively() }
+        cacheDir.listFiles()?.forEach { it.deleteRecursively() }
+        // The tile server's archive handles now point at deleted files.
+        ch.overlandmap.map.map.LocalTileServer.reloadArchives()
+        // The saved route points at an object that no longer exists.
+        userPreferences.clearLastRoute()
+        // Recreate the database (via the lazy get on next access) and re-fetch
+        // the general assets from scratch.
+        runStorageDependentStartup()
+    }
+
+    /**
      * On first launch (no AppCompat locale set yet), sets the interface and map
      * languages to the device language if it's one we support, otherwise English.
      */
@@ -137,5 +187,9 @@ class OverlandApp : Application() {
             androidx.core.os.LocaleListCompat.forLanguageTags(lang)
         )
         appScope.launch { userPreferences.setMapLanguage(lang) }
+    }
+
+    private companion object {
+        const val TAG = "OverlandApp"
     }
 }

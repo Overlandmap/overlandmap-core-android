@@ -43,12 +43,12 @@ fun DownloadAssetsDialog(
     downloadEnabled: Boolean = true,
 ) {
     var offlineMap by remember { mutableStateOf(PackAssetKind.OFFLINE_MAP in assets) }
-    var hillshade by remember { mutableStateOf(PackAssetKind.HILLSHADE in assets) }
+    var dem by remember { mutableStateOf(PackAssetKind.DEM in assets) }
     var contour by remember { mutableStateOf(PackAssetKind.CONTOUR in assets) }
 
     val selection = buildSet {
         if (offlineMap) add(PackAssetKind.OFFLINE_MAP)
-        if (hillshade) add(PackAssetKind.HILLSHADE)
+        if (dem) add(PackAssetKind.DEM)
         if (contour) add(PackAssetKind.CONTOUR)
     }
     val totalBytes = (mandatoryAsset?.fileSizeBytes ?: 0L) +
@@ -76,10 +76,10 @@ fun DownloadAssetsDialog(
                     onChecked = { offlineMap = it },
                 )
                 AssetRow(
-                    label = stringResource(R.string.hillshade_map),
-                    asset = assets[PackAssetKind.HILLSHADE],
-                    checked = hillshade,
-                    onChecked = { hillshade = it },
+                    label = stringResource(R.string.relief_map),
+                    asset = assets[PackAssetKind.DEM],
+                    checked = dem,
+                    onChecked = { dem = it },
                 )
                 AssetRow(
                     label = stringResource(R.string.contour_map),

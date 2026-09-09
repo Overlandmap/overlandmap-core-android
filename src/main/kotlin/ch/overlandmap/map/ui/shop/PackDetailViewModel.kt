@@ -171,7 +171,7 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
         listOf(
             PackAssetKind.FREE_ITINERARY to pack.freeItineraryZip,
             PackAssetKind.OFFLINE_MAP to pack.pmtilesMap,
-            PackAssetKind.HILLSHADE to pack.hillshade,
+            PackAssetKind.DEM to pack.dem,
             PackAssetKind.CONTOUR to pack.contour,
         ).mapNotNull { (kind, assetId) ->
             assetId?.let { shop.asset(it) }?.let { kind to it }

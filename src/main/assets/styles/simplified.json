@@ -26,14 +26,24 @@
       "minzoom": 7,
       "maxzoom": 13
     },
-    "hillshade": {
+    "demSource": {
+      "type": "raster-dem",
+      "tiles": [
+        "http://localhost:8000/tiles/dem/{z}/{x}/{y}.png"
+      ],
+      "encoding": "mapbox",
+      "tileSize": 512,
+      "minzoom": 0,
+      "maxzoom": 11
+    },
+    "demColorSource": {
       "type": "raster",
       "tiles": [
-        "http://localhost:8000/tiles/hillshade/{z}/{x}/{y}.webp"
+        "http://localhost:8000/tiles/dem/{z}/{x}/{y}.png"
       ],
       "tileSize": 512,
-      "minzoom": 7,
-      "maxzoom": 14
+      "minzoom": 0,
+      "maxzoom": 11
     },
     "contour": {
       "type": "vector",
@@ -41,7 +51,7 @@
         "http://localhost:8000/tiles/contour/{z}/{x}/{y}.pbf"
       ],
       "minzoom": 7,
-      "maxzoom": 14
+      "maxzoom": 11
     }
   },
   "sprite": "http://localhost:8000/sprites/sprite",
@@ -320,18 +330,53 @@
     {
       "id": "hillshade",
       "type": "hillshade",
-      "source": "hillshadeSource",
+      "source": "demSource",
       "layout": {
         "visibility": "visible"
       },
       "paint": {
-        "hillshade-shadow-color": [
-          "rgba(82, 82, 86, 1)"
+        "hillshade-shadow-color": "rgba(0, 0, 0, 0.35)",
+        "hillshade-highlight-color": "rgba(255, 255, 255, 0.25)",
+        "hillshade-illumination-anchor": "viewport",
+        "hillshade-exaggeration": 0.5
+      }
+    },
+    {
+      "id": "elevation_color",
+      "type": "raster",
+      "source": "demColorSource",
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "raster-opacity": 1,
+        "raster-color-mix": [
+          1671168,
+          6528,
+          25.5,
+          -10000
         ],
-        "hillshade-highlight-color": [
-          "rgba(232, 223, 210, 1)"
+        "raster-color-range": [
+          0,
+          8848
         ],
-        "hillshade-exaggeration": 0.2
+        "raster-color": [
+          "interpolate",
+          ["linear"],
+          ["raster-value"],
+          0, "rgba(96, 150, 70, 0)",
+          10, "rgba(96, 150, 70, 0)",
+          200, "rgba(120, 165, 80, 0.1)",
+          600, "rgba(180, 190, 110, 0.35)",
+          1000, "rgba(210, 185, 120, 0.5)",
+          1800, "rgba(160, 120, 80, 0.5)",
+          2600, "rgba(120, 90, 70, 0.5)",
+          3200, "rgba(150, 150, 155, 0.5)",
+          4500, "rgba(245, 245, 245, 0.5)",
+          6000, "rgba(90, 130, 220, 0.5)",
+          7000, "rgba(240, 150, 190, 0.5)",
+          8848, "rgba(240, 150, 190, 0.5)"
+        ]
       }
     },
     {

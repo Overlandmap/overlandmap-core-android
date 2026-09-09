@@ -108,6 +108,11 @@ interface LibraryDao {
     suspend fun waypoints(itineraryId: String): List<Waypoint> =
         _waypoints(itineraryId).map { it.toModel() }
 
+    @Query("SELECT * FROM waypoint WHERE trackPackId = :trackPackId")
+    suspend fun _waypointsOfPack(trackPackId: String): List<WaypointRow>
+    suspend fun waypointsOfPack(trackPackId: String): List<Waypoint> =
+        _waypointsOfPack(trackPackId).map { it.toModel() }
+
     @Query("SELECT * FROM sidebar WHERE trackPackId = :trackPackId ORDER BY name")
     suspend fun _sidebars(trackPackId: String): List<SidebarRow>
     suspend fun sidebars(trackPackId: String): List<Sidebar> =

@@ -172,4 +172,5 @@
     <string name="onboarding_accept_sample_multi">Aceitar e experimentar um itinerário de amostra</string>
     <string name="onboarding_accept_sample_single">Aceitar e transferir o itinerário de amostra</string>
     <string name="onboarding_downloading_sample">A transferir o itinerário de amostra…</string>
+    <string name="wp_police_checkpoint">Controlo</string>
 </resources>

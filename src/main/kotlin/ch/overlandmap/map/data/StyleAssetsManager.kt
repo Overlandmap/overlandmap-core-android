@@ -38,10 +38,14 @@ class StyleAssetsManager(private val context: Context) {
     }
 
     /** True when the style, fonts and sprites are all available locally. */
-    fun ready(): Boolean =
-        File(assetsDir, STYLE_PATH).isFile &&
-            REQUIRED_FONTS.all { File(assetsDir, "glyphs/$it").isDirectory } &&
-            File(assetsDir, "sprites/sprite.json").isFile
+    fun ready(): Boolean = fontsReady() && spritesReady() && File(assetsDir, STYLE_PATH).isFile
+
+    /** True when every required font glyph directory is unpacked on disk. */
+    fun fontsReady(): Boolean =
+        REQUIRED_FONTS.all { File(assetsDir, "glyphs/$it").isDirectory }
+
+    /** True when the sprite sheet is unpacked on disk. */
+    fun spritesReady(): Boolean = File(assetsDir, "sprites/sprite.json").isFile
 
     /** (Re)copies the bundled style files whenever they differ from the APK's. */
     private fun copyBundledStyles() {
@@ -76,10 +80,13 @@ class StyleAssetsManager(private val context: Context) {
             )
             .build()
         WorkManager.getInstance(context)
-            .enqueueUniqueWork("style-asset-$name", ExistingWorkPolicy.KEEP, request)
+            .enqueueUniqueWork(workName(name), ExistingWorkPolicy.KEEP, request)
         // The zip's own content marks completion: write the marker after the
         // fact is unnecessary — presence of unzipped content is checked below.
     }
+
+    /** Re-run any missing font/sprite downloads (idempotent). */
+    fun retryMissing() = ensure()
 
     /** A file whose presence proves the zip was unpacked. */
     private fun markerOf(name: String, targetDir: File): File = when (name) {
@@ -90,12 +97,21 @@ class StyleAssetsManager(private val context: Context) {
         else -> File(targetDir, name)
     }
 
-    private companion object {
-        const val TAG = "StyleAssetsManager"
-        const val ASSET_STORE = "https://overlanding.io/assets"
-        const val STYLE_PATH = "styles/detailed.json"
+    companion object {
+        private const val TAG = "StyleAssetsManager"
+        private const val ASSET_STORE = "https://overlanding.io/assets"
+        private const val STYLE_PATH = "styles/detailed.json"
         const val SPRITE_ZIP = "sprite"
         val GLYPH_ZIPS = listOf("roboto", "noto_sans", "noto-sans-arabic-regular")
+
+        /** WorkManager unique-work name for a font/sprite zip download. */
+        fun workName(assetName: String): String = "style-asset-$assetName"
+
+        /** Unique-work names of the three font-glyph downloads. */
+        val fontWorkNames: List<String> get() = GLYPH_ZIPS.map(::workName)
+
+        /** Unique-work name of the sprite-sheet download. */
+        val spriteWorkName: String get() = workName(SPRITE_ZIP)
         val REQUIRED_FONTS = listOf(
             "Roboto Regular",
             "Roboto Medium",

@@ -41,6 +41,8 @@ data class TrackPack(
     val trackPackZip: String? = null,
     val pmtilesMap: String? = null,
     val hillshade: String? = null,
+    /** Per-pack Terrain-RGB DEM asset (PMTiles); drives the detail relief. */
+    val dem: String? = null,
     val contour: String? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
     val localPhotoPath: String? = null,
@@ -108,6 +110,7 @@ data class TrackPack(
             trackPackZip = FS.str(data["trackPackZip"]),
             pmtilesMap = FS.str(data["pmtilesMap"]),
             hillshade = FS.str(data["hillshade"]),
+            dem = FS.str(data["dem"]),
             contour = FS.str(data["contour"]),
         )
     }

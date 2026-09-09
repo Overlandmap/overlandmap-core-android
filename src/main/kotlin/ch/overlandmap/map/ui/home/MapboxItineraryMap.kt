@@ -58,6 +58,8 @@ import com.mapbox.maps.extension.style.layers.generated.circleLayer
 import com.mapbox.maps.extension.style.layers.generated.lineLayer
 import com.mapbox.maps.extension.style.layers.generated.symbolLayer
 import com.mapbox.maps.extension.style.layers.getLayerAs
+import com.mapbox.maps.extension.style.layers.properties.generated.Visibility
+import com.mapbox.maps.extension.style.sources.getSourceAs
 import com.mapbox.maps.extension.localization.localizeLabels
 import com.mapbox.maps.extension.style.layers.properties.generated.IconAnchor
 import com.mapbox.maps.extension.style.layers.properties.generated.LineCap
@@ -101,6 +103,8 @@ private const val NO_STEP = "__none__"
 
 private const val WAYPOINTS_SOURCE = "itin-waypoints"
 private const val WAYPOINTS_LAYER = "itin-waypoints-markers"
+private const val OTHER_WAYPOINTS_SOURCE = "other-waypoints"
+private const val OTHER_WAYPOINTS_LAYER = "other-waypoints-markers"
 private const val WAYPOINT_DOC_ID = "documentId"
 private const val WAYPOINT_ICON_KEY = "iconKey"
 
@@ -127,6 +131,8 @@ fun MapboxItineraryMap(
     tracks: List<Track>,
     steps: List<ItineraryStep>,
     waypoints: List<Waypoint>,
+    /** The pack's other waypoints (not this itinerary's), filtered by category. */
+    otherWaypoints: List<Waypoint> = emptyList(),
     selectedStepId: Int?,
     onTapped: (ItineraryMapTap) -> Unit,
     onMapReady: (MapView) -> Unit = {},
@@ -152,6 +158,9 @@ fun MapboxItineraryMap(
     )
     val mapLanguage by app.userPreferences.mapLanguage.collectAsState(
         initial = app.userPreferences.mapLanguageNow(),
+    )
+    val waypointFilter by app.userPreferences.waypointFilter.collectAsState(
+        initial = app.userPreferences.waypointFilterNow(),
     )
     val styleUrl = remember(styleOptions, hasMapboxToken, mapLanguage) {
         MapStyles.resolve(context, styleOptions, hasMapboxToken, mapLanguage)
@@ -217,6 +226,7 @@ fun MapboxItineraryMap(
                 addTracksLayer(style, trackPackId)
                 addItineraryLayer(style, tracks)
                 addWaypointLayer(style, waypoints)
+                addOtherWaypointLayer(style)
                 addStepLayers(style, steps)
                 if (!fitted) {
                     // Restored at cold start: the saved camera; otherwise the
@@ -242,6 +252,8 @@ fun MapboxItineraryMap(
                 options = styleOptions,
                 hasMapboxToken = hasMapboxToken,
                 onChange = { scope.launch { app.userPreferences.setMapStyle(it) } },
+                waypointFilter = waypointFilter,
+                onWaypointFilterChange = { scope.launch { app.userPreferences.setWaypointFilter(it) } },
             )
             Spacer(Modifier.height(8.dp))
             // 3D terrain toggle. Off: locked to north, no tilt. On: terrain
@@ -314,6 +326,14 @@ fun MapboxItineraryMap(
         style.getLayerAs<CircleLayer>(STEPS_CIRCLES_SELECTED)?.filter(selected)
         style.getLayerAs<SymbolLayer>(STEPS_NUMBERS_SELECTED)?.filter(selected)
     }
+
+    // Apply the waypoint-category filter: show/hide the itinerary's own
+    // waypoints and populate the other-waypoints layer. Re-runs when the style
+    // reloads, the filter changes, or the pack's waypoints change.
+    LaunchedEffect(loadedStyle, waypointFilter, otherWaypoints) {
+        val style = loadedStyle ?: return@LaunchedEffect
+        updateOtherWaypoints(style, otherWaypoints, waypointFilter)
+    }
 }
 
 /** The pack's blue tracks: remote vector tileset, filtered to this pack. */
@@ -380,16 +400,18 @@ private fun addStepLayers(style: Style, steps: List<ItineraryStep>) {
     fun circles(id: String, fill: String, stroke: String) =
         circleLayer(id, STEPS_SOURCE) {
             circleColor(fill)
-            circleRadius(11.0)
+            circleRadius(9.0)
             circleStrokeColor(stroke)
-            circleStrokeWidth(2.0)
+            circleStrokeWidth(1.8)
         }
 
     fun numbers(id: String, color: String) =
         symbolLayer(id, STEPS_SOURCE) {
             textField("{$STEP_ID}")
-            textFont(listOf("Roboto Regular"))
-            textSize(11.0)
+            // Roboto Medium is the boldest Roboto weight in the bundled glyphs.
+            textFont(listOf("Roboto Medium"))
+            // Scaled with the circle so the number still fits inside.
+            textSize(9.0)
             textColor(color)
             textAllowOverlap(true)
         }
@@ -427,9 +449,62 @@ private fun addWaypointLayer(style: Style, waypoints: List<Waypoint>) {
             iconImage(Expression.get(WAYPOINT_ICON_KEY))
             iconAnchor(IconAnchor.CENTER)
             iconAllowOverlap(true)
-            iconSize(1.0)
+            iconSize(1.5)
         }
     )
+}
+
+/**
+ * Adds the (initially empty) source and layer for the pack's other waypoints —
+ * the ones not belonging to this itinerary. Its features are set later by
+ * [updateOtherWaypoints] from the waypoint-category filter, and re-set whenever
+ * that filter changes.
+ */
+private fun addOtherWaypointLayer(style: Style) {
+    if (style.styleSourceExists(OTHER_WAYPOINTS_SOURCE)) return
+    style.addSource(
+        geoJsonSource(OTHER_WAYPOINTS_SOURCE) {
+            featureCollection(FeatureCollection.fromFeatures(emptyList()))
+        }
+    )
+    style.addLayer(
+        symbolLayer(OTHER_WAYPOINTS_LAYER, OTHER_WAYPOINTS_SOURCE) {
+            iconImage(Expression.get(WAYPOINT_ICON_KEY))
+            iconAnchor(IconAnchor.CENTER)
+            iconAllowOverlap(true)
+            iconSize(1.5)
+        }
+    )
+}
+
+/**
+ * Repopulates the other-waypoints source with [waypoints] whose category is in
+ * [enabled]. Waypoints that aren't one of the filterable points of interest are
+ * dropped. The itinerary's own waypoint layer is shown or hidden with the
+ * [WaypointCategory.ITINERARY] toggle.
+ */
+private fun updateOtherWaypoints(
+    style: Style,
+    waypoints: List<Waypoint>,
+    enabled: Set<ch.overlandmap.map.model.WaypointCategory>,
+) {
+    // The itinerary's own waypoints follow the ITINERARY toggle.
+    val itinVisible = ch.overlandmap.map.model.WaypointCategory.ITINERARY in enabled
+    style.getLayerAs<SymbolLayer>(WAYPOINTS_LAYER)
+        ?.visibility(if (itinVisible) Visibility.VISIBLE else Visibility.NONE)
+
+    val features = waypoints.mapNotNull { wp ->
+        val category = ch.overlandmap.map.model.WaypointCategory.of(wp) ?: return@mapNotNull null
+        if (category !in enabled) return@mapNotNull null
+        val lat = wp.lat ?: return@mapNotNull null
+        val lon = wp.lon ?: return@mapNotNull null
+        Feature.fromGeometry(Point.fromLngLat(lon, lat)).also {
+            it.addStringProperty(WAYPOINT_DOC_ID, wp.documentId)
+            it.addStringProperty(WAYPOINT_ICON_KEY, WaypointMarkers.makiFor(wp))
+        }
+    }
+    style.getSourceAs<com.mapbox.maps.extension.style.sources.generated.GeoJsonSource>(OTHER_WAYPOINTS_SOURCE)
+        ?.featureCollection(FeatureCollection.fromFeatures(features))
 }
 
 /**
@@ -461,7 +536,7 @@ private fun installTapHandler(mapView: MapView, onTapped: (ItineraryMapTap) -> U
             }
             map.queryRenderedFeatures(
                 box(24.0),
-                RenderedQueryOptions(listOf(WAYPOINTS_LAYER), null),
+                RenderedQueryOptions(listOf(WAYPOINTS_LAYER, OTHER_WAYPOINTS_LAYER), null),
             ) { wpResult ->
                 val wpId = wpResult.value?.firstNotNullOfOrNull {
                     it.queriedFeature.feature.getStringProperty(WAYPOINT_DOC_ID)

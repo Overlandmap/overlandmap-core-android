@@ -277,9 +277,11 @@ private suspend fun startBackgroundMapDownloads(app: OverlandApp) {
             selection[PackAssetKind.OFFLINE_MAP] = it
         }
     }
-    pack.hillshade?.takeIf { it.isNotEmpty() }?.let { id ->
+    // The relief comes from the per-pack Terrain-RGB DEM (served at /tiles/dem
+    // for z7–11), not the legacy pre-rendered hillshade raster.
+    pack.dem?.takeIf { it.isNotEmpty() }?.let { id ->
         runCatching { app.shopRepository.asset(id) }.getOrNull()?.let {
-            selection[PackAssetKind.HILLSHADE] = it
+            selection[PackAssetKind.DEM] = it
         }
     }
     if (selection.isNotEmpty()) {
@@ -351,6 +353,11 @@ private fun WorldMapStatus(state: PlanetMapState, sizeBytes: Long?) {
                 stringResource(R.string.onboarding_world_map_pending),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            is PlanetMapState.Failed -> Text(
+                state.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
             )
         }
     }

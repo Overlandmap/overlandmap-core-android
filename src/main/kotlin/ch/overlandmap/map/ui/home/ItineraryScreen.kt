@@ -389,6 +389,7 @@ fun ItineraryScreen(
                         tracks = state.tracks,
                         steps = state.steps,
                         waypoints = state.waypoints,
+                        otherWaypoints = state.otherWaypoints,
                         selectedStepId = state.steps.getOrNull(selectedStepIndex)?.stepId,
                         onTapped = { tap ->
                             when (tap) {
@@ -396,7 +397,8 @@ fun ItineraryScreen(
                                 // no popup.
                                 is ItineraryMapTap.OnStep -> jumpToStep(tap.stepId)
                                 is ItineraryMapTap.OnWaypoint ->
-                                    state.waypoints.firstOrNull { it.documentId == tap.documentId }
+                                    (state.waypoints + state.otherWaypoints)
+                                        .firstOrNull { it.documentId == tap.documentId }
                                         ?.let {
                                             popup = MapPopupState(
                                                 tap.position,
@@ -603,6 +605,7 @@ fun ItineraryScreen(
                         tracks = state.tracks,
                         steps = state.steps,
                         waypoints = state.waypoints,
+                        otherWaypoints = state.otherWaypoints,
                         selectedStepId = state.steps.getOrNull(selectedStepIndex)?.stepId,
                         onTapped = {},
                         is3D = is3D,
@@ -1018,19 +1021,23 @@ private fun StepsTab(
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 StepHeader(step, lang, useMiles, useFeet, gpsFormat, onCenterOnStep)
                 // Access status (e.g. "Permit needed: …"), bold kind + details.
-                openStatusText(step)?.let { status ->
-                    Text(
-                        status,
-                        style = contentTextStyle(MaterialTheme.typography.bodyMedium),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
+                // Only shown when the step actually has a notable status —
+                // skipped when it is open (the default) or unset.
+                if (step.openKind != null && step.openKind != OpenKind.OPEN) {
+                    openStatusText(step)?.let { status ->
+                        Text(
+                            status,
+                            style = contentTextStyle(MaterialTheme.typography.bodyMedium),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 step.description(lang)?.let {
                     MarkupText(
                         it,
                         style = MaterialTheme.typography.bodyMedium,
                         onLinkClick = onLink,
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
                 // The title image goes at the end; tapping it opens the viewer.
@@ -1119,7 +1126,9 @@ private fun StepHeader(
         step.ele?.let { "alt. ${UserPreferences.formatElevationM(it, useFeet)}" },
     ).joinToString("  ·  ")
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    // No bottom padding: the description (or status line) sits directly under
+    // the icon row with no gap.
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(

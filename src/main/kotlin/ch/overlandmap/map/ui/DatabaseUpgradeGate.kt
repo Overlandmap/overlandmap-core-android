@@ -28,10 +28,8 @@ import ch.overlandmap.map.data.local.AppDatabase
 @Composable
 fun DatabaseUpgradeGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val diskVersion = remember { AppDatabase.onDiskVersion(context) }
-
-    // No file or compatible version: proceed immediately.
-    val needsReset = diskVersion in 1 until AppDatabase.MIN_COMPATIBLE_VERSION
+    // No database file, or a compatible version: proceed immediately.
+    val needsReset = remember { AppDatabase.needsDestructiveReset(context) }
     var resetDone by remember { mutableStateOf(!needsReset) }
 
     if (resetDone) {
@@ -43,11 +41,11 @@ fun DatabaseUpgradeGate(content: @Composable () -> Unit) {
             text = { Text(stringResource(R.string.db_upgrade_message)) },
             confirmButton = {
                 Button(onClick = {
-                    AppDatabase.deleteDatabase(context)
-                    // Clear the saved route — the object it points to no longer
-                    // exists after the wipe, and restoring it would blank-screen.
+                    // Erase all local data (database, photos, pmtiles, caches),
+                    // recreate the database and restart the general-asset
+                    // downloads. Packs can be re-downloaded from the shop later.
                     val app = context.applicationContext as OverlandApp
-                    app.userPreferences.clearLastRoute()
+                    app.wipeLocalDataAndRestart()
                     resetDone = true
                 }) {
                     Text(stringResource(R.string.db_upgrade_confirm))

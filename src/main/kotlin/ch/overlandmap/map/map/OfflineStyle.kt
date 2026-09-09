@@ -1,171 +1,231 @@
 package ch.overlandmap.map.map
-
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Rewrites the bundled offline style ([MapStyles]'s `detailed.json`) so the
- * downloaded per-pack tiles are actually rendered. As shipped, every layer
- * uses only the world `planet` source (zoom 0–6); the `detail` (7–13),
- * `contour` and offline hillshade tiles are downloaded but never shown.
+ * Rewrites the bundled offline style ([MapStyles]'s `detailed.json` /
+ * `simplified.json`) so the downloaded per-pack tiles are actually rendered.
+ * As shipped, every content layer uses only the world `planet` source
+ * (zoom 0–6); the `detail` (7–13), `contour` and DEM tiles are downloaded but
+ * never referenced.
  *
- * Ports the Flutter app's `duplicateStyleLayers`: the planet layers stay, then
- * an opaque "earth" mask fill on the `detail` source hides the planet exactly
- * where a detail tile exists, then the detail-sourced copies of the layers are
- * drawn on top. Where no detail tile exists the mask draws nothing, so the
- * overzoomed planet shows through — "the most detailed tile available".
+ * Ported from the iOS `StyleBuilder.duplicateStyleLayers` (which in turn ports
+ * the Flutter app's `MapStyle.duplicateStyleLayers`). The bundled styles define
+ * content layers only against the `planet` source. This creates a parallel set
+ * against the higher-zoom `detail` source and inserts a solid country fill
+ * between them so detail tiles mask the coarser planet roads where they exist,
+ * and the overzoomed planet shows through where they don't.
  *
- * Layer order (per the app's design): planet layers, earth mask, detail fills,
- * hillshade, contours, then detail lines and labels — so hillshade and contours
- * sit above the offline map's fills but below its lines and text.
+ * The relief pair — a DEM `hillshade` layer (from `demSource`) and an
+ * `elevation_color` raster (from `demColorSource`) — is spliced directly above
+ * the `landuse_school` fill in *both* the planet and detail sections, so it
+ * underlays roads, tracks and labels but overlays the base fills. The detail
+ * copy is essential: from zoom 7 the opaque `country` fill masks everything
+ * beneath it, so relief drawn only in the planet section (below `country`)
+ * would be hidden. Its visibility is gated by the elevation/hillshade toggle.
+ *
+ * Contour lines from the `contour` vector source sit at the very top of the
+ * detail section, above all roads and labels; gated by the contour toggle.
  */
 object OfflineStyle {
 
     /** Authored port; [LocalTileServer] rewrites it to the bound one. */
     private const val BASE_URL = "http://localhost:8000"
 
-    private val FILL_TYPES = setOf("fill", "fill-extrusion")
+    /** The bundled borders layer Ride2Ladakh hides to reduce clutter. */
+    private const val BORDERS_LAYER_ID = "borders country"
+
+    /** Anchor above which the relief pair is spliced in each source section. */
+    private const val SCHOOL_ANCHOR = "landuse_school"
 
     fun transform(
         styleJson: String,
         showHillshade: Boolean,
         showContour: Boolean,
-        hasOfflineHillshade: Boolean,
-        hasContour: Boolean,
+        removeBorders: Boolean,
+        demMaxZoom: Int? = null,
     ): String {
         val root = JSONObject(styleJson)
-        val sources = root.getJSONObject("sources")
-        val layers = root.getJSONArray("layers")
 
-        var background: JSONObject? = null
-        var onlineHillshade: JSONObject? = null
-        val planet = ArrayList<JSONObject>()
-        for (i in 0 until layers.length()) {
-            val layer = layers.getJSONObject(i)
-            when (layer.optString("type")) {
-                "background" -> background = layer
-                "hillshade", "raster" -> onlineHillshade = layer
-                else -> if (layer.optString("source") == "planet") planet.add(layer)
+        // Cap the DEM sources' maxzoom to what is actually on disk. The bundled
+        // style assumes a per-pack DEM (maxzoom 11); when only the global
+        // planet-dem (z0–6) is present, lowering maxzoom lets the map SDK
+        // overzoom those tiles for z7–11 instead of requesting tiles that 404.
+        if (demMaxZoom != null) {
+            root.optJSONObject("sources")?.let { sources ->
+                for (name in listOf("demSource", "demColorSource")) {
+                    sources.optJSONObject(name)?.let { src ->
+                        val declared = src.optInt("maxzoom", demMaxZoom)
+                        src.put("maxzoom", minOf(declared, demMaxZoom))
+                    }
+                }
             }
         }
 
-        // The same layers re-pointed at the detail source, split so hillshade
-        // and contours can be inserted between the fills and the lines/labels.
-        val detailFills = ArrayList<JSONObject>()
-        val detailLines = ArrayList<JSONObject>()
+        val layers = root.getJSONArray("layers")
+
+        var background: JSONObject? = null
+        val planet = ArrayList<JSONObject>()
+        val relief = ArrayList<JSONObject>()
+        val contour = ArrayList<JSONObject>()
+
+        for (i in 0 until layers.length()) {
+            val layer = layers.getJSONObject(i)
+            val type = layer.optString("type")
+            val source = layer.optString("source")
+            // Drop the bundled borders layer (Ride2Ladakh) before classifying.
+            if (removeBorders && layer.optString("id") == BORDERS_LAYER_ID) continue
+            when {
+                type == "background" -> background = layer
+                // The DEM relief pair (hillshade + elevation colour). Both read
+                // from the DEM sources and are toggled together by the
+                // elevation/hillshade switch.
+                type == "hillshade" || source == "demSource" || source == "demColorSource" ->
+                    relief.add(setVisibility(layer, showHillshade))
+                source == "planet" -> planet.add(layer)
+                else -> contour.add(layer)
+            }
+        }
+
+        // Detail layers: duplicate every planet layer with its source changed
+        // to "detail" and a unique id.
+        val detail = ArrayList<JSONObject>()
         for (layer in planet) {
             val copy = JSONObject(layer.toString())
             copy.put("id", layer.getString("id") + "_detail")
             copy.put("source", "detail")
-            if (layer.optString("type") in FILL_TYPES) detailFills.add(copy) else detailLines.add(copy)
+            detail.add(copy)
         }
 
-        val earthMask = JSONObject()
-            .put("id", "detail_earth")
+        // Country fill: masks planet roads where detail tiles are present.
+        val country = JSONObject()
+            .put("id", "country")
             .put("type", "fill")
             .put("source", "detail")
             .put("source-layer", "earth")
             .put("paint", JSONObject().put("fill-color", "rgb(239,239,239)"))
 
-        val tileBaseUrl = LocalTileServer.baseUrl
-
-        val hillshade = ArrayList<JSONObject>()
-        if (showHillshade) {
-            when {
-                // Pre-rendered raster hillshade downloaded with the pack.
-                hasOfflineHillshade -> {
-                    sources.put(
-                        "hillshadeRaster",
-                        JSONObject()
-                            .put("type", "raster")
-                            .put(
-                                "tiles",
-                                JSONArray().put("$tileBaseUrl/tiles/hillshade/{z}/{x}/{y}.webp"),
-                            )
-                            .put("tileSize", 256)
-                            .put("minzoom", 7)
-                            // Pre-rendered hillshade stops at z11; overzoom above.
-                            .put("maxzoom", 11),
-                    )
-                    hillshade.add(
-                        JSONObject()
-                            .put("id", "hillshade")
-                            .put("type", "raster")
-                            .put("source", "hillshadeRaster")
-                            .put("paint", JSONObject().put("raster-opacity", 0.5)),
-                    )
-                }
-                // Fall back to the online elevation-derived hillshade.
-                onlineHillshade != null -> hillshade.add(onlineHillshade)
-            }
+        // A detail-side copy of the relief pair with unique ids. Same DEM
+        // sources (which cover every zoom) — only the ids must differ.
+        val detailRelief = ArrayList<JSONObject>()
+        for (layer in relief) {
+            val copy = JSONObject(layer.toString())
+            copy.put("id", layer.getString("id") + "_detail")
+            detailRelief.add(copy)
         }
 
-        val contours = ArrayList<JSONObject>()
-        if (showContour && hasContour) {
-            contours.add(contourLine("contour_minor", "c100", "rgba(120,90,60,0.35)", 0.7, 12))
-            contours.add(contourLine("contour_index", "c500", "rgba(120,90,60,0.6)", 1.1, 11))
-            contours.add(contourLabel())
-        }
-
+        // Reassemble: background, planet (relief above landuse_school), country,
+        // contour?, detail (relief above landuse_school_detail), contour overlay.
         val out = JSONArray()
         background?.let(out::put)
-        planet.forEach(out::put)
-        out.put(earthMask)
-        detailFills.forEach(out::put)
-        hillshade.forEach(out::put)
-        contours.forEach(out::put)
-        detailLines.forEach(out::put)
+        splice(relief, SCHOOL_ANCHOR, planet).forEach(out::put)
+        out.put(country)
+        if (showContour) contour.forEach(out::put)
+        splice(detailRelief, SCHOOL_ANCHOR + "_detail", detail).forEach(out::put)
+        if (showContour) contourOverlayLayers().forEach(out::put)
+
         root.put("layers", out)
         return root.toString()
     }
 
-    private fun contourLine(
-        id: String,
-        sourceLayer: String,
-        color: String,
-        width: Double,
-        minZoom: Int,
-    ) = JSONObject()
-        .put("id", id)
-        .put("type", "line")
-        .put("source", "contour")
-        .put("source-layer", sourceLayer)
-        .put("minzoom", minZoom)
-        .put("paint", JSONObject().put("line-color", color).put("line-width", width))
-
-    /** Elevation label for the 500 m index contours, e.g. "4500 m". */
-    private fun contourLabel(): JSONObject {
-        val elevation = JSONArray().put("get").put("h500")
-        val text = JSONArray()
+    /**
+     * The three contour overlay layers drawn from the `contour` vector source:
+     * `c100` fine lines (no labels), `c500` coarse lines, and the `c500`
+     * elevation labels read from the `h500` property. Appended on top of the
+     * detail section so they overlay everything.
+     */
+    private fun contourOverlayLayers(): List<JSONObject> {
+        val c100 = JSONObject()
+            .put("id", "contour_100")
+            .put("type", "line")
+            .put("source", "contour")
+            .put("source-layer", "c100")
+            // Fine 100 m lines only from zoom 11; below that they crowd the map.
+            .put("minzoom", 11)
+            .put(
+                "paint",
+                JSONObject()
+                    .put("line-color", "blue")
+                    .put("line-width", 0.5)
+                    .put("line-opacity", 0.3),
+            )
+        val c500 = JSONObject()
+            .put("id", "contour_500")
+            .put("type", "line")
+            .put("source", "contour")
+            .put("source-layer", "c500")
+            // Coarse 500 m lines from zoom 9; they also carry the labels.
+            .put("minzoom", 9)
+            .put(
+                "paint",
+                JSONObject()
+                    .put("line-color", "red")
+                    .put("line-width", 0.8)
+                    .put("line-opacity", 0.3),
+            )
+        // Build the label from an expression: `h500` is numeric, so `concat` +
+        // `to-string` coerces it explicitly.
+        val labelText = JSONArray()
             .put("concat")
-            .put(JSONArray().put("to-string").put(elevation))
+            .put(JSONArray().put("to-string").put(JSONArray().put("get").put("h500")))
             .put(" m")
-        return JSONObject()
-            .put("id", "contour_index_label")
+        val label = JSONObject()
+            .put("id", "contour_500_label")
             .put("type", "symbol")
             .put("source", "contour")
             .put("source-layer", "c500")
-            .put("minzoom", 13)
+            .put("minzoom", 11)
             .put(
                 "layout",
                 JSONObject()
                     .put("symbol-placement", "line")
-                    .put("text-field", text)
+                    .put("text-field", labelText)
+                    .put("text-font", JSONArray().put("Roboto Regular"))
                     .put("text-size", 10)
-                    .put("text-font", JSONArray().put("Roboto Regular")),
+                    .put("symbol-spacing", 300),
             )
             .put(
                 "paint",
                 JSONObject()
-                    .put("text-color", "rgba(90,60,40,0.9)")
-                    .put("text-halo-color", "#ffffff")
+                    .put("text-color", "red")
+                    .put("text-halo-color", "white")
                     .put("text-halo-width", 1),
             )
+        return listOf(c100, c500, label)
+    }
+
+    /**
+     * Inserts [inserts] directly after the layer whose id is [anchorId] within
+     * [layers]. If no such layer exists, the inserts are appended so the relief
+     * is never silently dropped.
+     */
+    private fun splice(
+        inserts: List<JSONObject>,
+        anchorId: String,
+        layers: List<JSONObject>,
+    ): List<JSONObject> {
+        val hasAnchor = layers.any { it.optString("id") == anchorId }
+        if (!hasAnchor) return layers + inserts
+        val result = ArrayList<JSONObject>()
+        for (layer in layers) {
+            result.add(layer)
+            if (layer.optString("id") == anchorId) result.addAll(inserts)
+        }
+        return result
+    }
+
+    /** Returns [layer] with its `layout.visibility` set to match [visible]. */
+    private fun setVisibility(layer: JSONObject, visible: Boolean): JSONObject {
+        val copy = JSONObject(layer.toString())
+        val layout = copy.optJSONObject("layout") ?: JSONObject()
+        layout.put("visibility", if (visible) "visible" else "none")
+        copy.put("layout", layout)
+        return copy
     }
 
     /**
      * Rewrites label `text-field`s to the map-language [lang] — a `name:<lang>`
-     * field with fallbacks — mirroring the Flutter app's `translateStyle`.
+     * field with fallbacks — mirroring the iOS `StyleBuilder.applyLanguage`.
      * "native" keeps each feature's local name.
      */
     fun translateLabels(styleJson: String, lang: String): String {

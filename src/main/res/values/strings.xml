@@ -26,7 +26,7 @@
     <string name="suggest_correction">Suggest a correction</string>
     <string name="correction_hint">Describe what needs to be corrected</string>
     <string name="db_upgrade_title">Database update required</string>
-    <string name="db_upgrade_message">Your offline data was created by an older version of the app and is no longer compatible. It needs to be reset. Your downloaded track packs will be re-downloaded automatically.</string>
+    <string name="db_upgrade_message">Your offline data was created by an older version of the app and is no longer compatible. It must be erased, including downloaded maps and photos. You can re-download your track packs afterwards.</string>
     <string name="db_upgrade_confirm">Reset and continue</string>
     <string name="db_upgrade_exit">Quit</string>
     <string name="close">Close</string>
@@ -55,6 +55,11 @@
     <string name="tiles_count">%1$s tiles</string>
     <string name="satellite_tiles">Satellite tiles</string>
     <string name="satellite_download_complete">%1$s downloaded</string>
+    <string name="general_assets">General</string>
+    <string name="world_map">World map</string>
+    <string name="world_relief">World relief</string>
+    <string name="map_fonts">Fonts</string>
+    <string name="map_icons">Map icons</string>
     <string name="search_hint">Search itineraries, waypoints…</string>
     <string name="search_no_results">No results</string>
 
@@ -75,6 +80,7 @@
     <string name="free_sample_itinerary">Free sample itinerary</string>
     <string name="offline_map">Offline map</string>
     <string name="hillshade_map">Hillshade map</string>
+    <string name="relief_map">Relief (elevation)</string>
     <string name="contour_map">Contour map</string>
     <string name="not_available">Not available</string>
     <string name="copied_to_clipboard">Coordinates copied</string>
@@ -89,10 +95,27 @@
     <string name="customize_satellite">Satellite</string>
     <string name="hillshade">Hillshade</string>
     <string name="contour_lines">Contour lines</string>
+    <string name="contour">Contour</string>
     <string name="show_roads">Show roads</string>
+    <string name="roads">Roads</string>
+    <string name="waypoints">Waypoints</string>
+    <string name="wp_itinerary">Itinerary</string>
+    <string name="wp_mountain_pass">Mountain pass</string>
+    <string name="wp_fuel">Fuel</string>
+    <string name="wp_police_checkpoint">Checkpoint</string>
+    <string name="wp_viewpoint">Viewpoint</string>
     <string name="total_download_size">Total download: %1$s</string>
     <string name="free_space_on_device">Free space on device: %1$s</string>
     <string name="app_storage_used">App storage used: %1$s</string>
+    <string name="tap_for_storage_details">Tap for details and reset</string>
+    <string name="storage_usage">Storage usage</string>
+    <string name="storage_photos">Photos</string>
+    <string name="offline_maps">Offline maps</string>
+    <string name="storage_cache">Cache</string>
+    <string name="storage_total">Total</string>
+    <string name="free_space">Free space</string>
+    <string name="reset_storage">Reset storage</string>
+    <string name="reset_storage_confirm">This deletes all downloaded maps, itineraries, photos and caches, then re-downloads the required base assets. This cannot be undone.</string>
     <string name="downloads">Downloads</string>
     <string name="installing">Installing…</string>
     <string name="comments">Comments</string>
