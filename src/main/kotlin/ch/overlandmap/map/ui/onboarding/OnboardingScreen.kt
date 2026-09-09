@@ -184,7 +184,7 @@ fun OnboardingScreen(
         WorldMapStatus(planetState, sizeBytes)
         Spacer(Modifier.height(24.dp))
 
-        Button(
+        OutlinedButton(
             onClick = { onTutorial() },
             enabled = accepted && !downloadingSample,
             modifier = Modifier.fillMaxWidth(),
@@ -192,7 +192,7 @@ fun OnboardingScreen(
             Text(stringResource(R.string.onboarding_accept_tutorial))
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(
+        Button(
             onClick = { onSample() },
             enabled = accepted && !downloadingSample,
             modifier = Modifier.fillMaxWidth(),
@@ -268,8 +268,11 @@ private suspend fun startSampleDownload(app: OverlandApp): String? {
  */
 private suspend fun startBackgroundMapDownloads(app: OverlandApp) {
     val name = AppMode.trackPackName ?: return
-    val pack = app.libraryRepository.trackPackByName(name)
-        ?: runCatching { app.shopRepository.trackPackByName(name) }.getOrNull()
+    // The sample zip's db.json doesn't carry the map asset refs (only
+    // itinerary/step content) — fetch the live Firestore doc for those,
+    // falling back to the local row should that fail.
+    val pack = runCatching { app.shopRepository.trackPackByName(name) }.getOrNull()
+        ?: app.libraryRepository.trackPackByName(name)
         ?: return
     val selection = mutableMapOf<PackAssetKind, Asset>()
     pack.pmtilesMap?.takeIf { it.isNotEmpty() }?.let { id ->
@@ -283,6 +286,19 @@ private suspend fun startBackgroundMapDownloads(app: OverlandApp) {
         runCatching { app.shopRepository.asset(id) }.getOrNull()?.let {
             selection[PackAssetKind.DEM] = it
         }
+    }
+    // Contour is recorded (so it's listed with a "Download" action) but not
+    // auto-downloaded — only offline map and DEM are fetched automatically.
+    val recorded = selection.toMutableMap()
+    pack.contour?.takeIf { it.isNotEmpty() }?.let { id ->
+        runCatching { app.shopRepository.asset(id) }.getOrNull()?.let {
+            recorded[PackAssetKind.CONTOUR] = it
+        }
+    }
+    if (recorded.isNotEmpty()) {
+        // Recorded up front so the Downloads screen lists these assets
+        // immediately, same as a purchased pack's map download.
+        app.libraryRepository.savePackAssets(pack.documentId, recorded)
     }
     if (selection.isNotEmpty()) {
         app.packDownloadManager.start(pack.documentId, selection)

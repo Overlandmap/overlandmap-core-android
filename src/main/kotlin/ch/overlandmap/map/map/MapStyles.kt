@@ -49,6 +49,15 @@ object MapStyles {
         return url
     }
 
+    /**
+     * Style of the track pack detail map (MapLibre): the offline detailed
+     * style honoring the hillshade/contour prefs, same query params as
+     * [resolve]'s offline styles. This map doesn't support the Mapbox/
+     * satellite base styles, so it always uses the detailed offline one.
+     */
+    fun packStyleUrl(context: Context, hillshade: Boolean, contour: Boolean, mapLanguage: String): String =
+        offlineStyle(context, OFFLINE_STYLE_PATH, MapStyleOptions(hillshade = hillshade, contour = contour), mapLanguage)
+
     private const val LIGHT_STYLE_PATH = "styles/simplified.json"
 
     /**

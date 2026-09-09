@@ -36,7 +36,7 @@ enum class MapboxStyleKind(val styleUrl: String, val displayName: String) {
 data class MapStyleOptions(
     val base: BaseMapStyle = BaseMapStyle.OFFLINE_DETAILED,
     val hillshade: Boolean = true,
-    val contour: Boolean = true,
+    val contour: Boolean = false,
     val mapboxKind: MapboxStyleKind = MapboxStyleKind.STREETS,
     val satelliteRoads: Boolean = true,
 ) {

@@ -3,6 +3,7 @@ package ch.overlandmap.map.ui.shop
 import android.graphics.RectF
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -10,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.map.MapLibreMapView
 import ch.overlandmap.map.map.MapStyles
 import ch.overlandmap.map.map.boundsOf
@@ -101,10 +103,20 @@ fun PackTracksMap(
 ) {
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     val context = LocalContext.current
+    val app = context.applicationContext as OverlandApp
+    val styleOptions by app.userPreferences.mapStyle.collectAsState(
+        initial = app.userPreferences.mapStyleNow(),
+    )
+    val mapLanguage by app.userPreferences.mapLanguage.collectAsState(
+        initial = app.userPreferences.mapLanguageNow(),
+    )
+    val styleUrl = remember(styleOptions.hillshade, styleOptions.contour, mapLanguage) {
+        MapStyles.packStyleUrl(context, styleOptions.hillshade, styleOptions.contour, mapLanguage)
+    }
 
     MapLibreMapView(
         modifier = modifier,
-        styleUrl = MapStyles.globalStyleUrl(context),
+        styleUrl = styleUrl,
         onMapReady = onMapReady,
         onStyleLoaded = { map, style ->
             ensureTracksLayer(style)

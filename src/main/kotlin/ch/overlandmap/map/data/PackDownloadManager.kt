@@ -158,7 +158,7 @@ class PackDownloadManager(
         entries.forEachIndexed { index, (kind, asset) ->
             val url = asset.url ?: run {
                 setProgress(packId, PackDownloadProgress(error = "No URL for ${asset.name}"))
-                return
+                return@forEachIndexed
             }
             urls += url
             names += asset.name

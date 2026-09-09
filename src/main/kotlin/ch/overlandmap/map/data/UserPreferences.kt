@@ -174,7 +174,7 @@ class UserPreferences(private val context: Context) {
         base = p[mapStyleKey]?.let { runCatching { BaseMapStyle.valueOf(it) }.getOrNull() }
             ?: BaseMapStyle.OFFLINE_DETAILED,
         hillshade = p[offlineHillshadeKey] ?: true,
-        contour = p[offlineContourKey] ?: true,
+        contour = p[offlineContourKey] ?: false,
         mapboxKind = p[mapboxKindKey]?.let { runCatching { MapboxStyleKind.valueOf(it) }.getOrNull() }
             ?: MapboxStyleKind.STREETS,
         satelliteRoads = p[satelliteRoadsKey] ?: true,
