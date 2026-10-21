@@ -105,7 +105,7 @@ class OverlandApp : Application() {
             location = navigationLocation,
             persistence = savedNavigationStore,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
-            onTargetReached = { runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 100).startTone(android.media.ToneGenerator.TONE_PROP_ACK, 400) } },
+            onTargetReached = { /* no chime when reaching a step */ },
             log = { line -> android.util.Log.i("Navigation", line) },
             debug = { line -> android.util.Log.d("NavDebug", line) },
             onNavigatingChanged = { active ->
