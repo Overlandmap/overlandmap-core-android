@@ -1,7 +1,5 @@
 package ch.overlandmap.map.ui.home
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,8 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -46,8 +44,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
-import ch.overlandmap.map.data.local.CheckInRow
-import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.model.CheckIn
+import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.social.SocialTarget
+import ch.overlandmap.map.ui.social.TranslatedContent
+import ch.overlandmap.map.ui.social.isSignedIn
+import ch.overlandmap.map.ui.social.rememberAuthGate
 import ch.overlandmap.map.ui.theme.contentTextStyle
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -57,46 +59,52 @@ import java.util.Date
 private val CheckInGreen = Color(0xFF2E7D32)
 
 /**
- * Check-in button for a step. Shows an outlined circle when there are no
- * check-ins, or a filled circle with a badge count when there are.
+ * Check-in button for a step or a waypoint (iOS `CheckInButton`): an outlined circle with no
+ * check-ins, a filled one with a count badge otherwise.
  *
- * - No check-ins → press opens the check-in dialog directly.
- * - Has check-ins → press opens a bottom sheet listing them, with the option
- *   to add a new one (if the user hasn't already) or delete the user's own.
+ * - No check-ins: tapping opens the check-in dialog (an anonymous user is asked to sign in first).
+ * - Check-ins: tapping lists them, with an inline form to add one (one per user) and delete for
+ *   the user's own.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheckInButton(step: ItineraryStep) {
+fun CheckInButton(target: SocialTarget) {
     val app = LocalContext.current.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
-    val checkIns by app.socialRepository.observeCheckInsForObject(step.documentId)
+    val gate = rememberAuthGate()
+    val checkIns by app.socialRepository.observeCheckInsForObject(target.objectId)
         .collectAsState(initial = emptyList())
 
     var showSheet by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     val count = checkIns.size
 
-    // The icon button with optional badge.
     IconButton(onClick = {
-        if (count == 0) showDialog = true else showSheet = true
+        if (count == 0) gate.require(R.string.sign_in_to_check_in) { showDialog = true } else showSheet = true
     }) {
         if (count == 0) {
-            Icon(
-                Icons.Outlined.CheckCircle,
-                contentDescription = stringResource(R.string.check_in),
-                tint = CheckInGreen,
-            )
+            Icon(Icons.Outlined.CheckCircle, contentDescription = stringResource(R.string.check_in), tint = CheckInGreen)
         } else {
-            BadgedBox(badge = {
-                Badge { Text("$count") }
-            }) {
-                Icon(
-                    Icons.Filled.CheckCircle,
-                    contentDescription = stringResource(R.string.check_in),
-                    tint = CheckInGreen,
-                )
+            BadgedBox(badge = { Badge { Text("$count") } }) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = stringResource(R.string.check_in), tint = CheckInGreen)
             }
+        }
+    }
+
+    suspend fun submit(message: String) {
+        try {
+            app.socialRepository.createCheckIn(
+                trackPackId = target.trackPackId,
+                itinDocumentId = target.itineraryId,
+                collection = target.collection,
+                objectId = target.objectId,
+                content = message.ifBlank { null },
+            )
+            error = null
+        } catch (e: Exception) {
+            error = e.localizedMessage
         }
     }
 
@@ -105,14 +113,14 @@ fun CheckInButton(step: ItineraryStep) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
         val userHasCheckIn = checkIns.any { it.userId == currentUserId }
+        var toDelete by remember { mutableStateOf<CheckIn?>(null) }
+        var message by remember { mutableStateOf("") }
+        val lang = currentLanguage()
 
-        ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
-            sheetState = sheetState,
-        ) {
+        ModalBottomSheet(onDismissRequest = { showSheet = false }, sheetState = sheetState) {
             Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
                 Text(
-                    stringResource(R.string.check_ins_title),
+                    "$count " + stringResource(R.string.check_ins_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -121,49 +129,66 @@ fun CheckInButton(step: ItineraryStep) {
                     items(checkIns, key = { it.documentId }) { checkIn ->
                         CheckInListItem(
                             checkIn = checkIn,
+                            lang = lang,
                             isOwn = checkIn.userId == currentUserId,
-                            onDelete = {
-                                scope.launch {
-                                    runCatching { app.socialRepository.deleteCheckIn(checkIn.documentId) }
-                                }
-                            },
+                            onDelete = { toDelete = checkIn },
                         )
                         HorizontalDivider()
                     }
                 }
 
-                if (!userHasCheckIn) {
+                // One check-in per user: the inline form disappears once there is one.
+                if (isSignedIn() && !userHasCheckIn) {
                     Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            showSheet = false
-                            showDialog = true
-                        },
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = { message = it },
+                        placeholder = { Text(stringResource(R.string.check_in_hint)) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.check_in))
-                    }
+                        minLines = 2,
+                        maxLines = 6,
+                    )
+                    Button(
+                        onClick = { scope.launch { submit(message); message = "" } },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    ) { Text(stringResource(R.string.check_in_action)) }
+                }
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
+        }
+
+        toDelete?.let { checkIn ->
+            AlertDialog(
+                onDismissRequest = { toDelete = null },
+                title = { Text(stringResource(R.string.delete_check_in)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        toDelete = null
+                        scope.launch {
+                            try {
+                                app.socialRepository.deleteCheckIn(checkIn.documentId)
+                            } catch (e: Exception) {
+                                error = e.localizedMessage
+                            }
+                        }
+                    }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = { TextButton(onClick = { toDelete = null }) { Text(stringResource(R.string.cancel)) } },
+            )
         }
     }
 
     // ── Check-in dialog ─────────────────────────────────────────────────────
     if (showDialog) {
         CheckInDialog(
-            onDismiss = { showDialog = false },
+            error = error,
+            onDismiss = { showDialog = false; error = null },
             onConfirm = { content ->
-                showDialog = false
                 scope.launch {
-                    runCatching {
-                        app.socialRepository.createCheckIn(
-                            trackPackId = step.trackPackId,
-                            itinDocumentId = step.itineraryId,
-                            collection = "itinerary/${step.itineraryId}/steps",
-                            objectId = step.documentId,
-                            content = content.ifBlank { null },
-                        )
-                    }
+                    submit(content)
+                    if (error == null) showDialog = false
                 }
             },
         )
@@ -171,11 +196,7 @@ fun CheckInButton(step: ItineraryStep) {
 }
 
 @Composable
-private fun CheckInListItem(
-    checkIn: CheckInRow,
-    isOwn: Boolean,
-    onDelete: () -> Unit,
-) {
+private fun CheckInListItem(checkIn: CheckIn, lang: String, isOwn: Boolean, onDelete: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -183,7 +204,7 @@ private fun CheckInListItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    checkIn.userName ?: checkIn.userId ?: "",
+                    checkIn.userName ?: stringResource(R.string.anonymous),
                     style = contentTextStyle(MaterialTheme.typography.bodyMedium),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -198,27 +219,13 @@ private fun CheckInListItem(
                     )
                 }
             }
-            checkIn.reason?.let {
-                Text(
-                    it,
-                    style = contentTextStyle(MaterialTheme.typography.bodySmall),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            checkIn.content?.let {
-                Text(
-                    it,
-                    style = contentTextStyle(MaterialTheme.typography.bodySmall),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            TranslatedContent(original = checkIn.content, translation = checkIn.translation(lang))
         }
         if (isOwn) {
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Filled.Delete,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.delete_check_in),
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(20.dp),
                 )
@@ -228,34 +235,28 @@ private fun CheckInListItem(
 }
 
 @Composable
-private fun CheckInDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (content: String) -> Unit,
-) {
+private fun CheckInDialog(error: String?, onDismiss: () -> Unit, onConfirm: (content: String) -> Unit) {
     var text by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.check_in)) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                placeholder = { Text(stringResource(R.string.check_in_hint)) },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                maxLines = 6,
-            )
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(text) }) {
-                Text(stringResource(R.string.confirm))
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text(stringResource(R.string.check_in_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 8,
+                )
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
+        confirmButton = { Button(onClick = { onConfirm(text) }) { Text(stringResource(R.string.confirm)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

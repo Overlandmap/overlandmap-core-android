@@ -101,7 +101,13 @@ object PackJsonImporter {
             sidebars = sidebarsJson.map { (id, data) ->
                 val sidebarJson = data.asMap()
                 Sidebar.fromFirestore(id, sidebarJson)
-                    .copy(localPhotoPath = localPhoto(sidebarJson, photoDir))
+                    .copy(
+                        localPhotoPath = localPhoto(sidebarJson, photoDir),
+                        localOtherPhotoPaths = (sidebarJson["otherPhotoUrls"] as? List<*>)
+                            ?.mapNotNull { FS.str(it)?.takeIf(String::isNotEmpty) }
+                            ?.map { File(photoDir, it).path }
+                            ?.ifEmpty { null },
+                    )
             },
         )
     }

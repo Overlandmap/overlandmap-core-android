@@ -38,11 +38,17 @@ data class Waypoint(
     override val isIntersection: Boolean = false,
     override val isCafe: Boolean = false,
     override val isFerry: Boolean = false,
+    override val isWaterfall: Boolean = false,
+    override val swimming: Boolean = false,
     /** Access / opening status of this waypoint, and its free-text detail. */
     override val openKind: OpenKind? = null,
     override val openDetails: String? = null,
+    /** Unmodelled scalar fields of the export (`sidebarDocId`, table columns…), see [scalarExtras]. */
+    val extra: Map<String, Any?> = emptyMap(),
 ) : WaypointType {
     companion object {
+        private val KNOWN = arrayOf("description", "ele", "geohash", "hasFuel", "hasHotel", "isBivouac", "isBorder", "isBridge", "isCafe", "isEmbassy", "isFerry", "isHistoricalSite", "isHotSpring", "isIntersection", "isMountainPass", "isPoliceCheckpoint", "isReligiousSite", "isViewpoint", "isWaterCrossing", "isWaterfall", "itineraryId", "location", "maki", "name", "openDetails", "openKind", "swimming", "trackPackId", "translatedDesc", "translatedName", "type")
+
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Waypoint(
             documentId = documentId,
             trackPackId = FS.str(data["trackPackId"]) ?: "",
@@ -73,8 +79,11 @@ data class Waypoint(
             isIntersection = FS.bool(data["isIntersection"]),
             isCafe = FS.bool(data["isCafe"]),
             isFerry = FS.bool(data["isFerry"]),
+            isWaterfall = FS.bool(data["isWaterfall"]),
+            swimming = FS.bool(data["swimming"]),
             openKind = OpenKind.fromRaw(FS.str(data["openKind"])),
             openDetails = FS.str(data["openDetails"]),
+            extra = scalarExtras(data, *KNOWN),
         )
     }
 }

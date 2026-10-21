@@ -10,6 +10,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Recording a track or navigating keeps GPS running with the screen off (TrackingService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Voice waypoints. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Position for corrections and shared waypoints; reading the GPS tags of a picked photo. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
 
     <application>
 
@@ -31,6 +39,11 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- Keeps location updates alive while recording a track or navigating. -->
+        <service
+            android:name="ch.overlandmap.map.tracking.TrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
         <!-- Persist the language chosen in Settings across app restarts. -->
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"

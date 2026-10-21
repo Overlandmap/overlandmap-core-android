@@ -13,6 +13,9 @@ import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
+import com.android.billingclient.api.QueryPurchasesParams
+import com.android.billingclient.api.acknowledgePurchase
+import com.android.billingclient.api.queryPurchasesAsync
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +32,9 @@ sealed interface PurchaseOutcome {
     /** The user backed out of the Play dialog; no error to show. */
     object Cancelled : PurchaseOutcome
     data class Failed(val message: String) : PurchaseOutcome
+
+    /** Play is waiting for the payment (e.g. cash or a slow bank); the purchase can still complete later. */
+    object Pending : PurchaseOutcome
     /**
      * Play reported the purchase and the token was accepted by the
      * `validateGoogleToken` function. The purchase only counts once its
@@ -49,6 +55,8 @@ class BillingManager(
     private val scope: CoroutineScope,
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance(),
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    /** The id the backend ties store purchases to (see AccountRepository.purchaseUuid). */
+    private val uuidProvider: suspend () -> String? = { null },
 ) : PurchasesUpdatedListener {
 
     /** Product ID → localized price, for the shop UI. */
@@ -65,6 +73,13 @@ class BillingManager(
         .build()
 
     private var productDetails: Map<String, ProductDetails> = emptyMap()
+
+    /**
+     * Who started the running purchase. Captured when the flow starts: the user could sign out
+     * before Play answers, and the purchase must be validated for the account that paid.
+     */
+    @Volatile
+    private var buyerUid: String? = null
 
     /**
      * Connects to Play (once) and loads the details of the given product IDs.
@@ -188,6 +203,7 @@ class BillingManager(
                 )
             )
             .build()
+        buyerUid = auth.currentUser?.uid
         val code = client.launchBillingFlow(activity, params).responseCode
         Log.d(TAG, "buy: launchBillingFlow code=$code for $productId")
         return code == BillingClient.BillingResponseCode.OK
@@ -195,10 +211,14 @@ class BillingManager(
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
         when {
-            result.responseCode == BillingClient.BillingResponseCode.OK && purchases != null ->
+            result.responseCode == BillingClient.BillingResponseCode.OK && purchases != null -> {
                 purchases
                     .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
                     .forEach { purchase -> scope.launch { validateAndAcknowledge(purchase) } }
+                if (purchases.any { it.purchaseState == Purchase.PurchaseState.PENDING }) {
+                    outcomes.tryEmit(PurchaseOutcome.Pending)
+                }
+            }
             result.responseCode == BillingClient.BillingResponseCode.USER_CANCELED ->
                 outcomes.tryEmit(PurchaseOutcome.Cancelled)
             else -> outcomes.tryEmit(
@@ -212,14 +232,7 @@ class BillingManager(
     private suspend fun validateAndAcknowledge(purchase: Purchase) {
         val productId = purchase.products.firstOrNull() ?: return
         try {
-            functions.getHttpsCallable("validateGoogleToken").call(
-                mapOf(
-                    "token" to purchase.purchaseToken,
-                    "productId" to productId,
-                    "userId" to auth.currentUser?.uid,
-                    "appVersion" to appVersion(),
-                )
-            ).await()
+            validate(purchase, productId, buyerUid ?: auth.currentUser?.uid)
             acknowledge(purchase)
             outcomes.tryEmit(PurchaseOutcome.Validated(productId))
         } catch (e: Exception) {
@@ -228,19 +241,73 @@ class BillingManager(
         }
     }
 
+    /** Sends the purchase token to the backend; throws when the call fails or answers `{error}`. */
+    private suspend fun validate(purchase: Purchase, productId: String, uid: String?) {
+        val payload = buildMap<String, Any?> {
+            put("token", purchase.purchaseToken)
+            put("productId", productId)
+            put("userId", uid)
+            put("appVersion", appVersion())
+            uuidProvider()?.let { put("uuid", it) }
+        }
+        val response = functions.getHttpsCallable("validateGoogleToken").call(payload).await()
+        PurchaseRules.validationError(response.getData())?.let { throw IllegalStateException(it) }
+    }
+
+    /**
+     * Re-validates what Play says the user owns (iOS "Restore purchases"): purchases whose
+     * validation was interrupted, or whose document got lost, are sent to the backend again.
+     * Returns how many purchases were validated.
+     */
+    suspend fun restorePurchases(): Int {
+        check(ensureConnected()) { "Google Play is not available" }
+        val owned = ownedPurchases()
+        owned.forEach { purchase ->
+            val productId = purchase.products.firstOrNull() ?: return@forEach
+            validate(purchase, productId, auth.currentUser?.uid)
+            acknowledge(purchase)
+        }
+        return owned.size
+    }
+
+    /**
+     * Silently validates and acknowledges purchases that Play reports as paid but not yet
+     * acknowledged (the app was killed or offline mid-flow). Play refunds a purchase that stays
+     * unacknowledged for three days, so this runs whenever an account is signed in.
+     */
+    suspend fun reconcileUnacknowledged() {
+        if (!ensureConnected()) return
+        ownedPurchases().filterNot { it.isAcknowledged }.forEach { purchase ->
+            val productId = purchase.products.firstOrNull() ?: return@forEach
+            runCatching {
+                validate(purchase, productId, auth.currentUser?.uid)
+                acknowledge(purchase)
+            }.onFailure { Log.w(TAG, "Reconcile of $productId failed", it) }
+        }
+    }
+
+    private suspend fun ownedPurchases(): List<Purchase> {
+        val result = client.queryPurchasesAsync(
+            QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
+        )
+        return result.purchasesList.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+    }
+
     private fun appVersion(): String = try {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "android"
     } catch (_: Exception) {
         "android"
     }
 
+    /** Acknowledges the purchase; a failure is logged and retried by [reconcileUnacknowledged]. */
     private suspend fun acknowledge(purchase: Purchase) {
         if (purchase.isAcknowledged) return
         val params = AcknowledgePurchaseParams.newBuilder()
             .setPurchaseToken(purchase.purchaseToken)
             .build()
-        suspendCancellableCoroutine { cont ->
-            client.acknowledgePurchase(params) { cont.resume(Unit) }
+        val result = client.acknowledgePurchase(params)
+        if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+            Log.w(TAG, "acknowledge failed: ${result.responseCode} ${result.debugMessage}")
         }
     }
 

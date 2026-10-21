@@ -4,11 +4,12 @@ import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.overlandmap.map.OverlandApp
-import ch.overlandmap.map.billing.PurchaseOutcome
+import ch.overlandmap.map.billing.PurchaseController
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.model.Asset
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
+import ch.overlandmap.map.model.sortedForDisplay
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.TrackPack
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -64,11 +65,16 @@ class LocalPackViewModel(
     /** Product ID → localized Play price, for the "purchase all itineraries" button. */
     val prices = app.billingManager.prices
 
+    private val purchase = PurchaseController(app, viewModelScope, owned)
+
     /** True while a purchase is being processed; the button shows a spinner. */
-    val purchasing = MutableStateFlow(false)
+    val purchasing = purchase.purchasing
 
     /** Error of the last purchase attempt, shown under the button. */
-    val purchaseError = MutableStateFlow<String?>(null)
+    val purchaseError = purchase.error
+
+    /** Play is waiting for the payment (the purchase may still complete later). */
+    val purchasePending = purchase.pending
 
     /** The `itineraryId` slug of the itinerary picked on the map or in the list. */
     val selectedItineraryId = MutableStateFlow<String?>(null)
@@ -96,23 +102,6 @@ class LocalPackViewModel(
 
     init {
         load()
-        // Stop the purchase spinner when Play cancels/fails, and once the
-        // validated purchase lands in Firestore (owned flips true).
-        viewModelScope.launch {
-            app.billingManager.outcomes.collect { outcome ->
-                when (outcome) {
-                    is PurchaseOutcome.Cancelled -> purchasing.value = false
-                    is PurchaseOutcome.Failed -> {
-                        purchasing.value = false
-                        purchaseError.value = outcome.message
-                    }
-                    is PurchaseOutcome.Validated -> Unit
-                }
-            }
-        }
-        viewModelScope.launch {
-            owned.collect { if (it) purchasing.value = false }
-        }
         // Refresh the comment cache; offline the cache keeps its content.
         viewModelScope.launch {
             runCatching { library.refreshComments(packId) }
@@ -141,7 +130,7 @@ class LocalPackViewModel(
             state.value = LocalPackState(
                 loading = false,
                 pack = pack,
-                itineraries = library.itinerariesOf(packId).sortedForGrid(),
+                itineraries = library.itinerariesOf(packId).sortedForDisplay(freeFirst = pack?.isFreeSample == true || pack?.isFreeItineraryOnly == true),
                 sidebars = library.sidebars(packId),
             )
             // A free sample offers to buy/download the full pack, so resolve its
@@ -173,13 +162,7 @@ class LocalPackViewModel(
 
     /** Starts the Play purchase of the full pack; requires a signed-in user. */
     fun buy(activity: Activity) {
-        val productId = state.value.pack?.productId ?: return
-        purchaseError.value = null
-        if (app.billingManager.buy(activity, productId)) {
-            purchasing.value = true
-        } else {
-            purchaseError.value = "Product not available"
-        }
+        purchase.buy(activity, state.value.pack?.productId)
     }
 
     /** Downloads the full (purchased) pack, replacing the local sample. */
@@ -257,13 +240,3 @@ class LocalPackViewModel(
         }
     }
 }
-
-/**
- * Grid order: free itineraries first, then by the numeric suffix of the
- * `itineraryId` slug (K1, K2, … K25 rather than K1, K10, K11, …).
- */
-private fun List<Itinerary>.sortedForGrid(): List<Itinerary> = sortedWith(
-    compareByDescending<Itinerary> { it.isFree }
-        .thenBy { it.itineraryId.takeLastWhile(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }
-        .thenBy { it.itineraryId },
-)

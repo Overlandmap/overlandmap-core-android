@@ -30,7 +30,7 @@ data class Itinerary(
     val translatedHighlights: Map<String, String>? = null,
     val trackIds: List<String> = emptyList(),
     val lengthKM: Double = 0.0,
-    val lengthDays: Double = 0.0,
+    val lengthDays: Int = 0,
     val difficulty: String = ItineraryDifficulty.NORMAL.raw,
     val fuelRange: Double? = null,
     val offroadPercent: Int? = null,
@@ -42,9 +42,14 @@ data class Itinerary(
      */
     val isBuyable: Boolean = false,
     val permit: Boolean = false,
+    /** A beta release (`beta`), shown with a badge. */
+    val isBeta: Boolean = false,
     val lovesCount: Int = 0,
     val titlePhotoId: String? = null,
     val titleBlurHash: String? = null,
+    /** Photo captions; indexed for search along with the description. */
+    val titlePhotoCaption: String? = null,
+    val otherPhotoCaptions: List<String>? = null,
     val latMin: Double? = null,
     val latMax: Double? = null,
     val lonMin: Double? = null,
@@ -59,6 +64,8 @@ data class Itinerary(
     val localOtherPhotoPaths: List<String>? = null,
     /** When this itinerary was last opened locally (epoch millis); local-only. */
     val lastOpenedAt: Long? = null,
+    /** Unmodelled scalar fields of the export (`sidebarDocId`, `editorId`, …), see [scalarExtras]. */
+    val extra: Map<String, Any?> = emptyMap(),
 ) {
     val titlePhotoUrl: String?
         get() = localPhotoPath?.let { "file://$it" } ?: titlePhotoId?.let(AppConfig::photoUrl)
@@ -73,15 +80,25 @@ data class Itinerary(
     fun highlights(lang: String): String? = localized(highlights, translatedHighlights, lang)
 
     /**
-     * The text an itinerary contributes to the search index in [lang]: its
-     * description plus road conditions and highlights, so a search matches any
-     * of them.
+     * The text an itinerary contributes to the search index in [lang] (iOS `TrackPackImporter`):
+     * the description, then highlights, road conditions and the photo captions, one per line.
+     * Only an exact [lang] key is used for the translation, as the index has one table per language.
      */
-    fun indexableDescription(lang: String): String =
-        listOfNotNull(description(lang), roadConditions(lang), highlights(lang))
+    fun indexableDescription(lang: String): String {
+        val body = translatedDesc?.get(lang) ?: description.orEmpty()
+        val captions = ((listOf(titlePhotoCaption) + (otherPhotoCaptions ?: emptyList())).filterNotNull())
             .joinToString("\n")
+        val parts = listOfNotNull(
+            translatedHighlights?.get(lang) ?: highlights,
+            translatedRoadConditions?.get(lang) ?: roadConditions,
+            captions.ifEmpty { null },
+        )
+        return if (parts.isEmpty()) body else body + "\n" + parts.joinToString("\n")
+    }
 
     companion object {
+        private val KNOWN = arrayOf("beta", "center", "createdAt", "description", "difficulty", "fuelRange", "highlights", "isBuyable", "isFree", "itineraryId", "lastUpdate", "latMax", "latMin", "lengthDays", "lengthKM", "lonMax", "lonMin", "lovesCount", "name", "offroadPercent", "otherPhotoCaptions", "permit", "roadConditions", "titleBlurHash", "titlePhotoCaption", "titlePhotoId", "trackIds", "trackPackId", "translatedDesc", "translatedHighlights", "translatedName", "translatedRoadConditions")
+
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Itinerary(
             documentId = documentId,
             trackPackId = FS.str(data["trackPackId"]) ?: "",
@@ -96,7 +113,7 @@ data class Itinerary(
             translatedHighlights = FS.stringMap(data["translatedHighlights"]),
             trackIds = FS.stringList(data["trackIds"]) ?: emptyList(),
             lengthKM = FS.double(data["lengthKM"]) ?: 0.0,
-            lengthDays = FS.double(data["lengthDays"]) ?: 0.0,
+            lengthDays = FS.double(data["lengthDays"])?.toInt() ?: 0,
             difficulty = FS.str(data["difficulty"])
                 ?: FS.int(data["difficulty"])?.let { ItineraryDifficulty.entries.getOrNull(it)?.raw }
                 ?: ItineraryDifficulty.NORMAL.raw,
@@ -104,9 +121,12 @@ data class Itinerary(
             offroadPercent = FS.int(data["offroadPercent"]),
             isFree = FS.bool(data["isFree"]),
             permit = FS.bool(data["permit"]),
+            isBeta = FS.bool(data["beta"]),
             lovesCount = FS.int(data["lovesCount"]) ?: 0,
             titlePhotoId = FS.str(data["titlePhotoId"]),
             titleBlurHash = FS.str(data["titleBlurHash"]),
+            titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
+            otherPhotoCaptions = FS.stringList(data["otherPhotoCaptions"]),
             latMin = FS.double(data["latMin"]),
             latMax = FS.double(data["latMax"]),
             lonMin = FS.double(data["lonMin"]),
@@ -115,6 +135,7 @@ data class Itinerary(
             centerLon = FS.geoLon(data["center"]),
             createdAt = FS.millis(data["createdAt"]),
             lastUpdate = FS.millis(data["lastUpdate"]),
+            extra = scalarExtras(data, *KNOWN),
         )
     }
 }

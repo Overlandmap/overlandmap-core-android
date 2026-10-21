@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.overlandmap.map.OverlandApp
-import ch.overlandmap.map.billing.PurchaseOutcome
+import ch.overlandmap.map.billing.PurchaseController
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PackDownloadProgress
 import ch.overlandmap.map.model.Asset
@@ -34,6 +34,8 @@ data class PackDetailState(
     val downloadedItineraryIds: Set<String> = emptySet(),
     /** True when the pack itself is in the local library. */
     val isLocal: Boolean = false,
+    /** True when the local copy is flagged as having a newer version online. */
+    val localNeedsUpdate: Boolean = false,
     val error: String? = null,
 )
 
@@ -73,15 +75,16 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
 
     val prices = app.billingManager.prices
 
-    /**
-     * True from the tap on the buy button until the purchase is either
-     * settled (the validated purchase arrived from Firestore), cancelled or
-     * failed; the button shows a progress wheel meanwhile.
-     */
-    val purchasing = MutableStateFlow(false)
+    private val purchase = PurchaseController(app, viewModelScope, owned)
+
+    /** True from the tap on the buy button until the purchase settled; the button shows a wheel. */
+    val purchasing = purchase.purchasing
 
     /** Error of the last purchase attempt, shown under the button. */
-    val purchaseError = MutableStateFlow<String?>(null)
+    val purchaseError = purchase.error
+
+    /** Play is waiting for the payment (the purchase may still complete later). */
+    val purchasePending = purchase.pending
 
     /**
      * This pack's background download, null when none is running. Declared
@@ -101,27 +104,10 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
                     state.value = state.value.copy(
                         downloadedItineraryIds = downloadedIds(),
                         isLocal = library.trackPack(packId) != null,
+                        localNeedsUpdate = library.trackPack(packId)?.needsUpdate == true,
                     )
                 }
             }
-        }
-        // The progress wheel spins until the flow settles: Play cancelled or
-        // failed stops it right away; after successful validation it keeps
-        // spinning until the purchase document lands in Firestore (below).
-        viewModelScope.launch {
-            app.billingManager.outcomes.collect { outcome ->
-                when (outcome) {
-                    is PurchaseOutcome.Cancelled -> purchasing.value = false
-                    is PurchaseOutcome.Failed -> {
-                        purchasing.value = false
-                        purchaseError.value = outcome.message
-                    }
-                    is PurchaseOutcome.Validated -> Unit
-                }
-            }
-        }
-        viewModelScope.launch {
-            owned.collect { if (it) purchasing.value = false }
         }
     }
 
@@ -148,6 +134,7 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
                     fullPackAsset = fullPackAsset,
                     downloadedItineraryIds = downloadedIds(),
                     isLocal = library.trackPack(packId) != null,
+                    localNeedsUpdate = library.trackPack(packId)?.needsUpdate == true,
                 )
                 Log.d("Billing", "PackDetail ${pack?.documentId}: productId=${pack?.productId}")
                 val productId = pack?.productId
@@ -188,15 +175,9 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
         }
     }
 
-    /** Starts the Play purchase flow; requires a signed-in user. */
+    /** Starts the Play purchase flow; requires a signed-in user with a verified email. */
     fun buy(activity: Activity) {
-        val productId = state.value.pack?.productId ?: return
-        purchaseError.value = null
-        if (app.billingManager.buy(activity, productId)) {
-            purchasing.value = true
-        } else {
-            purchaseError.value = "Product not available"
-        }
+        purchase.buy(activity, state.value.pack?.productId)
     }
 
     /**
@@ -207,6 +188,19 @@ class PackDetailViewModel(private val app: OverlandApp, private val packId: Stri
     fun downloadPack() {
         val pack = state.value.pack ?: return
         app.packDownloadManager.startFullPack(packId, pack.name)
+    }
+
+    /**
+     * Replaces the local copy with the current version: deletes it, then downloads the purchased
+     * pack again (iOS "Update" on the tile).
+     */
+    fun updatePack() {
+        val pack = state.value.pack ?: return
+        viewModelScope.launch {
+            library.deletePack(packId)
+            app.packDownloadManager.startFullPack(packId, pack.name)
+            state.value = state.value.copy(isLocal = false, localNeedsUpdate = false)
+        }
     }
 
     /** Downloads the full purchased pack together with the chosen offline maps. */

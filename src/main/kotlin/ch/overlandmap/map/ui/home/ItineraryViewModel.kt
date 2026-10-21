@@ -3,7 +3,6 @@ package ch.overlandmap.map.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.overlandmap.map.OverlandApp
-import ch.overlandmap.map.data.GpsFormat
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
@@ -41,13 +40,6 @@ class ItineraryViewModel(app: OverlandApp, private val itineraryId: String) : Vi
     fun selectStep(index: Int) {
         selectedStepIndex.value = index
     }
-
-    val useMiles = app.userPreferences.useMiles
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-    val useFeet = app.userPreferences.useFeet
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-    val gpsFormat = app.userPreferences.gpsFormat
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GpsFormat.DD)
 
     val comments: StateFlow<List<Comment>> = library.observeComments(itineraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

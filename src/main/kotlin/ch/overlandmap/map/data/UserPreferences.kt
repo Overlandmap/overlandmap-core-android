@@ -15,6 +15,8 @@ import ch.overlandmap.map.map.BaseMapStyle
 import ch.overlandmap.map.map.MapStyleOptions
 import ch.overlandmap.map.model.WaypointCategory
 import ch.overlandmap.map.map.MapboxStyleKind
+import ch.overlandmap.map.units.GpsFormat
+import ch.overlandmap.map.units.UnitFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -52,8 +54,26 @@ class UserPreferences(private val context: Context) {
     private val fontSizeKey = stringPreferencesKey("font_size")
     private val onboardingShownKey = booleanPreferencesKey("onboarding_shown")
 
-    val useMiles: Flow<Boolean> = context.dataStore.data.map { it[useMilesKey] ?: false }
-    val useFeet: Flow<Boolean> = context.dataStore.data.map { it[useFeetKey] ?: false }
+    // Until the user chooses, each unit axis follows the device region (iOS parity).
+    val useMiles: Flow<Boolean> =
+        context.dataStore.data.map { it[useMilesKey] ?: !deviceDefault().distanceMetric }
+    val useFeet: Flow<Boolean> =
+        context.dataStore.data.map { it[useFeetKey] ?: !deviceDefault().heightMetric }
+
+    /** The four independent unit axes combined, as consumed by the `UnitFormatter`. */
+    val unitFormat: Flow<UnitFormat> = context.dataStore.data.map { p ->
+        val fallback = deviceDefault()
+        UnitFormat(
+            heightMetric = !(p[useFeetKey] ?: !fallback.heightMetric),
+            distanceMetric = !(p[useMilesKey] ?: !fallback.distanceMetric),
+            temperatureCelsius = !(p[useFahrenheitKey] ?: !fallback.temperatureCelsius),
+            gpsFormat = p[gpsFormatKey]?.let { runCatching { GpsFormat.valueOf(it) }.getOrNull() }
+                ?: GpsFormat.DD,
+        )
+    }
+
+    /** [unitFormat] read synchronously, to seed UI state before the flow emits. */
+    fun unitFormatNow(): UnitFormat = runBlocking { unitFormat.first() }
 
     /** Debug: overlay the current map zoom on the itinerary map (default off). */
     val debugShowZoom: Flow<Boolean> = context.dataStore.data.map { it[debugShowZoomKey] ?: false }
@@ -98,7 +118,8 @@ class UserPreferences(private val context: Context) {
     }
 
     /** Temperature unit preference: Fahrenheit when true, Celsius when false. */
-    val useFahrenheit: Flow<Boolean> = context.dataStore.data.map { it[useFahrenheitKey] ?: false }
+    val useFahrenheit: Flow<Boolean> =
+        context.dataStore.data.map { it[useFahrenheitKey] ?: !deviceDefault().temperatureCelsius }
 
     suspend fun setUseFahrenheit(value: Boolean) {
         context.dataStore.edit { it[useFahrenheitKey] = value }
@@ -262,46 +283,53 @@ class UserPreferences(private val context: Context) {
         context.dataStore.edit { it[floatPreferencesKey("split_$key")] = fraction }
     }
 
+    // ── Saved navigation (so a killed app can resume) ───────────────────────
+
+    fun savedNavigationNow(): String? = runBlocking {
+        context.dataStore.data.first()[stringPreferencesKey("saved_navigation")]
+    }
+
+    suspend fun setSavedNavigation(json: String?) {
+        context.dataStore.edit {
+            val key = stringPreferencesKey("saved_navigation")
+            if (json == null) it.remove(key) else it[key] = json
+        }
+    }
+
+    // ── Overlanding tab state (camera, selection, tab choices, legend) ──────
+
+    /** A free-form string stored under `overlanding.<name>`; null if never saved. */
+    fun overlandingStringNow(name: String): String? = runBlocking {
+        context.dataStore.data.first()[stringPreferencesKey("overlanding.$name")]
+    }
+
+    suspend fun setOverlandingString(name: String, value: String?) {
+        context.dataStore.edit {
+            val key = stringPreferencesKey("overlanding.$name")
+            if (value == null) it.remove(key) else it[key] = value
+        }
+    }
+
+    fun overlandingBooleanNow(name: String, default: Boolean): Boolean = runBlocking {
+        context.dataStore.data.first()[booleanPreferencesKey("overlanding.$name")] ?: default
+    }
+
+    suspend fun setOverlandingBoolean(name: String, value: Boolean) {
+        context.dataStore.edit { it[booleanPreferencesKey("overlanding.$name")] = value }
+    }
+
     companion object {
         /** Map labels keep each place's local name. */
         const val MAP_LANGUAGE_NATIVE = "native"
 
-        fun formatDistanceKm(km: Double, useMiles: Boolean): String =
-            if (useMiles) "%.0f mi".format(km * 0.621371) else "%.0f km".format(km)
-
-        fun formatElevationM(meters: Int, useFeet: Boolean): String =
-            if (useFeet) "${(meters * 3.28084).toInt()} ft" else "$meters m"
-
-        fun formatTemperature(celsius: Int, useFahrenheit: Boolean): String =
-            if (useFahrenheit) "${(celsius * 9 / 5) + 32} °F" else "$celsius °C"
-
-        /** Format coordinates according to the chosen GPS format. */
-        fun formatCoordinates(lat: Double, lon: Double, format: GpsFormat): String =
-            when (format) {
-                GpsFormat.DD -> "%.5f, %.5f".format(lat, lon)
-                GpsFormat.DDMM -> "${ddToddmm(lat, true)}, ${ddToddmm(lon, false)}"
-                GpsFormat.DDMMSS -> "${ddToddmmss(lat, true)}, ${ddToddmmss(lon, false)}"
-            }
-
-        private fun ddToddmm(decimal: Double, isLat: Boolean): String {
-            val abs = Math.abs(decimal)
-            val deg = abs.toInt()
-            val min = (abs - deg) * 60
-            val suffix = if (isLat) { if (decimal >= 0) "N" else "S" }
-            else { if (decimal >= 0) "E" else "W" }
-            return "%d°%06.3f'%s".format(deg, min, suffix)
-        }
-
-        private fun ddToddmmss(decimal: Double, isLat: Boolean): String {
-            val abs = Math.abs(decimal)
-            val deg = abs.toInt()
-            val minFull = (abs - deg) * 60
-            val min = minFull.toInt()
-            val sec = (minFull - min) * 60
-            val suffix = if (isLat) { if (decimal >= 0) "N" else "S" }
-            else { if (decimal >= 0) "E" else "W" }
-            return "%d°%02d'%04.1f\"%s".format(deg, min, sec, suffix)
-        }
+        /**
+         * The unit format implied by the device's *system* region, used until the user
+         * chooses (as on iOS). The system locale is read rather than the app locale, so a
+         * US user running the app in French still gets imperial by default.
+         */
+        private fun deviceDefault(): UnitFormat = UnitFormat.deviceDefault(
+            android.content.res.Resources.getSystem().configuration.locales.get(0)?.country,
+        )
     }
 }
 
@@ -316,11 +344,4 @@ enum class FontSize(val scale: Float) {
     MEDIUM(1f),
     LARGE(1.2f),
     VERY_LARGE(1.45f),
-}
-
-/** GPS coordinate display formats. */
-enum class GpsFormat(val label: String) {
-    DD("DD (decimal)"),
-    DDMM("DD°MM.MMM'"),
-    DDMMSS("DD°MM'SS.S\""),
 }

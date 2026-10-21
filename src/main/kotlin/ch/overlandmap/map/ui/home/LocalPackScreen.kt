@@ -70,6 +70,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.AppMode
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.ui.social.CommentScope
+import ch.overlandmap.map.ui.social.CommentsSection
+import ch.overlandmap.map.billing.PurchaseError
+import ch.overlandmap.map.ui.PurchaseStatus
 import ch.overlandmap.map.data.PackDownloadProgress
 import ch.overlandmap.map.data.SearchResult
 import ch.overlandmap.map.data.local.FtsIndex
@@ -135,6 +139,7 @@ fun LocalPackScreen(
     val prices by viewModel.prices.collectAsState()
     val purchasing by viewModel.purchasing.collectAsState()
     val purchaseError by viewModel.purchaseError.collectAsState()
+    val purchasePending by viewModel.purchasePending.collectAsState()
     val lang = currentLanguage()
     val context = LocalContext.current
     val activity = context.findActivity()
@@ -243,7 +248,7 @@ fun LocalPackScreen(
                                 onDelete = { confirmDelete = true },
                                 onCheckForUpdate = viewModel::checkForUpdate,
                                 onUpdate = viewModel::update,
-                                onShare = { sharePackLink(context, pack.documentId) },
+                                onShare = { shareTrackPackLink(context, pack.editor, pack.name) },
                             )
                         }
                     },
@@ -333,7 +338,7 @@ fun LocalPackScreen(
                                 onDelete = { confirmDelete = true },
                                 onCheckForUpdate = viewModel::checkForUpdate,
                                 onUpdate = viewModel::update,
-                                onShare = { sharePackLink(context, pack.documentId) },
+                                onShare = { shareTrackPackLink(context, pack.editor, pack.name) },
                                 onSettings = openSettings,
                             )
                         }
@@ -346,6 +351,7 @@ fun LocalPackScreen(
                             price = prices[pack.productId],
                             purchasing = purchasing,
                             purchaseError = purchaseError,
+                            purchasePending = purchasePending,
                             downloading = downloadProgress != null,
                             onBuy = {
                                 if (signedIn) activity?.let(viewModel::buy)
@@ -414,7 +420,7 @@ fun LocalPackScreen(
                             openBuyable = it
                         }
                         2 -> SidebarsTab(state.sidebars, lang) { onOpenSidebar(it.documentId) }
-                        3 -> CommentsTab(comments, lang)
+                        3 -> CommentsSection(CommentScope(pack.documentId, pack.documentId, null), comments, lang)
                         4 -> SearchTabContent(onResultClick = { openSearchResult(it) })
                     }
                 }
@@ -502,7 +508,8 @@ private fun SamplePurchaseActions(
     owned: Boolean,
     price: String?,
     purchasing: Boolean,
-    purchaseError: String?,
+    purchaseError: PurchaseError?,
+    purchasePending: Boolean,
     downloading: Boolean,
     onBuy: () -> Unit,
     onDownloadPack: () -> Unit,
@@ -513,16 +520,7 @@ private fun SamplePurchaseActions(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier,
     ) {
-        purchaseError?.let {
-            Surface(shape = MaterialTheme.shapes.small, tonalElevation = 3.dp) {
-                Text(
-                    it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-            }
-        }
+        PurchaseStatus(purchaseError, purchasePending)
         when {
             downloading -> Unit // the progress overlay is already showing
             purchasing -> CircularProgressIndicator()
@@ -633,15 +631,6 @@ private fun PackMenu(
     }
 }
 
-/** Shares the pack's universal link through the system share sheet. */
-private fun sharePackLink(context: Context, packId: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, "https://overlandmap.ch/trackpack/$packId")
-    }
-    context.startActivity(Intent.createChooser(intent, null))
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LocalDescriptionTab(
@@ -690,6 +679,7 @@ private fun LocalItinerariesTab(
                 photoUrl = itinerary.titlePhotoUrl,
                 label = itinerary.name(lang),
                 freeBanner = itinerary.isFree && isSampleDownload,
+                betaBadge = itinerary.isBeta,
                 overlayText = itinerary.itineraryId.ifEmpty { null },
                 onClick = {
                     // A buyable teaser has no steps or tracks to show, so it

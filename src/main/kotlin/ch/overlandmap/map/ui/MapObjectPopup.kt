@@ -70,7 +70,6 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
-import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
 import ch.overlandmap.map.model.Waypoint
@@ -245,8 +244,7 @@ private fun PopupHeader(kind: MapPopupKind) {
         }
         // Name and altitude in a column, the type's icon to the right.
         is MapPopupKind.OfWaypoint -> Row(verticalAlignment = Alignment.CenterVertically) {
-            val app = LocalContext.current.applicationContext as OverlandApp
-            val useFeet by app.userPreferences.useFeet.collectAsState(initial = false)
+            val units = rememberUnitFormatter()
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     kind.waypoint.name(lang),
@@ -256,7 +254,7 @@ private fun PopupHeader(kind: MapPopupKind) {
                 )
                 kind.waypoint.ele?.let {
                     Text(
-                        UserPreferences.formatElevationM(it, useFeet),
+                        units.meters(it.toDouble()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

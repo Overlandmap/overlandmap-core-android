@@ -64,6 +64,7 @@ import ch.overlandmap.map.ui.MapObjectPopup
 import ch.overlandmap.map.ui.MapPopupKind
 import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.overlandApp
+import ch.overlandmap.map.ui.world.OverlandingSelection
 import kotlinx.coroutines.launch
 
 /**
@@ -77,7 +78,7 @@ fun SearchScreen(
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenPack: (packId: String) -> Unit,
     onOpenSidebar: (sidebarId: String) -> Unit,
-    onOpenWorld: () -> Unit,
+    onOpenOverlanding: (OverlandingSelection) -> Unit,
     viewModel: SearchViewModel = viewModel { SearchViewModel(overlandApp()) },
 ) {
     val query by viewModel.query.collectAsState()
@@ -113,9 +114,10 @@ fun SearchScreen(
                 FtsIndex.TYPE_SIDEBAR -> onOpenSidebar(result.documentId)
                 FtsIndex.TYPE_WAYPOINT ->
                     scope.launch { waypoint = viewModel.waypoint(result.documentId) }
-                FtsIndex.TYPE_COUNTRY,
-                FtsIndex.TYPE_BORDER,
-                FtsIndex.TYPE_BORDER_POST -> onOpenWorld()
+                FtsIndex.TYPE_COUNTRY -> onOpenOverlanding(OverlandingSelection.OfCountry(result.documentId))
+                FtsIndex.TYPE_BORDER -> onOpenOverlanding(OverlandingSelection.OfBorder(result.documentId))
+                FtsIndex.TYPE_BORDER_POST -> onOpenOverlanding(OverlandingSelection.OfBorderPost(result.documentId))
+                FtsIndex.TYPE_ZONE -> onOpenOverlanding(OverlandingSelection.OfZone(result.documentId))
             }
         }
     }
@@ -288,6 +290,6 @@ private fun iconFor(type: String): ImageVector = when (type) {
     FtsIndex.TYPE_SIDEBAR -> Icons.AutoMirrored.Filled.Article
     FtsIndex.TYPE_TRACK_PACK -> Icons.Filled.Layers
     FtsIndex.TYPE_COUNTRY -> Icons.Filled.Public
-    FtsIndex.TYPE_BORDER, FtsIndex.TYPE_BORDER_POST -> Icons.Filled.Flag
+    FtsIndex.TYPE_BORDER, FtsIndex.TYPE_BORDER_POST, FtsIndex.TYPE_ZONE -> Icons.Filled.Flag
     else -> Icons.Filled.Place
 }

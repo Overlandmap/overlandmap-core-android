@@ -13,13 +13,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import ch.overlandmap.map.OverlandApp
-import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.openStatusText
+import ch.overlandmap.map.ui.rememberUnitFormatter
 import ch.overlandmap.map.ui.theme.contentTextStyle
 
 /**
@@ -61,8 +60,7 @@ fun WaypointDialog(
     onLink: ((MarkupLink, String) -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
-    val app = LocalContext.current.applicationContext as OverlandApp
-    val useFeet by app.userPreferences.useFeet.collectAsState(initial = false)
+    val units = rememberUnitFormatter()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(waypoint.name(lang)) },
@@ -70,7 +68,7 @@ fun WaypointDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 waypoint.ele?.let {
                     Text(
-                        UserPreferences.formatElevationM(it, useFeet),
+                        units.meters(it.toDouble()),
                         style = contentTextStyle(MaterialTheme.typography.labelLarge),
                     )
                 }

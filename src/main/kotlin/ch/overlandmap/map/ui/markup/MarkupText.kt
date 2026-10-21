@@ -43,7 +43,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
-import ch.overlandmap.map.OverlandApp
+import ch.overlandmap.map.ui.rememberUnitFormatter
 import ch.overlandmap.map.ui.theme.LocalContentTextScale
 import ch.overlandmap.map.ui.theme.scaledBy
 
@@ -63,12 +63,11 @@ fun MarkupText(
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current,
     onLinkClick: ((link: MarkupLink, shownText: String) -> Unit)? = null,
+    /** Enables the `::Title::` paragraph form; only sidebars use it. */
+    allowsTitles: Boolean = false,
 ) {
-    val app = LocalContext.current.applicationContext as OverlandApp
-    val useMiles by app.userPreferences.useMiles.collectAsState(initial = false)
-    val useFeet by app.userPreferences.useFeet.collectAsState(initial = false)
-    val units = MarkupUnits(useMiles, useFeet)
-    val paragraphs = remember(text, units) { Markup.parse(text, units) }
+    val units = rememberUnitFormatter()
+    val paragraphs = remember(text, units, allowsTitles) { Markup.parse(text, units, allowsTitles) }
 
     // Content markup scales with the user's text-size setting; titles are
     // derived from this base size (see spanStyleFor), so they scale with it.
@@ -134,7 +133,7 @@ private fun MarkupParagraph(
         nodes.forEach { node ->
             when (node) {
                 is MarkupNode.Span -> withStyle(spanStyleFor(node.style, style)) { append(node.text) }
-                is MarkupNode.Link -> appendLink(node, onLinkClick, inlineContent)
+                is MarkupNode.Link -> appendLink(node, style, onLinkClick, inlineContent)
             }
         }
     }
@@ -143,12 +142,15 @@ private fun MarkupParagraph(
 
 private fun AnnotatedString.Builder.appendLink(
     node: MarkupNode.Link,
+    base: TextStyle,
     onLinkClick: ((MarkupLink, String) -> Unit)?,
     inlineContent: MutableMap<String, InlineTextContent>,
 ) {
     val body: AnnotatedString.Builder.() -> Unit = {
         if (node.text.isNotEmpty()) {
-            withStyle(SpanStyle(color = LinkColor)) { append(node.text) }
+            withStyle(SpanStyle(color = LinkColor).merge(spanStyleFor(node.style, base))) {
+                append(node.text)
+            }
         }
         // A bare step link `(:::5)` also shows the map's numbered circle.
         node.target.ownStepId?.let { stepId ->

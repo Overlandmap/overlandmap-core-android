@@ -14,7 +14,8 @@ enum class OpenKind(val raw: String) {
     OTHER("other");
 
     companion object {
-        /** The kind for [raw], or null when absent or unrecognized. */
-        fun fromRaw(raw: String?): OpenKind? = raw?.let { r -> entries.firstOrNull { it.raw == r } }
+        /** The kind for [raw]: null when absent, [OTHER] when unrecognized (as on iOS and in Dart). */
+        fun fromRaw(raw: String?): OpenKind? =
+            raw?.let { r -> entries.firstOrNull { it.raw == r } ?: OTHER }
     }
 }

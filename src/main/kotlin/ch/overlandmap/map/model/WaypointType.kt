@@ -38,6 +38,8 @@ interface WaypointType {
     val isIntersection: Boolean
     val isCafe: Boolean
     val isFerry: Boolean
+    val isWaterfall: Boolean
+    val swimming: Boolean
 
     /** Access / opening status, and its free-text detail. */
     val openKind: OpenKind?

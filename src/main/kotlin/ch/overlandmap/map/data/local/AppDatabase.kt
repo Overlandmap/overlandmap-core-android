@@ -20,10 +20,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackRow::class, WaypointRow::class, SidebarRow::class, CommentRow::class,
         PackAssetRow::class, CountryRow::class, CountryBorderRow::class, BorderPostRow::class,
         ContributedWaypointRow::class, CheckInRow::class, VoteRow::class,
-        ClimateRow::class, DiscussionRow::class, SocialSyncRow::class,
+        ClimateRow::class, DiscussionRow::class, SyncStateRow::class, ZoneRow::class,
+        SettingRow::class, SchemaMetaRow::class, DownloadItemRow::class,
     ],
-    version = 14,
-    exportSchema = false,
+    version = 15,
+    // The schema JSON (core/schemas) is what the golden-schema test compares with iOS.
+    exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
@@ -35,13 +37,13 @@ abstract class AppDatabase : RoomDatabase() {
         private var instance: AppDatabase? = null
 
         /** The current schema version this build of the app expects. */
-        const val CURRENT_VERSION = 14
+        const val CURRENT_VERSION = 15
 
         /**
          * The minimum on-disk version we can migrate from without data loss.
          * Databases older than this require a destructive reset (user consent).
          */
-        const val MIN_COMPATIBLE_VERSION = 14
+        const val MIN_COMPATIBLE_VERSION = 15
 
         /** Database file name, shared with [onDiskVersion]. */
         private const val DB_NAME = "overlandmap.db"
@@ -99,8 +101,14 @@ abstract class AppDatabase : RoomDatabase() {
                     // lives in raw FTS4 tables Room doesn't model; create them
                     // with the database (and defensively on every open).
                     .addCallback(object : RoomDatabase.Callback() {
-                        override fun onCreate(db: SupportSQLiteDatabase) =
+                        override fun onCreate(db: SupportSQLiteDatabase) {
                             FtsIndex.createTables(db)
+                            // Stamp the schema generation, as iOS does in `schema_meta`.
+                            db.execSQL(
+                                "INSERT OR REPLACE INTO schema_meta (name, value) VALUES ('version', ?)",
+                                arrayOf(CURRENT_VERSION.toString()),
+                            )
+                        }
 
                         override fun onOpen(db: SupportSQLiteDatabase) =
                             FtsIndex.createTables(db)

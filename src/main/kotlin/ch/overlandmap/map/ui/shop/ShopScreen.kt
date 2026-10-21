@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
+import ch.overlandmap.map.data.PackDownloadProgress
+import ch.overlandmap.map.ui.BetaBadge
 import ch.overlandmap.map.data.LibraryRepository
 import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.ui.MapObjectPopup
@@ -66,6 +68,8 @@ fun ShopScreen(
     val state by viewModel.state.collectAsState()
     val owned by viewModel.ownedPackIds.collectAsState()
     val prices by viewModel.prices.collectAsState()
+    val localPacks by viewModel.localPacks.collectAsState()
+    val downloads by viewModel.downloads.collectAsState()
     val selectedPackId by viewModel.selectedPackId.collectAsState()
     val lang = currentLanguage()
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -131,6 +135,7 @@ fun ShopScreen(
                             lang = lang,
                             owned = pack.documentId in owned,
                             price = prices[pack.productId],
+                            status = packStatus(pack.documentId in owned, localPacks[pack.documentId], downloads[pack.documentId]),
                             selected = pack.documentId == selectedPackId,
                             onClick = { onOpenPack(pack.documentId) },
                             onZoomToPack = {
@@ -181,6 +186,7 @@ private fun PackRow(
     lang: String,
     owned: Boolean,
     price: String?,
+    status: PackStatus,
     selected: Boolean,
     onClick: () -> Unit,
     onZoomToPack: () -> Unit,
@@ -218,12 +224,31 @@ private fun PackRow(
                 }
             }
             Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(pack.name(lang), style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(pack.name(lang), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f, fill = false))
+                    if (pack.isBeta) BetaBadge(Modifier.padding(start = 6.dp))
+                }
                 Text(
                     stringResource(R.string.itinerary_count, pack.nbItineraries),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Owned packs say where they stand: downloading, on the device, to update, failed.
+                val label = when (status) {
+                    PackStatus.NONE, PackStatus.DOWNLOADABLE -> null
+                    PackStatus.DOWNLOADING -> stringResource(R.string.downloading)
+                    PackStatus.LOCAL -> stringResource(R.string.downloaded)
+                    PackStatus.UPDATABLE -> stringResource(R.string.update)
+                    PackStatus.FAILED -> stringResource(R.string.retry)
+                }
+                label?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (status == PackStatus.FAILED) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
             IconButton(onClick = onZoomToPack) {
                 Icon(
@@ -234,4 +259,16 @@ private fun PackRow(
             }
         }
     }
+}
+
+/** Where an owned pack stands on this device (iOS `TileDownloadState`). */
+enum class PackStatus { NONE, DOWNLOADABLE, DOWNLOADING, LOCAL, UPDATABLE, FAILED }
+
+internal fun packStatus(owned: Boolean, localNeedsUpdate: Boolean?, progress: PackDownloadProgress?): PackStatus = when {
+    progress?.error != null -> PackStatus.FAILED
+    progress != null && !progress.done -> PackStatus.DOWNLOADING
+    localNeedsUpdate == true -> PackStatus.UPDATABLE
+    localNeedsUpdate == false -> PackStatus.LOCAL
+    owned -> PackStatus.DOWNLOADABLE
+    else -> PackStatus.NONE
 }

@@ -79,6 +79,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import ch.overlandmap.map.navigation.beginNavigation
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -109,8 +110,15 @@ import ch.overlandmap.map.map.Flyover
 import ch.overlandmap.map.map.MapStyleOptions
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
-import ch.overlandmap.map.data.GpsFormat
-import ch.overlandmap.map.data.UserPreferences
+import ch.overlandmap.map.ui.social.rememberAuthGate
+import ch.overlandmap.map.ui.social.ContributedWaypointSheet
+import ch.overlandmap.map.social.SocialRules
+import ch.overlandmap.map.model.asWaypoint
+import ch.overlandmap.map.geo.Coordinate
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Badge
+import ch.overlandmap.map.ui.rememberUnitFormatter
+import ch.overlandmap.map.units.UnitFormatter
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryDifficulty
 import ch.overlandmap.map.model.OpenKind
@@ -129,6 +137,9 @@ import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.shop.CommentsTab
+import ch.overlandmap.map.ui.social.CommentScope
+import ch.overlandmap.map.ui.social.CommentsSection
+import ch.overlandmap.map.ui.social.socialTarget
 import ch.overlandmap.map.ui.theme.contentTextStyle
 import ch.overlandmap.map.ui.zoomToItineraryMapbox
 import ch.overlandmap.map.ui.fitStepsMapbox
@@ -201,6 +212,8 @@ fun ItineraryScreen(
     onOpenPack: (packId: String) -> Unit,
     onOpenSidebar: (sidebarId: String) -> Unit,
     onOpenSettings: () -> Unit = {},
+    /** Called once a navigation along this itinerary has started (to switch to the Nav tab). */
+    onOpenNavigation: () -> Unit = {},
     initialStepId: Int? = null,
     viewModel: ItineraryViewModel = viewModel(key = itineraryId) {
         ItineraryViewModel(overlandApp(), itineraryId)
@@ -209,9 +222,7 @@ fun ItineraryScreen(
     val state by viewModel.state.collectAsState()
     val comments by viewModel.comments.collectAsState()
     val selectedStepIndex by viewModel.selectedStepIndex.collectAsState()
-    val useMiles by viewModel.useMiles.collectAsState()
-    val useFeet by viewModel.useFeet.collectAsState()
-    val gpsFormat by viewModel.gpsFormat.collectAsState()
+    val units = rememberUnitFormatter()
     val lang = currentLanguage()
     // Itinerary state to reapply once, only when restored at cold start.
     val restore = remember { RestoreState.consume(itineraryId) }
@@ -219,6 +230,8 @@ fun ItineraryScreen(
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
+    val isBeta = ch.overlandmap.map.ui.tracking.rememberIsBeta()
+    val withLocationPermission = ch.overlandmap.map.ui.tracking.rememberWithLocationPermission()
     var restoreCam by remember {
         mutableStateOf(restore?.takeIf { it.zoom != null && it.lat != null && it.lon != null })
     }
@@ -254,6 +267,14 @@ fun ItineraryScreen(
     var profileCursor by remember { mutableStateOf<ElevationCursor?>(null) }
     var openWaypoint by remember { mutableStateOf<Waypoint?>(null) }
     var showAddWaypoint by remember { mutableStateOf(false) }
+    // Waypoints shared by the community, drawn on the map with the itinerary's own.
+    val contributed by app.socialRepository.observeContributedWaypoints(itineraryId)
+        .collectAsState(initial = emptyList())
+    val authGate = rememberAuthGate()
+    // Opening the viewer refreshes whatever social data has gone stale (iOS `syncTrackPackSocialData`).
+    LaunchedEffect(state.itinerary?.trackPackId) {
+        state.itinerary?.trackPackId?.let { app.socialRepository.syncTrackPackSocialData(it) }
+    }
     var satelliteMode by remember { mutableStateOf(false) }
     // Auto-zoom: while on, stepping to the next/previous step reframes the map to
     // fit that step and its neighbour. The step viewer's zoom button turns it on;
@@ -309,6 +330,15 @@ fun ItineraryScreen(
                     actions = {
                         ItineraryMenu(
                             satelliteSelected = satelliteSelected,
+                            showNavigation = isBeta,
+                            onNavigate = { reverse ->
+                                withLocationPermission {
+                                    scope.launch {
+                                        val started = app.beginNavigation(itineraryId, reverse, lang)
+                                        if (started) onOpenNavigation()
+                                    }
+                                }
+                            },
                             onShowOnMap = {
                                 mapView?.mapboxMap?.let { m ->
                                     state.itinerary?.let { zoomToItineraryMapbox(m, it) }
@@ -318,7 +348,7 @@ fun ItineraryScreen(
                             onShareLink = {
                                 shareItineraryLink(
                                     context,
-                                    editorId = state.trackPack?.editor,
+                                    editorId = state.itinerary?.let { ch.overlandmap.map.data.linkEditorId(it, state.trackPack) },
                                     packName = state.trackPack?.name,
                                     itineraryId = state.itinerary?.itineraryId ?: "",
                                 )
@@ -390,7 +420,7 @@ fun ItineraryScreen(
                         trackPackId = itinerary.trackPackId,
                         tracks = state.tracks,
                         steps = state.steps,
-                        waypoints = state.waypoints,
+                        waypoints = state.waypoints + contributed.map { it.asWaypoint() },
                         otherWaypoints = state.otherWaypoints,
                         selectedStepId = state.steps.getOrNull(selectedStepIndex)?.stepId,
                         onTapped = { tap ->
@@ -548,6 +578,11 @@ fun ItineraryScreen(
                         Tab(
                             selected = tab == 3,
                             onClick = { tab = 3 },
+                            text = { Text(stringResource(R.string.weather)) },
+                        )
+                        Tab(
+                            selected = tab == 4,
+                            onClick = { tab = 4 },
                             text = { Text(stringResource(R.string.comments)) },
                         )
                     }
@@ -555,15 +590,15 @@ fun ItineraryScreen(
                         0 -> DescriptionTab(
                             itinerary = itinerary,
                             tracks = state.tracks,
-                            useMiles = useMiles,
-                            useFeet = useFeet,
+                            units = units,
                             lang = lang,
                             onLink = onLink,
-                            onAddWaypoint = { showAddWaypoint = true },
+                            onAddWaypoint = { authGate.require(R.string.sign_in_to_add_discussion) { showAddWaypoint = true } },
+                            contributedCount = contributed.size,
                             onProfileCursor = { profileCursor = it },
                         )
                         1 -> StepsTab(
-                            state, selectedStepIndex, lang, useMiles, useFeet, gpsFormat,
+                            state, selectedStepIndex, lang, units,
                             onLink, viewModel::selectStep,
                             onCenterOnStep = { step ->
                                 // Turn on auto-zoom and frame the current step
@@ -575,7 +610,11 @@ fun ItineraryScreen(
                             },
                         )
                         2 -> PhotosTab(state)
-                        3 -> CommentsTab(comments, lang)
+                        3 -> WeatherTab(state.steps, lang)
+                        4 -> CommentsSection(
+                            CommentScope(itinerary.documentId, itinerary.trackPackId, itinerary.documentId),
+                            comments, lang,
+                        )
                     }
                 }
             },
@@ -606,7 +645,7 @@ fun ItineraryScreen(
                         trackPackId = itinerary.trackPackId,
                         tracks = state.tracks,
                         steps = state.steps,
-                        waypoints = state.waypoints,
+                        waypoints = state.waypoints + contributed.map { it.asWaypoint() },
                         otherWaypoints = state.otherWaypoints,
                         selectedStepId = state.steps.getOrNull(selectedStepIndex)?.stepId,
                         onTapped = {},
@@ -644,21 +683,20 @@ fun ItineraryScreen(
                     val lon = waypoint.lon ?: return@WaypointBottomSheet
                     mapView?.mapboxMap?.let { zoomToPointMapbox(it, lat, lon, zoom = 12.0) }
                 },
-                onCheckIn = { /* TODO: check-in for waypoint */ },
-                onCorrection = { /* TODO: correction for waypoint */ },
             )
         }
 
         if (showAddWaypoint) {
-            AlertDialog(
-                onDismissRequest = { showAddWaypoint = false },
-                title = { Text(stringResource(R.string.add_waypoint)) },
-                text = { Text(stringResource(R.string.add_waypoint_coming_soon)) },
-                confirmButton = {
-                    TextButton(onClick = { showAddWaypoint = false }) {
-                        Text(stringResource(android.R.string.ok))
-                    }
+            ContributedWaypointSheet(
+                trackPackId = itinerary.trackPackId,
+                itineraryId = itinerary.documentId,
+                known = state.steps.mapNotNull { st ->
+                    if (st.lat != null && st.lon != null) SocialRules.KnownPoint(st.name, Coordinate(st.lat!!, st.lon!!)) else null
+                } + (state.waypoints + state.otherWaypoints).mapNotNull { wp ->
+                    if (wp.lat != null && wp.lon != null) SocialRules.KnownPoint(wp.name, Coordinate(wp.lat!!, wp.lon!!)) else null
                 },
+                onZoom = { c -> mapView?.mapboxMap?.let { zoomToPointMapbox(it, c.latitude, c.longitude, zoom = 14.0) } },
+                onDismiss = { showAddWaypoint = false },
             )
         }
     }
@@ -668,11 +706,11 @@ fun ItineraryScreen(
 private fun DescriptionTab(
     itinerary: Itinerary,
     tracks: List<Track>,
-    useMiles: Boolean,
-    useFeet: Boolean,
+    units: UnitFormatter,
     lang: String,
     onLink: (MarkupLink, String) -> Unit,
     onAddWaypoint: () -> Unit,
+    contributedCount: Int,
     onProfileCursor: (ElevationCursor?) -> Unit,
 ) {
     Column(
@@ -684,9 +722,10 @@ private fun DescriptionTab(
         // Property box with the add-waypoint action alongside; the other actions
         // moved to the top-bar menu. The description runs full width below.
         Row {
-            PropertiesBox(itinerary, useMiles)
+            PropertiesBox(itinerary, units)
             ItineraryActions(
                 onAddWaypoint = onAddWaypoint,
+                count = contributedCount,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
@@ -722,8 +761,7 @@ private fun DescriptionTab(
         mainTrack?.let { track ->
             ElevationProfile(
                 track = track,
-                useMiles = useMiles,
-                useFeet = useFeet,
+                units = units,
                 onCursor = onProfileCursor,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -779,6 +817,8 @@ private fun BulletedMarkup(
 @Composable
 private fun ItineraryMenu(
     satelliteSelected: Boolean,
+    showNavigation: Boolean,
+    onNavigate: (reverse: Boolean) -> Unit,
     onShowOnMap: () -> Unit,
     onFullScreen: () -> Unit,
     onShareLink: () -> Unit,
@@ -796,6 +836,17 @@ private fun ItineraryMenu(
             text = { Text(stringResource(R.string.show_on_map)) },
             onClick = { open = false; onShowOnMap() },
         )
+        // Navigation is a beta feature.
+        if (showNavigation) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.navigate)) },
+                onClick = { open = false; onNavigate(false) },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.navigation_reverse)) },
+                onClick = { open = false; onNavigate(true) },
+            )
+        }
         DropdownMenuItem(
             text = { Text(stringResource(R.string.full_screen_map)) },
             onClick = { open = false; onFullScreen() },
@@ -872,39 +923,39 @@ private fun FlyoverControls(
 @Composable
 private fun ItineraryActions(
     onAddWaypoint: () -> Unit,
+    count: Int,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onAddWaypoint) {
-            Icon(
-                Icons.Filled.AddLocationAlt,
-                contentDescription = stringResource(R.string.add_waypoint),
-            )
+            if (count > 0) {
+                BadgedBox(badge = { Badge { Text("$count") } }) {
+                    Icon(Icons.Filled.AddLocationAlt, contentDescription = stringResource(R.string.contributed_waypoints))
+                }
+            } else {
+                Icon(Icons.Filled.AddLocationAlt, contentDescription = stringResource(R.string.add_contributed_waypoint))
+            }
         }
     }
 }
 
 /** The top-left box with the four property rows (length, fuel, difficulty, offroad). */
 @Composable
-private fun PropertiesBox(itinerary: Itinerary, useMiles: Boolean) {
+private fun PropertiesBox(itinerary: Itinerary, units: UnitFormatter) {
     Card {
         Column(
             modifier = Modifier.padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            var length = UserPreferences.formatDistanceKm(itinerary.lengthKM, useMiles)
+            var length = units.distanceKm(itinerary.lengthKM)
             if (itinerary.lengthDays > 0) {
-                val days = itinerary.lengthDays.toInt()
+                val days = itinerary.lengthDays
                 length += " · " + pluralStringResource(R.plurals.length_days, days, days)
             }
             PropertyRow(Icons.Filled.Route, MaterialTheme.colorScheme.primary, length)
 
             itinerary.fuelRange?.let { rangeKm ->
-                val fuelText = if (useMiles) {
-                    "${(rangeKm * 0.621371).toInt()} mi"
-                } else {
-                    "${rangeKm.toInt()} km"
-                }
+                val fuelText = units.distanceKm(rangeKm)
                 PropertyRow(
                     Icons.Filled.LocalGasStation,
                     MaterialTheme.colorScheme.primary,
@@ -951,7 +1002,7 @@ private fun difficultyColor(difficulty: ItineraryDifficulty): Color = when (diff
 }
 
 @Composable
-private fun difficultyLabelText(difficulty: ItineraryDifficulty): String = stringResource(
+internal fun difficultyLabelText(difficulty: ItineraryDifficulty): String = stringResource(
     when (difficulty) {
         ItineraryDifficulty.EASY -> R.string.difficulty_easy
         ItineraryDifficulty.NORMAL -> R.string.difficulty_normal
@@ -978,7 +1029,7 @@ private fun offroadColor(percent: Int): Color = when (percent) {
 }
 
 @Composable
-private fun offroadLabel(percent: Int): String = when (percent) {
+internal fun offroadLabel(percent: Int): String = when (percent) {
     0 -> stringResource(R.string.paved)
     30 -> stringResource(R.string.partly_offroad)
     75 -> stringResource(R.string.mostly_offroad)
@@ -991,14 +1042,13 @@ private fun StepsTab(
     state: ItineraryState,
     selectedStepIndex: Int,
     lang: String,
-    useMiles: Boolean,
-    useFeet: Boolean,
-    gpsFormat: GpsFormat,
+    units: UnitFormatter,
     onLink: (MarkupLink, String) -> Unit,
     onSelectStep: (Int) -> Unit,
     onCenterOnStep: (ItineraryStep) -> Unit,
 ) {
     val steps = state.steps
+    val context = LocalContext.current
     if (steps.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.not_available))
@@ -1031,7 +1081,15 @@ private fun StepsTab(
             val step = steps[page]
             var openPhoto by remember(page) { mutableStateOf(false) }
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                StepHeader(step, lang, useMiles, useFeet, gpsFormat, onCenterOnStep)
+                StepHeader(step, lang, units, onCenterOnStep) {
+                    shareItineraryLink(
+                        context,
+                        editorId = state.itinerary?.let { ch.overlandmap.map.data.linkEditorId(it, state.trackPack) },
+                        packName = state.trackPack?.name,
+                        itineraryId = state.itinerary?.itineraryId ?: "",
+                        stepId = step.stepId,
+                    )
+                }
                 // Access status (e.g. "Permit needed: …"), bold kind + details.
                 // Only shown when the step actually has a notable status —
                 // skipped when it is open (the default) or unset.
@@ -1109,10 +1167,10 @@ private fun StepsTab(
 }
 
 /** Coordinates of a step formatted according to the user's preference, or null. */
-private fun ItineraryStep.coordText(gpsFormat: GpsFormat): String? {
+private fun ItineraryStep.coordText(units: UnitFormatter): String? {
     val la = lat ?: return null
     val lo = lon ?: return null
-    return UserPreferences.formatCoordinates(la, lo, gpsFormat)
+    return units.coordinate(la, lo)
 }
 
 /**
@@ -1125,17 +1183,16 @@ private fun ItineraryStep.coordText(gpsFormat: GpsFormat): String? {
 private fun StepHeader(
     step: ItineraryStep,
     lang: String,
-    useMiles: Boolean,
-    useFeet: Boolean,
-    gpsFormat: GpsFormat,
+    units: UnitFormatter,
     onCenterOnStep: (ItineraryStep) -> Unit,
+    onShareStep: () -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val coords = step.coordText(gpsFormat)
+    val coords = step.coordText(units)
     val subtitle = listOfNotNull(
         coords,
-        step.ele?.let { "alt. ${UserPreferences.formatElevationM(it, useFeet)}" },
+        step.ele?.let { "alt. ${units.meters(it.toDouble())}" },
     ).joinToString("  ·  ")
 
     // No bottom padding: the description (or status line) sits directly under
@@ -1172,11 +1229,9 @@ private fun StepHeader(
                     )
                 }
             }
-            val distText = if (useMiles) {
-                "${(step.distanceKm * 0.621371).toInt()} mi"
-            } else {
-                "${step.distanceKm.toInt()} km"
-            }
+            // Whole numbers, as requested for the step header (iOS keeps one decimal
+            // up to 10 km here; wholeNumbers = false restores that).
+            val distText = units.distanceKm(step.distanceKm, wholeNumbers = true)
             Text(
                 distText,
                 style = contentTextStyle(MaterialTheme.typography.titleMedium),
@@ -1198,13 +1253,13 @@ private fun StepHeader(
             )
             Spacer(Modifier.weight(1f))
             // Check-in button with badge and dialog.
-            CheckInButton(step)
-            CorrectionButton(step)
+            CheckInButton(step.socialTarget())
+            CorrectionButton(step.socialTarget())
             IconButton(onClick = { onCenterOnStep(step) }) {
                 Icon(Icons.Filled.ZoomIn, contentDescription = null)
             }
-            IconButton(onClick = {}) {
-                Icon(Icons.Filled.Share, contentDescription = null)
+            IconButton(onClick = onShareStep) {
+                Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share_link))
             }
         }
     }
@@ -1241,8 +1296,10 @@ private fun PhotosTab(state: ItineraryState) {
                     add(viewerPhoto(it.titlePhotoId, it.localPhotoPath, null))
                 }
             }
-            state.itinerary?.localOtherPhotoPaths?.forEach {
-                add(ViewerPhoto("file://$it", placeholderUrl = null, caption = null))
+            state.itinerary?.let { itin ->
+                itin.localOtherPhotoPaths?.forEachIndexed { index, path ->
+                    add(ViewerPhoto("file://$path", placeholderUrl = null, caption = itin.otherPhotoCaptions?.getOrNull(index)))
+                }
             }
             state.steps.forEach { step ->
                 if (step.titlePhotoId != null || step.localPhotoPath != null) {
@@ -1298,7 +1355,7 @@ data class ViewerPhoto(val url: String, val placeholderUrl: String?, val caption
  * Builds a [ViewerPhoto] preferring the high-res online image (from
  * [titlePhotoId]) with the local copy as placeholder/offline fallback.
  */
-private fun viewerPhoto(titlePhotoId: String?, localPhotoPath: String?, caption: String?): ViewerPhoto {
+internal fun viewerPhoto(titlePhotoId: String?, localPhotoPath: String?, caption: String?): ViewerPhoto {
     val local = localPhotoPath?.let { "file://$it" }
     val online = titlePhotoId?.let(AppConfig::fullPhotoUrl)
     return ViewerPhoto(url = online ?: local.orEmpty(), placeholderUrl = local, caption = caption)
@@ -1310,7 +1367,7 @@ private fun viewerPhoto(titlePhotoId: String?, localPhotoPath: String?, caption:
  * caption shows below the photo and a tap toggles its visibility; the X closes.
  */
 @Composable
-private fun FullScreenPhotoViewer(
+internal fun FullScreenPhotoViewer(
     photos: List<ViewerPhoto>,
     startIndex: Int,
     onDismiss: () -> Unit,

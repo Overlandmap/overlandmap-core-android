@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.AlertDialog
@@ -75,8 +76,10 @@ import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.isDebugBuild
+import ch.overlandmap.map.data.AccountRules
 import ch.overlandmap.map.data.FontSize
-import ch.overlandmap.map.data.GpsFormat
+import ch.overlandmap.map.units.GpsFormat
+import ch.overlandmap.map.ui.rememberUnitFormatter
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.overlandApp
@@ -107,8 +110,15 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
 ) {
     val user by viewModel.user.collectAsState()
+    val profile by viewModel.profile.collectAsState()
+    val entitlements by viewModel.entitlements.collectAsState()
+    val emailVerified by viewModel.emailVerified.collectAsState()
+    val isAdmin = entitlements?.hasAdmin == true
     var showSignOutDialog by remember { mutableStateOf(false) }
-    val debugBuild = isDebugBuild(LocalContext.current)
+    val context = LocalContext.current
+    // The tools stay in debuggable builds, and appear for admins in release builds (as on iOS).
+    val showDebug = isDebugBuild(context) || isAdmin
+    LaunchedEffect(Unit) { viewModel.refreshAccount() }
 
     Column(
         modifier = Modifier
@@ -119,10 +129,10 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         ) {
-            val photoUrl = user?.photoUrl
+            val photoUrl = profile?.photoUrl ?: user?.photoUrl?.toString()
             if (photoUrl != null) {
                 AsyncImage(
-                    model = photoUrl.toString(),
+                    model = photoUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.size(64.dp).clip(CircleShape),
@@ -145,23 +155,23 @@ fun SettingsScreen(
             }
             Column(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
                 val current = user
-                if (current == null) {
+                // The profile's name, else the Auth name, else the email's local part (as iOS).
+                val title = AccountRules.displayTitle(profile, current?.displayName, current?.email, current == null)
+                Text(
+                    when (title) {
+                        AccountRules.ANONYMOUS -> stringResource(R.string.anonymous_session)
+                        AccountRules.USER -> stringResource(R.string.user_logged_in)
+                        else -> title
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                val subtitle = profile?.email ?: current?.email
+                if (current != null && subtitle != null) {
                     Text(
-                        stringResource(R.string.not_signed_in),
-                        style = MaterialTheme.typography.titleMedium,
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } else {
-                    Text(
-                        current.displayName?.takeIf { it.isNotBlank() } ?: current.email ?: "",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    if (!current.displayName.isNullOrBlank() && current.email != null) {
-                        Text(
-                            current.email ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
             }
         }
@@ -170,18 +180,27 @@ fun SettingsScreen(
                 Button(onClick = onOpenSignIn) { Text(stringResource(R.string.sign_in)) }
             } else {
                 Column {
-                    val app = LocalContext.current.applicationContext as OverlandApp
-                    if (app.isAdmin) {
+                    if (isAdmin) {
                         Text(
-                            "ADMIN",
+                            stringResource(R.string.admin).uppercase(),
                             color = Color.Red,
                             style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    if (!emailVerified && user?.email != null) {
+                        Text(
+                            stringResource(R.string.email_not_verified),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }
                     OutlinedButton(onClick = { showSignOutDialog = true }) {
                         Text(stringResource(R.string.sign_out))
                     }
+                    // A failed sign-out is reported, not swallowed.
+                    MessageText(viewModel.message.collectAsState().value)
                 }
             }
         }
@@ -242,8 +261,14 @@ fun SettingsScreen(
             onClick = onOpenTerms,
         )
         HorizontalDivider()
-        // Debug tools — only in debuggable builds; absent from release.
-        if (debugBuild) {
+        SubmenuRow(
+            icon = Icons.Filled.Star,
+            label = stringResource(R.string.rate_us),
+            onClick = { openStoreListing(context) },
+        )
+        HorizontalDivider()
+        // Debug tools: debuggable builds, and admins.
+        if (showDebug) {
             SubmenuRow(
                 icon = Icons.Filled.BugReport,
                 label = stringResource(R.string.debug),
@@ -273,6 +298,20 @@ fun SettingsScreen(
     }
 }
 
+/** Opens the app's Play Store page (the Play app when installed, else the website). */
+private fun openStoreListing(context: Context) {
+    val id = context.packageName
+    val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$id")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        context.startActivity(market)
+    } catch (_: android.content.ActivityNotFoundException) {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$id"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+}
+
 @Composable
 private fun SubmenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
     Row(
@@ -295,7 +334,7 @@ private fun SubmenuRow(icon: ImageVector, label: String, onClick: () -> Unit) {
 /** Scaffold shared by the settings sub-screens: back arrow, title, content. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsSubScreen(
+internal fun SettingsSubScreen(
     title: String,
     onBack: () -> Unit,
     content: @Composable () -> Unit,
@@ -320,90 +359,6 @@ private fun SettingsSubScreen(
                 .padding(16.dp),
         ) {
             content()
-        }
-    }
-}
-
-/**
- * Standard sign-in / sign-up screen: email + password (with account
- * creation) or Google Sign-In. Pops back as soon as a real account is
- * signed in.
- */
-@Composable
-fun SignInScreen(
-    onBack: () -> Unit,
-    viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
-) {
-    val user by viewModel.user.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val context = LocalContext.current
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-
-    LaunchedEffect(user) {
-        if (user != null) onBack()
-    }
-
-    SettingsSubScreen(title = stringResource(R.string.sign_in), onBack = onBack) {
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text(stringResource(R.string.email)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text(stringResource(R.string.password)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-        val fieldsFilled = email.isNotBlank() && password.isNotBlank()
-        Button(
-            onClick = { viewModel.signInWithEmail(email, password, createAccount = false) },
-            enabled = fieldsFilled,
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-        ) {
-            Text(stringResource(R.string.sign_in))
-        }
-        TextButton(
-            onClick = { viewModel.signInWithEmail(email, password, createAccount = true) },
-            enabled = fieldsFilled,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.create_account))
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-        ) {
-            HorizontalDivider(modifier = Modifier.weight(1f))
-            Text(
-                stringResource(R.string.or_divider),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp),
-            )
-            HorizontalDivider(modifier = Modifier.weight(1f))
-        }
-
-        OutlinedButton(
-            onClick = { viewModel.signInWithGoogle(context) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.sign_in_google))
-        }
-
-        error?.let {
-            Text(
-                it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 12.dp),
-            )
         }
     }
 }
@@ -576,101 +531,6 @@ private fun openContactUsEmail(context: Context) {
     context.startActivity(intent)
 }
 
-/**
- * Profile submenu: the Firestore user document (live) with display name and
- * email, and the list of validated purchases from `users/{uid}/purchases` —
- * track packs by ID and the pro entitlement with its validity end.
- */
-@Composable
-fun ProfileScreen(
-    onBack: () -> Unit,
-    onOpenSignIn: () -> Unit,
-    viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
-) {
-    val profile by viewModel.profile.collectAsState()
-    val purchases by viewModel.purchases.collectAsState()
-
-    SettingsSubScreen(title = stringResource(R.string.profile), onBack = onBack) {
-        val current = profile
-        if (current == null) {
-            Text(stringResource(R.string.not_signed_in))
-            Button(onClick = onOpenSignIn, modifier = Modifier.padding(top = 12.dp)) {
-                Text(stringResource(R.string.sign_in))
-            }
-            return@SettingsSubScreen
-        }
-
-        current.displayName?.let {
-            Text(it, style = MaterialTheme.typography.titleMedium)
-        }
-        current.email?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Text(
-            stringResource(R.string.purchases),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
-        )
-        if (purchases.isEmpty()) {
-            Text(
-                stringResource(R.string.no_purchases),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        val dateFormat = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
-        purchases.forEach { purchase ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-            ) {
-                Icon(
-                    if (purchase.isPro) Icons.Filled.WorkspacePremium else Icons.Filled.Map,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Column(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                    Text(
-                        if (purchase.isPro) stringResource(R.string.pro_entitlement)
-                        else purchase.documentId,
-                    )
-                    val detail = when {
-                        purchase.isPro && purchase.validityEnd != null ->
-                            if (purchase.isActive) {
-                                stringResource(
-                                    R.string.valid_until,
-                                    dateFormat.format(Date(purchase.validityEnd)),
-                                )
-                            } else {
-                                stringResource(R.string.expired)
-                            }
-                        else -> purchase.purchasedAt?.let { dateFormat.format(Date(it)) }
-                    }
-                    detail?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (purchase.isPro && !purchase.isActive) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                }
-                if (purchase.isActive) {
-                    Text("✓", color = MaterialTheme.colorScheme.primary)
-                }
-            }
-            HorizontalDivider()
-        }
-    }
-}
-
 /** Preferred format for units: distance, height, GPS coordinates, temperature. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -771,10 +631,13 @@ fun UnitsScreen(
                 stringResource(R.string.units_sample),
                 style = MaterialTheme.typography.titleSmall,
             )
-            val distSample = if (useMiles) "328 ft, 18.6 mi" else "100 m, 30 km"
-            val eleSample = if (useFeet) "29029 ft" else "8848 m"
-            val gpsSample = UserPreferences.formatCoordinates(86.9259, 27.9871, gpsFormat)
-            val tempSample = if (useFahrenheit) "68 °F" else "20 °C"
+            // Same sample values as the iOS screen, rendered by the shared formatter.
+            // (Everest: latitude 27.9871, longitude 86.9259.)
+            val units = rememberUnitFormatter()
+            val distSample = "${units.distanceMeters(100.0)}, ${units.distanceKm(30.0)}"
+            val eleSample = units.meters(8848.0)
+            val gpsSample = units.coordinate(27.9871, 86.9259)
+            val tempSample = units.temperature(20.0)
             Text(distSample, style = MaterialTheme.typography.bodyMedium)
             Text(eleSample, style = MaterialTheme.typography.bodyMedium)
             Text(gpsSample, style = MaterialTheme.typography.bodyMedium)

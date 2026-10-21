@@ -25,7 +25,7 @@ class SearchRepository(
 ) {
 
     /** Minimum query length before a search runs (per the spec: after 3 chars). */
-    val minQueryLength = 3
+    val minQueryLength = MIN_QUERY_LENGTH
 
     suspend fun search(query: String, lang: String): List<SearchResult> {
         val trimmed = query.trim()
@@ -55,20 +55,40 @@ class SearchRepository(
                 else -> SearchResult(hit.type, hit.documentId, hit.name, hit.snippet)
             }
         }
-        // Rank by how the query matches the name: names starting with it first,
-        // then names merely containing it, then the rest (matched on their
-        // description). A stable sort keeps the FTS order within each group.
-        val needle = trimmed.lowercase()
-        return results.sortedBy { result ->
-            val name = result.name.lowercase()
-            when {
-                name.startsWith(needle) -> 0
-                name.contains(needle) -> 1
-                else -> 2
-            }
-        }
+        return rank(results, trimmed)
     }
 
     /** The waypoint behind a waypoint hit, to show its popup viewer. */
     suspend fun waypoint(documentId: String) = library.waypointByDocumentId(documentId)
+
+    companion object {
+        /** Minimum query length before a search runs. */
+        const val MIN_QUERY_LENGTH = 3
+
+        private fun fold(text: String): String =
+            java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+                .filter { Character.getType(it) != Character.NON_SPACING_MARK.toInt() }
+                .lowercase()
+
+        /**
+         * Buckets the hits by how [query] matches the name, as iOS does: names starting with it
+         * first, then names containing it, then the rest (matched on their body). A strong body
+         * match must still lose to a weak name match, so this is not relevance scoring. The sort
+         * is stable: within a bucket the index order is kept. Comparison ignores case and accents.
+         */
+        fun <T> rankBy(items: List<T>, query: String, name: (T) -> String): List<T> {
+            val needle = fold(query.trim())
+            return items.sortedBy { item ->
+                val n = fold(name(item))
+                when {
+                    n.startsWith(needle) -> 0
+                    n.contains(needle) -> 1
+                    else -> 2
+                }
+            }
+        }
+
+        fun rank(results: List<SearchResult>, query: String): List<SearchResult> =
+            rankBy(results, query) { it.name }
+    }
 }

@@ -41,6 +41,8 @@ import com.mapbox.maps.Style
 fun MapboxMapView(
     modifier: Modifier = Modifier,
     styleUrl: String,
+    /** The built-in +/- buttons; the navigation screen draws its own. */
+    showZoomControls: Boolean = true,
     onMapReady: (MapView) -> Unit = {},
     onStyleLoaded: (MapboxMap, Style) -> Unit = { _, _ -> },
 ) {
@@ -83,7 +85,7 @@ fun MapboxMapView(
             modifier = Modifier.fillMaxSize(),
             factory = { mapView },
         )
-        Column(
+        if (showZoomControls) Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(12.dp),

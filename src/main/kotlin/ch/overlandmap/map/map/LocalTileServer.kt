@@ -86,6 +86,12 @@ object LocalTileServer : Runnable {
     /** True when the world base map (planet.pmtiles) is available. */
     fun hasPlanet(): Boolean = registry?.hasPlanet() == true
 
+    /** True when the Overlanding vector tiles (country-borders.pmtiles) are installed. */
+    fun hasCountryBorders(): Boolean = registry?.hasCountryBorders() == true
+
+    /** Highest zoom of the country-borders archive, or null. */
+    fun countryBordersMaxZoom(): Int? = registry?.countryBordersMaxZoom()
+
     private fun bindSocket(): ServerSocket? =
         try {
             ServerSocket(PREFERRED_PORT).also {

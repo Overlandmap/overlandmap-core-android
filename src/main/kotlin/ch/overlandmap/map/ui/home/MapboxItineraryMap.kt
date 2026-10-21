@@ -30,6 +30,9 @@ import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.map.MapStyles
 import ch.overlandmap.map.ui.WaypointMarkers
 import ch.overlandmap.map.map.MapboxMapView
+import ch.overlandmap.map.map.addMapboxUserLocationLayer
+import ch.overlandmap.map.map.updateMapboxUserLocation
+import ch.overlandmap.map.ui.tracking.rememberUserLocation
 import ch.overlandmap.map.map.enableSky
 import ch.overlandmap.map.map.enableTerrain
 import ch.overlandmap.map.model.ItineraryStep
@@ -176,6 +179,7 @@ fun MapboxItineraryMap(
     }
     // All maki marker icons, decoded once and registered when the style loads.
     val makiIcons = remember { WaypointMarkers.bitmaps(context) }
+    val userLocation by rememberUserLocation()
     var fitted by remember { mutableStateOf(false) }
     var mapZoom by remember { mutableStateOf<Double?>(null) }
     var localMapView by remember { mutableStateOf<MapView?>(null) }
@@ -228,6 +232,7 @@ fun MapboxItineraryMap(
                 addWaypointLayer(style, waypoints)
                 addOtherWaypointLayer(style)
                 addStepLayers(style, steps)
+                addMapboxUserLocationLayer(style)
                 if (!fitted) {
                     // Restored at cold start: the saved camera; otherwise the
                     // itinerary's extent.
@@ -310,6 +315,10 @@ fun MapboxItineraryMap(
                 MapAnimationOptions.Builder().duration(500L).build(),
             )
         }
+    }
+
+    LaunchedEffect(loadedStyle, userLocation) {
+        loadedStyle?.let { updateMapboxUserLocation(it, userLocation) }
     }
 
     // Swapping the paired layers' filters moves the inverted circle.

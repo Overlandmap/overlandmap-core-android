@@ -43,11 +43,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
-import ch.overlandmap.map.data.GpsFormat
-import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.WaypointMarkers
 import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.social.socialTarget
+import ch.overlandmap.map.ui.rememberUnitFormatter
 
 private val CheckInGreen = Color(0xFF2E7D32)
 private val CorrectionRed = Color(0xFFE53935)
@@ -65,14 +65,11 @@ fun WaypointBottomSheet(
     waypoint: Waypoint,
     onDismiss: () -> Unit,
     onZoom: () -> Unit,
-    onCheckIn: () -> Unit,
-    onCorrection: () -> Unit,
 ) {
     val lang = currentLanguage()
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
-    val gpsFormat by app.userPreferences.gpsFormat.collectAsState(initial = GpsFormat.DD)
-    val useFeet by app.userPreferences.useFeet.collectAsState(initial = false)
+    val units = rememberUnitFormatter()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showShareDialog by remember { mutableStateOf(false) }
@@ -101,10 +98,10 @@ fun WaypointBottomSheet(
                     val lon = waypoint.lon
                     if (lat != null && lon != null) {
                         val coords = buildString {
-                            append(UserPreferences.formatCoordinates(lat, lon, gpsFormat))
+                            append(units.coordinate(lat, lon))
                             waypoint.ele?.let { ele ->
                                 append(", alt. ")
-                                append(UserPreferences.formatElevationM(ele, useFeet))
+                                append(units.meters(ele.toDouble()))
                             }
                         }
                         Text(
@@ -144,13 +141,9 @@ fun WaypointBottomSheet(
                     Icon(Icons.Filled.ZoomIn, contentDescription = stringResource(R.string.zoom_in))
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { onDismiss(); onCheckIn() }) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = stringResource(R.string.check_in), tint = CheckInGreen)
-                }
+                CheckInButton(waypoint.socialTarget())
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { onDismiss(); onCorrection() }) {
-                    Icon(Icons.Filled.ErrorOutline, contentDescription = stringResource(R.string.corrections), tint = CorrectionRed)
-                }
+                CorrectionButton(waypoint.socialTarget())
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { showShareDialog = true }) {
                     Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))
@@ -247,12 +240,7 @@ private fun ShareWaypointDialog(waypoint: Waypoint, onDismiss: () -> Unit) {
                 }
                 // Link
                 TextButton(onClick = {
-                    val url = "https://overlandmap.ch/waypoint/${waypoint.documentId}"
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, url)
-                    }
-                    context.startActivity(Intent.createChooser(intent, null))
+                    shareWaypointLink(context, waypoint.geohash)
                     onDismiss()
                 }) {
                     Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(20.dp))

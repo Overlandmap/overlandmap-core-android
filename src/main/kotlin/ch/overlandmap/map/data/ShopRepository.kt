@@ -5,6 +5,7 @@ import ch.overlandmap.map.model.AppUser
 import ch.overlandmap.map.model.Asset
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
+import ch.overlandmap.map.model.sortedForDisplay
 import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.model.UserPurchase
 import com.google.firebase.firestore.FirebaseFirestore
@@ -37,6 +38,10 @@ class ShopRepository(
             .sortedBy { it.name }
     }
 
+    /** The catalogue: published packs, or all of them for admins and beta testers. */
+    suspend fun catalogue(includeUnpublished: Boolean): List<TrackPack> =
+        if (includeUnpublished) trackPacksAll() else trackPacks()
+
     /** All track packs regardless of online status (admin mode). */
     suspend fun trackPacksAll(): List<TrackPack> {
         auth.awaitUser()
@@ -45,20 +50,6 @@ class ShopRepository(
             .documents
             .map { TrackPack.fromFirestore(it.id, it.data ?: emptyMap()) }
             .sortedBy { it.name }
-    }
-
-    /**
-     * Whether the current user has the 'admin' entitlement — a document with
-     * documentId "admin" in their `users/{uid}/purchases` subcollection.
-     */
-    suspend fun checkIsAdmin(): Boolean {
-        val user = auth.awaitUser()
-        if (user.isAnonymous) return false
-        return runCatching {
-            val doc = db.collection("users").document(user.uid)
-                .collection("purchases").document("admin").get().await()
-            doc.exists()
-        }.getOrDefault(false)
     }
 
     suspend fun trackPack(id: String): TrackPack? {
@@ -86,7 +77,8 @@ class ShopRepository(
             .get().await()
             .documents
             .map { Itinerary.fromFirestore(it.id, it.data ?: emptyMap()) }
-            .sortedBy { it.name }
+            // Same order as the local library (iOS sorts the shop's list with freeFirst too).
+            .sortedForDisplay(freeFirst = true)
     }
 
     /** One downloadable asset (collection `asset`); null when missing. */

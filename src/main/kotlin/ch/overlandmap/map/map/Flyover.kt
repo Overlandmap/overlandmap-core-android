@@ -3,6 +3,7 @@ package ch.overlandmap.map.map
 import android.animation.ValueAnimator
 import android.view.animation.LinearInterpolator
 import androidx.core.animation.doOnEnd
+import ch.overlandmap.map.geo.Coordinate
 import ch.overlandmap.map.model.Track
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
@@ -201,22 +202,11 @@ private fun pointAlong(route: List<Point>, cumulative: DoubleArray, target: Doub
     )
 }
 
-private const val EARTH_RADIUS_M = 6_371_000.0
+// Distance and bearing come from the shared geo package (same formulas as iOS).
+private fun Point.toCoordinate() = Coordinate(latitude(), longitude())
 
-private fun haversineMeters(a: Point, b: Point): Double {
-    val lat1 = Math.toRadians(a.latitude())
-    val lat2 = Math.toRadians(b.latitude())
-    val dLat = lat2 - lat1
-    val dLon = Math.toRadians(b.longitude() - a.longitude())
-    val h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
-    return 2 * EARTH_RADIUS_M * asin(min(1.0, sqrt(h)))
-}
+private fun haversineMeters(a: Point, b: Point): Double =
+    a.toCoordinate().distanceMeters(b.toCoordinate())
 
-private fun bearingDegrees(from: Point, to: Point): Double {
-    val lat1 = Math.toRadians(from.latitude())
-    val lat2 = Math.toRadians(to.latitude())
-    val dLon = Math.toRadians(to.longitude() - from.longitude())
-    val y = sin(dLon) * cos(lat2)
-    val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-    return (Math.toDegrees(atan2(y, x)) + 360.0) % 360.0
-}
+private fun bearingDegrees(from: Point, to: Point): Double =
+    from.toCoordinate().bearing(to.toCoordinate())

@@ -66,6 +66,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.R
+import ch.overlandmap.map.billing.PurchaseError
+import ch.overlandmap.map.ui.BetaBadge
+import ch.overlandmap.map.ui.PurchaseStatus
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PackDownloadProgress
 import ch.overlandmap.map.model.Comment
@@ -125,6 +128,7 @@ fun PackDetailScreen(
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val purchasing by viewModel.purchasing.collectAsState()
     val purchaseError by viewModel.purchaseError.collectAsState()
+    val purchasePending by viewModel.purchasePending.collectAsState()
     val activity = LocalContext.current.findActivity()
     val lang = currentLanguage()
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -132,6 +136,7 @@ fun PackDetailScreen(
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showFullPackDialog by remember { mutableStateOf(false) }
     var showSignInDialog by remember { mutableStateOf(false) }
+    var showUnavailable by remember { mutableStateOf(false) }
 
     // Frame the pack as soon as both the map and its bounds are known.
     LaunchedEffect(map, state.pack) {
@@ -203,7 +208,11 @@ fun PackDetailScreen(
                             price = prices[pack.productId],
                             purchasing = purchasing,
                             purchaseError = purchaseError,
+                            purchasePending = purchasePending,
                             downloading = downloadProgress != null,
+                            downloadFailed = downloadProgress?.error != null,
+                            onUpdatePack = viewModel::updatePack,
+                            onShowUnavailable = { showUnavailable = true },
                             onBuy = {
                                 if (signedIn) activity?.let(viewModel::buy)
                                 else showSignInDialog = true
@@ -282,6 +291,16 @@ fun PackDetailScreen(
         )
     }
 
+    if (showUnavailable) {
+        AlertDialog(
+            onDismissRequest = { showUnavailable = false },
+            title = { Text(stringResource(R.string.purchase_unavailable)) },
+            text = { Text(stringResource(R.string.connect_to_internet_to_purchase)) },
+            confirmButton = {
+                TextButton(onClick = { showUnavailable = false }) { Text(stringResource(R.string.ok)) }
+            },
+        )
+    }
     if (showSignInDialog) {
         AlertDialog(
             onDismissRequest = { showSignInDialog = false },
@@ -357,12 +376,16 @@ private fun MapActions(
     owned: Boolean,
     price: String?,
     purchasing: Boolean,
-    purchaseError: String?,
+    purchaseError: PurchaseError?,
+    purchasePending: Boolean,
     downloading: Boolean,
+    downloadFailed: Boolean,
     onBuy: () -> Unit,
     onDownloadPack: () -> Unit,
     onDownloadSample: () -> Unit,
     onOpenLocalPack: () -> Unit,
+    onUpdatePack: () -> Unit,
+    onShowUnavailable: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -370,22 +393,19 @@ private fun MapActions(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier,
     ) {
-        purchaseError?.let {
-            Surface(shape = MaterialTheme.shapes.small, tonalElevation = 3.dp) {
-                Text(
-                    it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-            }
-        }
+        PurchaseStatus(purchaseError, purchasePending)
         when {
-            downloading -> Unit // the progress overlay is already showing
+            // The progress overlay is already showing; a failed download can be retried.
+            downloading -> if (downloadFailed && owned) {
+                Button(onClick = onDownloadPack) { Text(stringResource(R.string.retry)) }
+            }
             purchasing -> CircularProgressIndicator()
-            // Downloaded (full pack or sample) → open the Home-tab viewer.
-            owned && state.isLocal -> Button(onClick = onOpenLocalPack) {
-                Text(stringResource(R.string.downloaded))
+            // Downloaded (full pack or sample) → open the Home-tab viewer, or update it first.
+            owned && state.isLocal -> {
+                if (state.localNeedsUpdate) {
+                    Button(onClick = onUpdatePack) { Text(stringResource(R.string.update)) }
+                }
+                Button(onClick = onOpenLocalPack) { Text(stringResource(R.string.open)) }
             }
             owned -> Button(onClick = onDownloadPack) {
                 Text(stringResource(R.string.download))
@@ -408,7 +428,8 @@ private fun MapActions(
                     }
                 }
                 if (price.isNullOrBlank()) {
-                    Button(onClick = {}, enabled = false, colors = mapActionButtonColors()) {
+                    // Looks disabled but explains itself when tapped (iOS shows an alert).
+                    Button(onClick = onShowUnavailable, colors = mapActionButtonColors()) {
                         Text(stringResource(R.string.purchase_not_available))
                     }
                 } else {
@@ -541,6 +562,9 @@ private fun ItineraryTile(
                     modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f),
                     contentScale = ContentScale.Crop,
                 )
+                if (itinerary.isBeta) {
+                    BetaBadge(Modifier.align(Alignment.BottomEnd).padding(6.dp))
+                }
                 if (itinerary.isFree) {
                     Text(
                         stringResource(R.string.free),

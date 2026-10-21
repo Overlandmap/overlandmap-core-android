@@ -13,6 +13,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.map.MapLibreMapView
+import ch.overlandmap.map.map.addUserLocationLayer
+import ch.overlandmap.map.map.updateUserLocation
+import ch.overlandmap.map.ui.tracking.rememberUserLocation
+import androidx.compose.runtime.getValue
 import ch.overlandmap.map.map.MapStyles
 import ch.overlandmap.map.map.boundsOf
 import ch.overlandmap.map.map.ensureTracksLayer
@@ -123,6 +127,7 @@ fun PackTracksMap(
             style.getLayerAs<LineLayer>(STYLE_TRACKS_LAYER)
                 ?.setFilter(eq(get(TRACK_PACK_ID), literal(packId)))
             addSelectedTracksLayer(style)
+            addUserLocationLayer(style)
             installTapHandler(map) { feature, position ->
                 feature.getStringProperty(ITINERARY_ID)?.let { onItineraryTapped(it, position) }
             }
@@ -130,6 +135,10 @@ fun PackTracksMap(
         },
     )
 
+    val userLocation by rememberUserLocation()
+    LaunchedEffect(loadedStyle, userLocation) {
+        loadedStyle?.let { updateUserLocation(it, userLocation) }
+    }
     LaunchedEffect(selectedItineraryId, loadedStyle) {
         loadedStyle?.getLayerAs<LineLayer>(SELECTED_LAYER)?.setFilter(
             if (selectedItineraryId == null) literal(false)

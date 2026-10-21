@@ -17,6 +17,9 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -42,6 +45,12 @@ import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.ui.PhotoGridTile
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.overlandApp
+import ch.overlandmap.map.ui.tracking.TrackListMode
+import ch.overlandmap.map.ui.tracking.rememberIsBeta
+import ch.overlandmap.map.ui.tracking.rememberStartRecording
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import ch.overlandmap.map.OverlandApp
 
 /**
  * Home tab: "Last used" (the five most recently opened itineraries) above
@@ -55,8 +64,13 @@ fun HomeScreen(
     onOpenSearch: () -> Unit,
     onOpenHelp: () -> Unit,
     onOpenShop: () -> Unit,
+    onOpenTrackList: (TrackListMode) -> Unit = {},
     viewModel: HomeViewModel = viewModel { HomeViewModel(overlandApp()) },
 ) {
+    val app = LocalContext.current.applicationContext as OverlandApp
+    val isBeta = rememberIsBeta()
+    val currentRecordingId by app.trackRecorder.currentTrackId.collectAsState()
+    val startRecording = rememberStartRecording()
     val packs by viewModel.packs.collectAsState()
     val lastUsed by viewModel.lastUsed.collectAsState()
     var packToDelete by remember { mutableStateOf<TrackPack?>(null) }
@@ -77,6 +91,18 @@ fun HomeScreen(
                 Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search))
             }
             Spacer(Modifier.weight(1f))
+            if (isBeta) {
+                // Recording is a beta feature; the stop and waypoint buttons live in the bar above the tabs.
+                if (currentRecordingId == null) {
+                    IconButton(onClick = startRecording) {
+                        Icon(
+                            Icons.Filled.FiberManualRecord,
+                            contentDescription = stringResource(R.string.record),
+                            tint = Color(0xFFD32F2F),
+                        )
+                    }
+                }
+            }
             IconButton(onClick = onOpenHelp) {
                 Icon(
                     Icons.AutoMirrored.Filled.HelpOutline,
@@ -88,8 +114,13 @@ fun HomeScreen(
         if (packList == null) {
             // Still loading from Room — show nothing to avoid "empty" flash.
             Spacer(modifier = Modifier.weight(1f))
-        } else if (packList.isEmpty()) EmptyLibrary(onOpenShop)
-        else LazyVerticalGrid(
+        } else if (packList.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyLibrary(onOpenShop) }
+            Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) { RecordingsTile(TrackListMode.RECORDINGS, onOpenTrackList) }
+                Box(Modifier.weight(1f)) { RecordingsTile(TrackListMode.IMPORTED, onOpenTrackList) }
+            }
+        } else LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
             contentPadding = PaddingValues(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -107,6 +138,7 @@ fun HomeScreen(
                         label = itinerary.name(lang),
                         freeBanner = itinerary.isFree &&
                             itinerary.trackPackId in freeSamplePackIds,
+                        betaBadge = itinerary.isBeta,
                         overlayText = itinerary.itineraryId.ifEmpty { null },
                         onClick = { onOpenItinerary(itinerary.documentId) },
                     )
@@ -123,11 +155,15 @@ fun HomeScreen(
                     label = pack.name(lang),
                     freeBanner = pack.isFreeSample,
                     updateBadge = pack.needsUpdate,
+                    betaBadge = pack.isBeta,
                     onClick = { onOpenPack(pack.documentId) },
                     onLongClick = { packToDelete = pack },
                 )
             }
         }
+        // The user's own tracks: always listed, as on iOS (only recording itself is beta).
+        item(key = "tracks-recordings") { RecordingsTile(TrackListMode.RECORDINGS, onOpenTrackList) }
+        item(key = "tracks-imported") { RecordingsTile(TrackListMode.IMPORTED, onOpenTrackList) }
         }
     }
 
@@ -149,6 +185,20 @@ fun HomeScreen(
             },
         )
     }
+}
+
+@Composable
+private fun RecordingsTile(mode: TrackListMode, onOpen: (TrackListMode) -> Unit) {
+    val recorder = (LocalContext.current.applicationContext as OverlandApp).trackRecorder
+    val all by recorder.recordings.collectAsState()
+    val imported = mode == TrackListMode.IMPORTED
+    val count = all.count { it.isImported == imported }
+    PhotoGridTile(
+        photoUrl = null,
+        label = stringResource(if (imported) R.string.imported else R.string.recordings) + if (count > 0) " ($count)" else "",
+        placeholderIcon = if (imported) Icons.Filled.FileOpen else Icons.Filled.Route,
+        onClick = { onOpen(mode) },
+    )
 }
 
 @Composable

@@ -53,6 +53,7 @@ class LibraryRepository(
 
     /** All locally downloaded track pack IDs. */
     suspend fun allTrackPackIds(): List<String> = dao.allTrackPackIds()
+    suspend fun allTrackPacks() = dao.allTrackPacks()
 
     /** The pack's asset catalogue (itinerary zip, offline map, hillshade, contour). */
     suspend fun packAssets(trackPackId: String) = dao.packAssets(trackPackId)
@@ -88,6 +89,7 @@ class LibraryRepository(
     suspend fun waypointsOfPack(trackPackId: String) = dao.waypointsOfPack(trackPackId)
 
     suspend fun sidebars(trackPackId: String) = dao.sidebars(trackPackId)
+    suspend fun stepsOfPack(trackPackId: String) = dao.stepsOfPack(trackPackId)
 
     // Markup-link lookups (see ui/markup/MarkupRouter).
 
@@ -122,7 +124,10 @@ class LibraryRepository(
                 itinerary.localOtherPhotoPaths?.let(::addAll)
             }
             steps.forEach { it.localPhotoPath?.let(::add) }
-            sidebars.forEach { it.localPhotoPath?.let(::add) }
+            sidebars.forEach {
+                it.localPhotoPath?.let(::add)
+                it.localOtherPhotoPaths?.let(::addAll)
+            }
         }
         // Every object's search-index entry goes with it.
         val indexedIds = buildList {
@@ -149,6 +154,9 @@ class LibraryRepository(
     /** Flags the pack as having (or not) a newer zip available online. */
     suspend fun setNeedsUpdate(trackPackId: String, value: Boolean) =
         dao.setNeedsUpdate(trackPackId, value)
+
+    /** The cached comments on a pack or itinerary right now (not live), newest first. */
+    suspend fun commentsOf(objectId: String) = dao.commentsOf(objectId)
 
     /** The cached comments on a pack or itinerary, newest first. */
     fun observeComments(objectId: String) = dao.observeComments(objectId)
@@ -201,24 +209,30 @@ class LibraryRepository(
         indexPack(parsed)
     }
 
-    /** Adds every text-bearing object of a freshly imported pack to the search index. */
+    /**
+     * Adds every text-bearing object of a freshly imported pack to the search index. Entries are
+     * tagged with the pack, and the pack's previous entries are dropped first, so re-importing
+     * (an update) replaces rather than duplicates.
+     */
     private suspend fun indexPack(parsed: ParsedPack) {
+        val packId = parsed.pack.documentId
         val docs = buildList {
             val pack = parsed.pack
-            add(FtsDoc(FtsIndex.TYPE_TRACK_PACK, pack.documentId, pack::name) { pack.description(it).orEmpty() })
+            add(FtsDoc(FtsIndex.TYPE_TRACK_PACK, pack.documentId, pack::name, packId) { pack.description(it).orEmpty() })
             parsed.itineraries.forEach { i ->
-                add(FtsDoc(FtsIndex.TYPE_ITINERARY, i.documentId, i::name, i::indexableDescription))
+                add(FtsDoc(FtsIndex.TYPE_ITINERARY, i.documentId, i::name, packId, i::indexableDescription))
             }
             parsed.steps.forEach { s ->
-                add(FtsDoc(FtsIndex.TYPE_STEP, s.documentId, s::name) { s.description(it).orEmpty() })
+                add(FtsDoc(FtsIndex.TYPE_STEP, s.documentId, s::name, packId) { s.description(it).orEmpty() })
             }
             parsed.waypoints.forEach { w ->
-                add(FtsDoc(FtsIndex.TYPE_WAYPOINT, w.documentId, w::name) { w.description(it).orEmpty() })
+                add(FtsDoc(FtsIndex.TYPE_WAYPOINT, w.documentId, w::name, packId) { w.description(it).orEmpty() })
             }
             parsed.sidebars.forEach { sb ->
-                add(FtsDoc(FtsIndex.TYPE_SIDEBAR, sb.documentId, sb::name) { sb.description(it).orEmpty() })
+                add(FtsDoc(FtsIndex.TYPE_SIDEBAR, sb.documentId, sb::name, packId) { sb.description(it).orEmpty() })
             }
         }
+        fts.deletePack(packId)
         fts.index(docs)
     }
 }

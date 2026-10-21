@@ -24,6 +24,7 @@ import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.home.SidebarPreviewDialog
 import ch.overlandmap.map.ui.home.WaypointBottomSheet
+import ch.overlandmap.map.ui.world.LocalOpenOverlanding
 import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.launch
 
@@ -54,13 +55,15 @@ fun rememberMarkupLinkHandler(
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
+    val openOverlanding = LocalOpenOverlanding.current
     val lang = currentLanguage()
     val router = remember(trackPackId, sourceItineraryId) {
-        MarkupRouter(app.libraryRepository, trackPackId, sourceItineraryId)
+        MarkupRouter(app.libraryRepository, trackPackId, sourceItineraryId, app.worldRepository)
     }
     var waypoint by remember { mutableStateOf<Waypoint?>(null) }
     var sidebarPreview by remember { mutableStateOf<Sidebar?>(null) }
     var unavailable by remember { mutableStateOf<String?>(null) }
+    var notDownloaded by remember { mutableStateOf<String?>(null) }
     var popup by remember { mutableStateOf<LinkPopup?>(null) }
 
     // The popups' own descriptions contain markup too, so they take this
@@ -99,6 +102,8 @@ fun rememberMarkupLinkHandler(
                     context.startActivity(Intent(Intent.ACTION_VIEW, destination.url.toUri()))
                 } catch (_: ActivityNotFoundException) {
                 }
+                is MarkupDestination.OpenOverlanding -> openOverlanding(destination.selection)
+                MarkupDestination.OverlandNotDownloaded -> notDownloaded = shownText
                 MarkupDestination.Unavailable -> unavailable = shownText
             }
         }
@@ -121,8 +126,6 @@ fun rememberMarkupLinkHandler(
             waypoint = it,
             onDismiss = { waypoint = null },
             onZoom = { onZoomToObject(MapPopupKind.OfWaypoint(it)) },
-            onCheckIn = { /* TODO */ },
-            onCorrection = { /* TODO */ },
         )
     }
     sidebarPreview?.let { sb ->
@@ -134,6 +137,16 @@ fun rememberMarkupLinkHandler(
                 onOpenSidebar(sb.documentId)
             },
             onDismiss = { sidebarPreview = null },
+        )
+    }
+    notDownloaded?.let { title ->
+        AlertDialog(
+            onDismissRequest = { notDownloaded = null },
+            title = { Text(title) },
+            text = { Text(stringResource(R.string.link_not_downloaded)) },
+            confirmButton = {
+                TextButton(onClick = { notDownloaded = null }) { Text(stringResource(android.R.string.ok)) }
+            },
         )
     }
     unavailable?.let { title ->

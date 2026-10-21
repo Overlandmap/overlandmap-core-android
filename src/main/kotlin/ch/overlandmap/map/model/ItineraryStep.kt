@@ -39,6 +39,8 @@ data class ItineraryStep(
     override val isIntersection: Boolean = false,
     override val isCafe: Boolean = false,
     override val isFerry: Boolean = false,
+    override val isWaterfall: Boolean = false,
+    override val swimming: Boolean = false,
     val titlePhotoId: String? = null,
     val titlePhotoCaption: String? = null,
     /** Access / opening status of this step, and its free-text detail. */
@@ -46,6 +48,8 @@ data class ItineraryStep(
     override val openDetails: String? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
     val localPhotoPath: String? = null,
+    /** Unmodelled scalar fields of the export (`sidebarDocId`, table columns…), see [scalarExtras]. */
+    val extra: Map<String, Any?> = emptyMap(),
 ) : WaypointType {
     val titlePhotoUrl: String?
         get() = localPhotoPath?.let { "file://$it" } ?: titlePhotoId?.let(AppConfig::photoUrl)
@@ -53,6 +57,8 @@ data class ItineraryStep(
     fun fullName(lang: String): String = "$stepId. ${name(lang)}"
 
     companion object {
+        private val KNOWN = arrayOf("description", "distanceKm", "documentId", "ele", "geohash", "hasFuel", "hasHotel", "id", "isBivouac", "isBorder", "isBridge", "isCafe", "isEmbassy", "isFerry", "isHistoricalSite", "isHotSpring", "isIntersection", "isMountainPass", "isPoliceCheckpoint", "isReligiousSite", "isViewpoint", "isWaterCrossing", "isWaterfall", "location", "name", "openDetails", "openKind", "swimming", "titlePhotoCaption", "titlePhotoId", "trackPackId", "translatedDesc", "translatedName")
+
         fun fromFirestore(documentId: String, itineraryId: String, data: Map<String, Any?>) =
             ItineraryStep(
                 documentId = documentId,
@@ -84,10 +90,13 @@ data class ItineraryStep(
                 isIntersection = FS.bool(data["isIntersection"]),
                 isCafe = FS.bool(data["isCafe"]),
                 isFerry = FS.bool(data["isFerry"]),
+                isWaterfall = FS.bool(data["isWaterfall"]),
+                swimming = FS.bool(data["swimming"]),
                 titlePhotoId = FS.str(data["titlePhotoId"]),
                 titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
                 openKind = OpenKind.fromRaw(FS.str(data["openKind"])),
                 openDetails = FS.str(data["openDetails"]),
+                extra = scalarExtras(data, *KNOWN),
             )
     }
 }

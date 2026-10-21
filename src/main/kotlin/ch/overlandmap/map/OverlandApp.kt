@@ -3,8 +3,12 @@ package ch.overlandmap.map
 import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import ch.overlandmap.map.billing.BillingManager
+import ch.overlandmap.map.data.AccountRepository
 import ch.overlandmap.map.data.AuthRepository
+import ch.overlandmap.map.data.DiscussionRepository
+import ch.overlandmap.map.data.GlobalSettingsRepository
 import ch.overlandmap.map.data.LibraryRepository
+import ch.overlandmap.map.data.OverlandDataManager
 import ch.overlandmap.map.data.MapboxTokenManager
 import ch.overlandmap.map.data.PackDownloadManager
 import ch.overlandmap.map.data.PackUpdateChecker
@@ -15,16 +19,33 @@ import ch.overlandmap.map.data.SearchRepository
 import ch.overlandmap.map.data.ShopRepository
 import ch.overlandmap.map.data.SocialRepository
 import ch.overlandmap.map.data.StyleAssetsManager
+import ch.overlandmap.map.data.SyncPolicy
 import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.data.WorldRepository
 import ch.overlandmap.map.data.local.AppDatabase
 import ch.overlandmap.map.data.local.FtsIndex
 import ch.overlandmap.map.map.LocalTileServer
+import ch.overlandmap.map.model.Entitlements
+import ch.overlandmap.map.units.UnitFormatter
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -39,6 +60,7 @@ class OverlandApp : Application() {
     val database by lazy { AppDatabase.get(this) }
     val ftsIndex by lazy { FtsIndex(database) }
     val authRepository by lazy { AuthRepository() }
+    val accountRepository by lazy { AccountRepository(this, authRepository) }
     val shopRepository by lazy { ShopRepository(authRepository) }
     val packUpdateChecker by lazy {
         PackUpdateChecker(
@@ -52,13 +74,101 @@ class OverlandApp : Application() {
     val libraryRepository by lazy {
         LibraryRepository(database.libraryDao(), authRepository, ftsIndex, packUpdateChecker)
     }
-    val socialRepository by lazy { SocialRepository(database.socialDao(), database.libraryDao(), authRepository) }
-    val worldRepository by lazy { WorldRepository(database.worldDao(), authRepository, ftsIndex) }
+    val socialRepository by lazy {
+        SocialRepository(
+            database.socialDao(), database.libraryDao(), authRepository, ftsIndex,
+            policy = SyncPolicy.forBuild(isDebugBuild(this)),
+            userName = { accountRepository.postedName() },
+        )
+    }
+    val discussionRepository by lazy {
+        DiscussionRepository(
+            database.socialDao(), authRepository, userPreferences,
+            userName = { accountRepository.postedName() },
+        )
+    }
+    val weatherRepository by lazy { ch.overlandmap.map.weather.WeatherRepository(cacheDir) }
+    // ── Recording and navigation (beta) ─────────────────────────────────────
+
+    val trackRecorder: ch.overlandmap.map.tracking.TrackRecorder by lazy {
+        ch.overlandmap.map.tracking.TrackRecorder(
+            store = ch.overlandmap.map.tracking.TrackStore(java.io.File(filesDir, "recordings")),
+            location = ch.overlandmap.map.tracking.AndroidLocationSource(this),
+            onRecordingChanged = { active -> if (active) ch.overlandmap.map.tracking.TrackingService.start(this) },
+        )
+    }
+    val savedNavigationStore by lazy { ch.overlandmap.map.navigation.SavedNavigationStore(userPreferences, appScope) }
+    private val navigationLocation by lazy { ch.overlandmap.map.tracking.AndroidLocationSource(this) }
+    private val headingSensor by lazy { ch.overlandmap.map.tracking.HeadingSensor(this) { navigationLocation.lastFix } }
+    val navigationCoordinator: ch.overlandmap.map.navigation.NavigationCoordinator by lazy {
+        val coordinator = ch.overlandmap.map.navigation.NavigationCoordinator(
+            location = navigationLocation,
+            persistence = savedNavigationStore,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            onTargetReached = { runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 100).startTone(android.media.ToneGenerator.TONE_PROP_ACK, 400) } },
+            log = { line -> android.util.Log.i("Navigation", line) },
+            onNavigatingChanged = { active ->
+                if (active) {
+                    headingSensor.start()
+                    ch.overlandmap.map.tracking.TrackingService.start(this)
+                } else {
+                    headingSensor.stop()
+                }
+            },
+        )
+        appScope.launch(Dispatchers.Main.immediate) { headingSensor.heading.collect { coordinator.updateHeading(it) } }
+        coordinator
+    }
+
+    /** What the tracking notification shows; inactive when nothing is being recorded or navigated. */
+    val trackingStatus: StateFlow<ch.overlandmap.map.tracking.TrackingStatus> by lazy {
+        fun status(
+            recordings: List<ch.overlandmap.map.tracking.RecordedTrack>,
+            currentId: String?,
+            nav: ch.overlandmap.map.navigation.NavigationState,
+        ) = ch.overlandmap.map.tracking.TrackingStatus(
+            recording = currentId?.let { id -> recordings.firstOrNull { it.id == id } }?.let { t ->
+                getString(R.string.recording_status, t.formattedDistance(), t.points.size, t.waypoints.size)
+            },
+            navigation = nav.takeIf { it.isNavigating }?.let {
+                getString(
+                    R.string.navigation_status,
+                    it.currentTargetStep?.fullName(it.language) ?: getString(R.string.nav),
+                    UnitFormatter(userPreferences.unitFormatNow(), java.util.Locale.getDefault()).navigationDistance(it.distanceToTargetMeters).ifEmpty { "--" },
+                ) + if (it.isOffTrack) " · " + getString(R.string.off_track) else ""
+            },
+        )
+        combine(trackRecorder.recordings, trackRecorder.currentTrackId, navigationCoordinator.state, ::status)
+            .stateIn(
+                appScope, SharingStarted.Eagerly,
+                status(trackRecorder.recordings.value, trackRecorder.currentTrackId.value, navigationCoordinator.state.value),
+            )
+    }
+
+    val worldRepository by lazy { WorldRepository(database.worldDao()) }
+    val globalSettingsRepository by lazy { GlobalSettingsRepository(database.worldDao(), authRepository) }
+    /**
+     * A pending request to show an Overlanding object (from a markup link, a search result or a
+     * universal link); the Overlanding tab consumes it and frames the object on its map.
+     */
+    val overlandingLink = MutableStateFlow<ch.overlandmap.map.ui.world.OverlandingSelection?>(null)
+    /** A universal link received from outside (a tapped overlandmap.ch URL), consumed by the navigation. */
+    val pendingLink = MutableStateFlow<ch.overlandmap.map.model.UniversalLink?>(null)
+    val universalLinkResolver by lazy {
+        ch.overlandmap.map.data.UniversalLinkResolver(
+            ch.overlandmap.map.data.RepositoryLinkStore(libraryRepository, worldRepository)
+        )
+    }
+    /** Bumped when the Overlanding tab is tapped again: back to its home screen. */
+    val overlandingReset = MutableStateFlow(0)
+    val overlandDataManager by lazy {
+        OverlandDataManager(this, appScope, shopRepository, database.worldDao(), ftsIndex)
+    }
     val searchRepository by lazy { SearchRepository(ftsIndex, libraryRepository) }
     val satelliteTileManager by lazy { SatelliteTileManager(this, appScope) }
     val userPreferences by lazy { UserPreferences(this) }
     val mapboxTokenManager by lazy { MapboxTokenManager(userPreferences) }
-    val billingManager by lazy { BillingManager(this, appScope) }
+    val billingManager by lazy { BillingManager(this, appScope, uuidProvider = { accountRepository.purchaseUuid() }) }
     val packDownloadManager by lazy { PackDownloadManager(this, appScope, libraryRepository) }
     val planetMapManager by lazy { PlanetMapManager(this, appScope, shopRepository) }
     val planetDemManager by lazy { PlanetDemManager(this, appScope, shopRepository) }
@@ -73,10 +183,32 @@ class OverlandApp : Application() {
     var trackPackNames: Map<String, String> = emptyMap()
         private set
 
-    /** True when the signed-in user has the 'admin' entitlement. */
-    @Volatile
-    var isAdmin: Boolean = false
-        private set
+    /**
+     * The signed-in user's entitlements, live from `users/{uid}/purchases`; null until the first
+     * snapshot of the current user has arrived (so "no beta" isn't mistaken for "not loaded yet").
+     * Anonymous sessions have none: an empty [Entitlements].
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val entitlements: StateFlow<Entitlements?> by lazy {
+        authRepository.userFlow
+            .flatMapLatest<FirebaseUser?, Entitlements?> { user ->
+                if (user == null) flowOf(null)
+                else flow {
+                    emit(null)
+                    emitAll(shopRepository.purchasesFlow().map { Entitlements(it) })
+                }
+            }
+            .stateIn(appScope, SharingStarted.Eagerly, null)
+    }
+
+    /** Suspends until the current user's purchases have been loaded. */
+    suspend fun awaitEntitlements(): Entitlements = entitlements.filterNotNull().first()
+
+    /** True when the signed-in user has the (case-insensitive) 'admin' entitlement. Live, not cached. */
+    val isAdmin: Boolean get() = entitlements.value?.hasAdmin == true
+
+    /** True when the signed-in user has the 'beta' entitlement. */
+    val isBeta: Boolean get() = entitlements.value?.hasBeta == true
 
     override fun onCreate() {
         super.onCreate()
@@ -120,6 +252,10 @@ class OverlandApp : Application() {
         // The world relief (Terrain-RGB DEM) the styles' hillshade and
         // elevation-colour layers read; fetched once, like the world base map.
         planetDemManager.ensurePlanetDem()
+        // The Overlanding assets (country borders tiles + the countries dump) and the advisory
+        // URL templates, like iOS fetched at launch; an offline start keeps the cached copies.
+        overlandDataManager.ensure()
+        appScope.launch { globalSettingsRepository.refreshAdvisoryUrlTemplates() }
         // Cache track pack names from Firestore for debug tools.
         appScope.launch {
             runCatching {
@@ -133,18 +269,24 @@ class OverlandApp : Application() {
                 }
             }
         }
-        // Check if the user has the admin entitlement.
+        // Start listening to the entitlements (admin / beta / purchases) right away.
+        entitlements
+        // Once an account is signed in: make sure it carries the uuid purchases are tied to, and
+        // validate/acknowledge any Play purchase left half-done (Play refunds those after 3 days).
         appScope.launch {
-            runCatching { isAdmin = shopRepository.checkIsAdmin() }
+            authRepository.userFlow.filterNotNull().filter { !it.isAnonymous }.collect {
+                accountRepository.ensureUuid()
+                runCatching { billingManager.reconcileUnacknowledged() }
+            }
         }
-        // Sync social data (check-ins, votes, comments, contributed waypoints)
-        // for each locally downloaded pack if the cache is older than 24 hours.
+        // Sync social data (check-ins, votes, comments, contributed waypoints) for each
+        // locally downloaded pack, each kind under its own freshness policy (SyncPolicy).
         appScope.launch {
             runCatching {
                 authRepository.awaitUser()
                 val packs = libraryRepository.allTrackPackIds()
                 packs.forEach { packId ->
-                    runCatching { socialRepository.syncIfNeeded(packId) }
+                    runCatching { socialRepository.syncTrackPackSocialData(packId) }
                 }
             }
         }

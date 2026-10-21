@@ -27,6 +27,10 @@ data class TrackPack(
     val titlePhotoId: String? = null,
     val titleBlurHash: String? = null,
     val online: Boolean = false,
+    /** A beta release (`beta`): shown with a badge, and only listed for beta testers and admins. */
+    val isBeta: Boolean = false,
+    /** The exporter's marker (`isFreeItinOnly`) that the zip holds only the free itinerary. */
+    val isFreeItineraryOnly: Boolean = false,
     val lovesCount: Int = 0,
     val latMin: Double? = null,
     val latMax: Double? = null,
@@ -97,6 +101,8 @@ data class TrackPack(
             titlePhotoId = FS.str(data["titlePhotoId"]),
             titleBlurHash = FS.str(data["titleBlurHash"]),
             online = FS.bool(data["online"]),
+            isBeta = FS.bool(data["beta"]),
+            isFreeItineraryOnly = FS.bool(data["isFreeItinOnly"]),
             lovesCount = FS.int(data["lovesCount"]) ?: 0,
             latMin = FS.double(data["latMin"]),
             latMax = FS.double(data["latMax"]),

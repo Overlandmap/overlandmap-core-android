@@ -17,15 +17,59 @@ data class Sidebar(
     val titlePhotoCaption: String? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
     val localPhotoPath: String? = null,
+    /** Captions of the extra photos, in order (`otherPhotoCaptions`). */
+    val otherPhotoCaptions: List<String>? = null,
+    /** Absolute paths of the extra photos unpacked from a downloaded zip. */
+    val localOtherPhotoPaths: List<String>? = null,
+    /** Unmodelled fields: `hasMap`, the `table*` definition… (sidebars are small, so all are kept). */
+    val extra: Map<String, Any?> = emptyMap(),
 ) {
     val titlePhotoUrl: String?
         get() = localPhotoPath?.let { "file://$it" } ?: titlePhotoId?.let(AppConfig::photoUrl)
+
+    /** Whether the article shows the pack's map above its text. */
+    val hasMap: Boolean get() = FS.boolOrNull(extra["hasMap"]) ?: false
+
+    /** Column definitions: `[{"type": "...", "field": "...", "title": {"en": "..."}}, …]`. */
+    val tableColumns: List<Map<String, Any?>>?
+        get() = (extra["tableColumns"] as? List<*>)?.mapNotNull { column ->
+            (column as? Map<*, *>)?.entries?.filter { it.key is String }?.associate { it.key as String to it.value }
+        }?.takeIf { it.isNotEmpty() }
+
+    val hasTable: Boolean get() = tableColumns != null
+
+    /** The table heading per language, stored as a JSON string. */
+    val tableNames: Map<String, String>?
+        get() = (extra["tableNames"] as? String)?.let { raw ->
+            runCatching {
+                val obj = org.json.JSONObject(raw)
+                obj.keys().asSequence().associateWith { obj.optString(it) }
+            }.getOrNull()
+        }?.takeIf { it.isNotEmpty() }
+
+    /** `Waypoint` (default), `ItineraryStep` or `Itinerary`. */
+    val tableEntity: String? get() = FS.str(extra["tableEntity"])
+
+    /** A flag or maki name rows must have; without one, rows are those marked with this sidebar's id. */
+    val tableFilter: String? get() = FS.str(extra["tableFilter"])
+
+    /** Sort field and direction: `{"field": "ele", "direction": "desc"}`. */
+    val tableSort: Pair<String, Boolean>?
+        get() = (extra["tableSort"] as? Map<*, *>)?.let { m ->
+            val field = FS.str(m["field"]) ?: return@let null
+            field to (FS.str(m["direction"]) == "desc")
+        }
 
     fun name(lang: String): String = localized(name, translatedName, lang) ?: name
 
     fun description(lang: String): String? = localized(description, translatedDesc, lang)
 
     companion object {
+        private val KNOWN = arrayOf(
+            "name", "trackPackId", "translatedName", "description", "translatedDesc", "titlePhotoId",
+            "titlePhotoCaption", "otherPhotoCaptions", "titlePhotoUrl", "otherPhotoUrls",
+        )
+
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Sidebar(
             documentId = documentId,
             trackPackId = FS.str(data["trackPackId"]) ?: "",
@@ -35,6 +79,8 @@ data class Sidebar(
             translatedDesc = FS.stringMap(data["translatedDesc"]),
             titlePhotoId = FS.str(data["titlePhotoId"]),
             titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
+            otherPhotoCaptions = FS.stringList(data["otherPhotoCaptions"]),
+            extra = FS.jsonSafe(data).without(*KNOWN),
         )
     }
 }

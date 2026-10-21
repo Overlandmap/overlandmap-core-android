@@ -73,6 +73,8 @@ fun JSONObject.putWaypointCommon(o: WaypointType) {
     putIfTrue("isIntersection", o.isIntersection)
     putIfTrue("isCafe", o.isCafe)
     putIfTrue("isFerry", o.isFerry)
+    putIfTrue("isWaterfall", o.isWaterfall)
+    putIfTrue("swimming", o.swimming)
     putIfNotNull("openKind", o.openKind?.raw)
     putIfNotNull("openDetails", o.openDetails)
 }
@@ -102,3 +104,12 @@ fun JSONObject.stringListOrNull(key: String): List<String>? {
     val arr = optJSONArray(key) ?: return null
     return List(arr.length()) { arr.optString(it) }.ifEmpty { null }
 }
+
+/** Stores the unmodelled fields under `extra` (see [scalarExtras]). */
+fun JSONObject.putExtra(extra: Map<String, Any?>) {
+    if (extra.isNotEmpty()) put("extra", JSONObject(Extra.toJson(extra)))
+}
+
+/** The `extra` object written by [putExtra], or empty. */
+fun JSONObject.extraOrEmpty(): Map<String, Any?> =
+    optJSONObject("extra")?.let { Extra.objectToMap(it) } ?: emptyMap()

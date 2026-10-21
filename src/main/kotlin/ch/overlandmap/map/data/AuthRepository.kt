@@ -6,7 +6,10 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.userProfileChangeRequest
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.channels.awaitClose
@@ -62,8 +65,72 @@ class AuthRepository(private val auth: FirebaseAuth = FirebaseAuth.getInstance()
         auth.signInWithEmailAndPassword(email, password).await()
     }
 
+    /**
+     * Creates the account (iOS `FirebaseAuthService.register`): an anonymous session is upgraded
+     * in place by linking the email credential, so what it already owns carries over. When the
+     * email is already registered the link fails and the user is signed in instead. A new account
+     * gets its display name and a verification email. Returns true for a new account.
+     */
+    suspend fun register(name: String, email: String, password: String): Boolean {
+        val current = auth.currentUser
+        try {
+            if (current != null && current.isAnonymous) {
+                current.linkWithCredential(EmailAuthProvider.getCredential(email, password)).await()
+            } else {
+                auth.createUserWithEmailAndPassword(email, password).await()
+            }
+        } catch (e: FirebaseAuthUserCollisionException) {
+            auth.signInWithEmailAndPassword(email, password).await()
+            return false
+        }
+        val user = auth.currentUser ?: return true
+        user.updateProfile(userProfileChangeRequest { displayName = name.trim() }).await()
+        runCatching { user.sendEmailVerification().await() }
+        return true
+    }
+
+    /** Kept for the current settings screen; replaced by [register] once the sign-up form has a name field. */
     suspend fun createAccount(email: String, password: String) {
-        auth.createUserWithEmailAndPassword(email, password).await()
+        register(email.substringBefore('@'), email, password)
+    }
+
+    suspend fun sendPasswordReset(email: String) {
+        auth.sendPasswordResetEmail(email.trim()).await()
+    }
+
+    /** Sends the verification email again ("Send new verification email"). */
+    suspend fun resendVerificationEmail() {
+        auth.currentUser?.sendEmailVerification()?.await()
+    }
+
+    /**
+     * Reloads the account from Firebase (picks up a verified email) and announces it on
+     * [reloads], since the auth-state listener doesn't fire for it.
+     */
+    suspend fun reloadUser() {
+        val user = auth.currentUser ?: return
+        if (user.isAnonymous) return
+        user.reload().await()
+        reloads.value += 1
+    }
+
+    /** Bumped each time the account was reloaded, so observers re-read `isEmailVerified`. */
+    val reloads = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    suspend fun updateDisplayName(name: String) {
+        val user = auth.currentUser ?: return
+        user.updateProfile(userProfileChangeRequest { displayName = name.trim() }).await()
+        reloads.value += 1
+    }
+
+    /**
+     * Permanently deletes the account, then falls back to a new anonymous session. Firebase
+     * refuses with `FirebaseAuthRecentLoginRequiredException` when the sign-in is too old; the
+     * caller tells the user to sign in again.
+     */
+    suspend fun deleteAccount() {
+        auth.currentUser?.delete()?.await()
+        ensureSignedIn()
     }
 
     /**

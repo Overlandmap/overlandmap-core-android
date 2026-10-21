@@ -126,9 +126,11 @@ class TileArchiveRegistry(private val filesDir: File) {
     private var contour: List<TileArchive> = emptyList()
     private var hillshade: List<TileArchive> = emptyList()
     private var dem: List<TileArchive> = emptyList()
+    private var countryBorders: TileArchive? = null
 
     val planetFile: File get() = File(filesDir, "$PMTILES_DIR/planet.pmtiles")
     val planetDemFile: File get() = File(filesDir, "$PMTILES_DIR/planet-dem.pmtiles")
+    val countryBordersFile: File get() = File(filesDir, "$PMTILES_DIR/country-borders.pmtiles")
 
     @Synchronized
     fun reload() {
@@ -147,6 +149,8 @@ class TileArchiveRegistry(private val filesDir: File) {
         // z0–6) is appended to cover the low zooms everywhere else.
         dem = openAll(File(filesDir, "dem")) +
             listOfNotNull(TileArchive.open(planetDemFile))
+        // The Overlanding map's vector tiles (layers country / zones / border / border_post).
+        countryBorders = TileArchive.open(countryBordersFile)
     }
 
     @Synchronized
@@ -163,6 +167,13 @@ class TileArchiveRegistry(private val filesDir: File) {
 
     @Synchronized
     fun hasDem(): Boolean = dem.isNotEmpty()
+
+    @Synchronized
+    fun hasCountryBorders(): Boolean = countryBorders != null
+
+    /** The highest zoom in the country-borders archive (the map keeps rendering it beyond), or null. */
+    @Synchronized
+    fun countryBordersMaxZoom(): Int? = countryBorders?.let { maxZoomOf(it.file) }
 
     /**
      * The highest zoom for which any DEM archive holds tiles, or null when no
@@ -184,6 +195,7 @@ class TileArchiveRegistry(private val filesDir: File) {
             "contour" -> contour
             "hillshade" -> hillshade
             "dem" -> dem
+            "country-borders" -> listOfNotNull(countryBorders)
             else -> (detail + contour + hillshade + dem).filter { it.file.nameWithoutExtension == source }
         }
         for (archive in archives) {
@@ -198,10 +210,11 @@ class TileArchiveRegistry(private val filesDir: File) {
 
     @Synchronized
     fun closeAll() {
-        (listOfNotNull(planet) + detail + contour + hillshade + dem).forEach {
+        (listOfNotNull(planet, countryBorders) + detail + contour + hillshade + dem).forEach {
             runCatching { it.close() }
         }
         planet = null
+        countryBorders = null
         detail = emptyList()
         contour = emptyList()
         hillshade = emptyList()

@@ -19,9 +19,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ch.overlandmap.map.data.UserPreferences
+import ch.overlandmap.map.geo.Coordinate
 import ch.overlandmap.map.model.Track
 import ch.overlandmap.map.model.TrackPoint
+import ch.overlandmap.map.units.UnitFormatter
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
@@ -55,8 +56,7 @@ private data class ProfilePoint(
 @Composable
 fun ElevationProfile(
     track: Track,
-    useMiles: Boolean,
-    useFeet: Boolean,
+    units: UnitFormatter,
     modifier: Modifier = Modifier,
     onCursor: (ElevationCursor?) -> Unit = {},
 ) {
@@ -64,7 +64,7 @@ fun ElevationProfile(
     if (samples.size < 2) return
 
     // Everything is plotted in display units so the Y axis reads in the chosen unit.
-    fun disp(eleM: Double) = if (useFeet) eleM * 3.28084 else eleM
+    fun disp(eleM: Double) = if (units.format.heightMetric) eleM else eleM * 3.28084
     val minD = samples.minOf { disp(it.eleM) }
     val maxD = samples.maxOf { disp(it.eleM) }
     if (maxD - minD < 1.0) return // flat or missing elevation — nothing useful to show
@@ -174,8 +174,8 @@ fun ElevationProfile(
             val sample = samples[idx]
             drawLine(CursorColor, Offset(cx, top), Offset(cx, bottom), strokeWidth = 1.5.dp.toPx())
 
-            val altText = UserPreferences.formatElevationM(sample.eleM.roundToInt(), useFeet)
-            val distText = UserPreferences.formatDistanceKm(sample.distanceM / 1000.0, useMiles)
+            val altText = units.meters(sample.eleM)
+            val distText = units.distanceKm(sample.distanceM / 1000.0)
             val nearRight = cx > left + plotW * 0.75f
             val readoutPaint = android.graphics.Paint().apply {
                 isAntiAlias = true
@@ -245,16 +245,9 @@ private fun smooth(points: List<ProfilePoint>, window: Int): List<ProfilePoint> 
     }
 }
 
-private const val EARTH_RADIUS_M = 6_371_000.0
-
-private fun haversineMeters(a: TrackPoint, b: TrackPoint): Double {
-    val lat1 = Math.toRadians(a.lat)
-    val lat2 = Math.toRadians(b.lat)
-    val dLat = lat2 - lat1
-    val dLon = Math.toRadians(b.lon - a.lon)
-    val h = sin(dLat / 2).pow(2) + cos(lat1) * cos(lat2) * sin(dLon / 2).pow(2)
-    return 2 * EARTH_RADIUS_M * kotlin.math.asin(sqrt(h.coerceIn(0.0, 1.0)))
-}
+// Shared geo package: same haversine as the other apps.
+private fun haversineMeters(a: TrackPoint, b: TrackPoint): Double =
+    Coordinate(a.lat, a.lon).distanceMeters(Coordinate(b.lat, b.lon))
 
 /** A "nice" axis step (1/2/5 × 10ⁿ) at least as large as [rough]. */
 private fun niceStep(rough: Double): Double {

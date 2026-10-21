@@ -42,6 +42,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         val destinations = inputData.getStringArray(KEY_DESTS) ?: return@withContext Result.failure()
         val names = inputData.getStringArray(KEY_NAMES) ?: return@withContext Result.failure()
         val sizes = inputData.getLongArray(KEY_SIZES) ?: return@withContext Result.failure()
+        val hashes = inputData.getStringArray(KEY_HASHES) ?: emptyArray()
         val zipIndex = inputData.getInt(KEY_ZIP_INDEX, -1)
 
         runCatching { setForeground(foregroundInfo(packName, 0)) }
@@ -73,7 +74,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
                     val target = File(destinations[index])
                     currentName.set(names[index])
                     val base = doneBytes
-                    Downloads.download(urls[index], target) { transferred ->
+                    Downloads.download(urls[index], target, hashes.hashAt(index)) { transferred ->
                         transferredTotal.set(base + transferred)
                     }
                     doneBytes += sizes[index]
@@ -127,7 +128,8 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
                 runCatching { app.shopRepository.asset(assetId) }.getOrNull()
             }
             val url = app.shopRepository.downloadPackUrl(packId)
-            Downloads.download(url, target)
+            // Verified like every other asset, zip included (iOS checks the archive's SHA-256).
+            Downloads.download(url, target, asset?.hash?.takeIf { it.isNotBlank() })
             try {
                 installZip(
                     target,
@@ -163,6 +165,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         val destinations = inputData.getStringArray(KEY_DESTS) ?: return
         val names = inputData.getStringArray(KEY_NAMES) ?: emptyArray()
         val sizes = inputData.getLongArray(KEY_SIZES) ?: LongArray(urls.size)
+        val hashes = inputData.getStringArray(KEY_HASHES) ?: emptyArray()
         val totalBytes = sizes.sum().coerceAtLeast(1)
         var doneBytes = 0L
         urls.indices.forEach { index ->
@@ -176,7 +179,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
             runCatching {
                 setForeground(foregroundInfo(packName, (doneBytes * 100 / totalBytes).toInt()))
             }
-            Downloads.download(urls[index], File(destinations[index]))
+            Downloads.download(urls[index], File(destinations[index]), hashes.hashAt(index))
             doneBytes += sizes.getOrElse(index) { 0L }
         }
     }
@@ -233,6 +236,8 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         const val KEY_DESTS = "dests"
         const val KEY_NAMES = "names"
         const val KEY_SIZES = "sizes"
+        /** Expected SHA-256 per file ("" = the backend recorded none). */
+        const val KEY_HASHES = "hashes"
         const val KEY_ZIP_INDEX = "zipIndex"
         const val KEY_ASSET_VERSION = "assetVersion"
         const val KEY_ASSET_VERSION_DATE = "assetVersionDate"
@@ -247,3 +252,6 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         private const val MAX_ATTEMPTS = 3
     }
 }
+
+/** The expected hash for file [index], or null when none was recorded. */
+private fun Array<String>.hashAt(index: Int): String? = getOrNull(index)?.takeIf { it.isNotBlank() }

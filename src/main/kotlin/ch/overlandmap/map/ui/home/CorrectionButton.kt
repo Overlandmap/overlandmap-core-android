@@ -1,31 +1,32 @@
 package ch.overlandmap.map.ui.home
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,199 +41,294 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
-import ch.overlandmap.map.data.local.DiscussionRow
-import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.geo.Coordinate
+import ch.overlandmap.map.geo.GeoBounds
+import ch.overlandmap.map.model.CheckIn
+import ch.overlandmap.map.model.CheckInReason
+import ch.overlandmap.map.social.CoordinateParser
+import ch.overlandmap.map.social.SocialRules
+import ch.overlandmap.map.ui.currentLanguage
+import ch.overlandmap.map.ui.social.DiscussionVoteButtons
+import ch.overlandmap.map.ui.social.LocationInput
+import ch.overlandmap.map.ui.social.SocialTarget
+import ch.overlandmap.map.ui.social.TranslatedContent
+import ch.overlandmap.map.ui.social.asInputText
+import ch.overlandmap.map.ui.social.rememberAuthGate
 import ch.overlandmap.map.ui.theme.contentTextStyle
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
 private val CorrectionRed = Color(0xFFE53935)
 
+@StringRes
+private fun reasonLabel(reason: CheckInReason): Int = when (reason) {
+    CheckInReason.DOES_NOT_EXIST -> R.string.does_not_exist
+    CheckInReason.CLOSED -> R.string.closed
+    CheckInReason.REPAIRED -> R.string.repaired
+    CheckInReason.WRONG_DESCRIPTION -> R.string.wrong_description
+    CheckInReason.WRONG_LOCATION -> R.string.wrong_location
+    CheckInReason.CHECK -> R.string.check_in
+    CheckInReason.OTHER -> R.string.other
+}
+
 /**
- * Correction button for a step. Shows an outlined error icon when there are no
- * corrections, or a filled icon (always red) with a badge count (>1) when there
- * are corrections.
- *
- * - No corrections -> press opens the "suggest a correction" dialog.
- * - Has corrections -> press opens a bottom sheet listing them, with the option
- *   to add a new one.
+ * Correction button for a step or waypoint (iOS `CorrectionButton`): an outlined red icon when
+ * nothing was reported, a filled one once a correction exists. A correction is a check-in with a
+ * problem reason; the newest one is shown. Opening the form needs a signed-in account, viewing an
+ * existing correction does not.
+ */
+@Composable
+fun CorrectionButton(target: SocialTarget) {
+    val app = LocalContext.current.applicationContext as OverlandApp
+    val gate = rememberAuthGate()
+    val correction by app.socialRepository.observeActiveCorrection(target.objectId).collectAsState(initial = null)
+    var showSheet by remember { mutableStateOf(false) }
+
+    IconButton(onClick = {
+        if (correction == null) gate.require(R.string.sign_in_to_discuss) { showSheet = true } else showSheet = true
+    }) {
+        Icon(
+            if (correction == null) Icons.Outlined.ErrorOutline else Icons.Filled.ErrorOutline,
+            contentDescription = stringResource(R.string.corrections),
+            tint = CorrectionRed,
+        )
+    }
+
+    if (showSheet) CorrectionSheet(target, correction, onDismiss = { showSheet = false })
+}
+
+/**
+ * The correction form and viewer (iOS `CorrectionSheet`).
+ *  - No correction yet: the reason picker, the explanation, and for "wrong location" the right position.
+ *  - A correction exists: its reason, text and votes; its author can edit or delete it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CorrectionButton(step: ItineraryStep) {
+private fun CorrectionSheet(target: SocialTarget, existing: CheckIn?, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
-    val corrections by app.socialRepository.observeCorrections(step.documentId)
-        .collectAsState(initial = emptyList())
+    val gate = rememberAuthGate()
+    val lang = currentLanguage()
+    val uid = FirebaseAuth.getInstance().currentUser?.uid
+    val isOwn = existing != null && existing.userId == uid
+    var editing by remember { mutableStateOf(false) }
+    val showForm = existing == null || editing
 
-    // Sync discussions from Firestore the first time this step is viewed.
-    LaunchedEffect(step.documentId) {
-        runCatching { app.socialRepository.syncDiscussionsForObject(step.documentId) }
+    var reason by remember { mutableStateOf(existing?.reason?.takeIf { it in SocialRules.correctionReasons }) }
+    var content by remember { mutableStateOf(existing?.content.orEmpty()) }
+    var locationText by remember {
+        mutableStateOf(existing?.let { c -> c.lat?.let { lat -> c.lon?.let { lon -> Coordinate(lat, lon).asInputText() } } }.orEmpty())
+    }
+    var attempted by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    var submitting by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var bounds by remember { mutableStateOf<GeoBounds?>(null) }
+    LaunchedEffect(target.trackPackId) {
+        bounds = app.libraryRepository.trackPack(target.trackPackId)?.let { p ->
+            val (a, b, c, d) = listOf(p.latMin, p.latMax, p.lonMin, p.lonMax)
+            if (a != null && b != null && c != null && d != null) GeoBounds(a, b, c, d) else null
+        }
     }
 
-    var showSheet by remember { mutableStateOf(false) }
-    var showDialog by remember { mutableStateOf(false) }
+    val error = if (attempted) {
+        SocialRules.validateCorrection(reason, content, locationText, null, bounds)
+    } else null
+    val locationError = when (error) {
+        SocialRules.CorrectionError.LOCATION_REQUIRED -> stringResource(R.string.location_required)
+        SocialRules.CorrectionError.LOCATION_INVALID -> stringResource(R.string.please_provide_location)
+        SocialRules.CorrectionError.LOCATION_OUTSIDE -> stringResource(R.string.location_outside_track_pack)
+        else -> null
+    }
 
-    val count = corrections.size
-
-    // The icon button with optional badge.
-    IconButton(onClick = {
-        if (count == 0) showDialog = true else showSheet = true
-    }) {
-        if (count == 0) {
-            Icon(
-                Icons.Outlined.ErrorOutline,
-                contentDescription = stringResource(R.string.corrections),
-                tint = CorrectionRed,
-            )
-        } else if (count == 1) {
-            Icon(
-                Icons.Filled.ErrorOutline,
-                contentDescription = stringResource(R.string.corrections),
-                tint = CorrectionRed,
-            )
-        } else {
-            BadgedBox(badge = {
-                Badge { Text("$count") }
-            }) {
-                Icon(
-                    Icons.Filled.ErrorOutline,
-                    contentDescription = stringResource(R.string.corrections),
-                    tint = CorrectionRed,
-                )
+    fun submit() {
+        attempted = true
+        if (SocialRules.validateCorrection(reason, content, locationText, null, bounds) != null) return
+        val chosen = reason ?: return
+        val position = if (chosen == CheckInReason.WRONG_LOCATION) CoordinateParser.parse(locationText) else null
+        submitting = true
+        scope.launch {
+            try {
+                if (existing == null) {
+                    app.socialRepository.createCorrection(
+                        trackPackId = target.trackPackId,
+                        itinDocumentId = target.itineraryId,
+                        collection = target.collection,
+                        objectId = target.objectId,
+                        reason = chosen,
+                        content = content.trim(),
+                        location = position,
+                    )
+                } else {
+                    app.socialRepository.updateCorrection(existing.documentId, chosen, content.trim(), position)
+                }
+                onDismiss()
+            } catch (e: Exception) {
+                problem = e.localizedMessage
+                submitting = false
             }
         }
     }
 
-    // ── Bottom sheet: list of corrections ───────────────────────────────────
-    if (showSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-        ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
-            sheetState = sheetState,
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-                Text(
-                    stringResource(R.string.corrections),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(if (existing == null) R.string.share_correction else R.string.shared_correction),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(12.dp))
 
-                LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                    items(corrections, key = { it.documentId }) { correction ->
-                        CorrectionListItem(correction)
-                        HorizontalDivider()
+            if (showForm) {
+                SocialRules.correctionReasons.forEach { option ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { reason = option },
+                    ) {
+                        RadioButton(selected = reason == option, onClick = { reason = option })
+                        Text(stringResource(reasonLabel(option)))
                     }
                 }
-
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        showSheet = false
-                        showDialog = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.suggest_correction))
+                if (error == SocialRules.CorrectionError.REASON_REQUIRED) {
+                    Text(
+                        stringResource(R.string.please_fill_all_fields),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-            }
-        }
-    }
-
-    // ── Add correction dialog ───────────────────────────────────────────────
-    if (showDialog) {
-        CorrectionDialog(
-            onDismiss = { showDialog = false },
-            onConfirm = { content ->
-                showDialog = false
-                scope.launch {
-                    runCatching {
-                        app.socialRepository.createCorrection(
-                            objectId = step.documentId,
-                            content = content,
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text(stringResource(R.string.explain_correction)) },
+                    isError = error == SocialRules.CorrectionError.CONTENT_REQUIRED,
+                    minLines = 3,
+                    maxLines = 8,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                if (reason == CheckInReason.WRONG_LOCATION) {
+                    LocationInput(
+                        value = locationText,
+                        onValueChange = { locationText = it; problem = null },
+                        error = locationError ?: problem,
+                        onProblem = { problem = it },
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                } else {
+                    problem?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (existing != null) {
+                        OutlinedButton(onClick = { confirmDelete = true }) {
+                            Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { if (existing != null) editing = false else onDismiss() }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                    Button(onClick = ::submit, enabled = !submitting) {
+                        Text(stringResource(if (existing == null) R.string.share else R.string.save))
+                    }
+                }
+            } else if (existing != null) {
+                Text(
+                    stringResource(R.string.reason_colon) + stringResource(reasonLabel(existing.reason)),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    Text(
+                        existing.userName ?: stringResource(R.string.anonymous),
+                        style = contentTextStyle(MaterialTheme.typography.bodyMedium),
+                    )
+                    existing.createdAt?.let {
+                        Text(
+                            "  " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(it)),
+                            style = contentTextStyle(MaterialTheme.typography.labelSmall),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-            },
-        )
-    }
-}
-
-@Composable
-private fun CorrectionListItem(correction: DiscussionRow) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    correction.userId ?: "",
-                    style = contentTextStyle(MaterialTheme.typography.bodyMedium),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                TranslatedContent(
+                    original = existing.content,
+                    translation = existing.translation(lang),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-                correction.createdAt?.let { ts ->
-                    Spacer(Modifier.width(8.dp))
+                if (existing.reason == CheckInReason.WRONG_LOCATION && existing.lat != null && existing.lon != null) {
                     Text(
-                        DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(ts)),
-                        style = contentTextStyle(MaterialTheme.typography.labelSmall),
+                        Coordinate(existing.lat!!, existing.lon!!).asInputText(),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-            }
-            // Content is stored in the json field; for now show the topic or a
-            // placeholder. A full implementation would parse the json blob.
-            correction.topic?.let {
-                Text(
-                    it,
-                    style = contentTextStyle(MaterialTheme.typography.bodySmall),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                val votes by app.socialRepository.observeVotesForObject(existing.documentId)
+                    .collectAsState(initial = emptyList())
+                val mine = votes.firstOrNull { it.userId == uid }?.isUpVote
+                DiscussionVoteButtons(
+                    upCount = votes.count { it.isUpVote },
+                    downCount = votes.count { !it.isUpVote },
+                    userVote = mine,
+                    modifier = Modifier.padding(top = 12.dp),
+                    onVote = { up ->
+                        gate.require(R.string.sign_in_to_discuss) {
+                            scope.launch {
+                                try {
+                                    app.socialRepository.castVote(existing.documentId, target.trackPackId, up)
+                                } catch (e: Exception) {
+                                    problem = e.localizedMessage
+                                }
+                            }
+                        }
+                    },
                 )
+                problem?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                    Spacer(Modifier.weight(1f))
+                    if (isOwn) {
+                        OutlinedButton(onClick = { editing = true }) {
+                            Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.edit_comment))
+                        }
+                    }
+                }
             }
         }
     }
-}
 
-@Composable
-private fun CorrectionDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (content: String) -> Unit,
-) {
-    var text by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.suggest_correction)) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                placeholder = { Text(stringResource(R.string.correction_hint)) },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                maxLines = 6,
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(text) },
-                enabled = text.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
-    )
+    if (confirmDelete && existing != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.delete)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    scope.launch {
+                        try {
+                            app.socialRepository.deleteCheckIn(existing.documentId)
+                            onDismiss()
+                        } catch (e: Exception) {
+                            problem = e.localizedMessage
+                        }
+                    }
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 }

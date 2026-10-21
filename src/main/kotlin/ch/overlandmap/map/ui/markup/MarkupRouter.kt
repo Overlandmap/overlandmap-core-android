@@ -1,10 +1,12 @@
 package ch.overlandmap.map.ui.markup
 
 import ch.overlandmap.map.data.LibraryRepository
+import ch.overlandmap.map.data.WorldRepository
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
 import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Waypoint
+import ch.overlandmap.map.ui.world.OverlandingSelection
 
 /** What tapping a markup link should open. */
 sealed interface MarkupDestination {
@@ -27,6 +29,12 @@ sealed interface MarkupDestination {
     data class ShowSidebar(val sidebar: Sidebar) : MarkupDestination
     data class ShowWaypoint(val waypoint: Waypoint) : MarkupDestination
     data class OpenUrl(val url: String) : MarkupDestination
+    /** A country, border, border post or zone, shown in the Overlanding tab. */
+    data class OpenOverlanding(val selection: OverlandingSelection) : MarkupDestination
+
+    /** An Overlanding object while the Overlanding dataset isn't downloaded (yet). */
+    object OverlandNotDownloaded : MarkupDestination
+
     /** Target not in the local library (e.g. only in the full pack). */
     object Unavailable : MarkupDestination
 }
@@ -41,6 +49,7 @@ class MarkupRouter(
     private val library: LibraryRepository,
     private val trackPackId: String,
     private val sourceItineraryId: String?,
+    private val world: WorldRepository? = null,
 ) {
 
     suspend fun resolve(link: MarkupLink): MarkupDestination = when (link) {
@@ -60,7 +69,24 @@ class MarkupRouter(
                 ?.let { MarkupDestination.ShowWaypoint(it) }
                 ?: MarkupDestination.Unavailable
         is MarkupLink.TrackRef -> MarkupDestination.Unavailable // TODO, like the Flutter app
-        is MarkupLink.EntityRef -> MarkupDestination.Unavailable // TODO: world entities
+        is MarkupLink.EntityRef -> resolveEntity(link)
+    }
+
+    /** Overlanding objects live in the world database; a miss means the dataset isn't downloaded. */
+    private suspend fun resolveEntity(link: MarkupLink.EntityRef): MarkupDestination {
+        val world = world ?: return MarkupDestination.Unavailable
+        val selection = when (link.kind) {
+            EntityKind.COUNTRY -> world.country(link.id)?.let { OverlandingSelection.OfCountry(it.adm0A3 ?: it.documentId) }
+            EntityKind.BORDER -> world.border(link.id)?.let { OverlandingSelection.OfBorder(it.documentId) }
+            EntityKind.BORDER_POST -> world.borderPost(link.id)?.let { OverlandingSelection.OfBorderPost(it.documentId) }
+            EntityKind.ZONE -> world.zone(link.id)?.let { OverlandingSelection.OfZone(it.documentId) }
+        }
+        return when {
+            selection != null -> MarkupDestination.OpenOverlanding(selection)
+            // An empty dataset is "not downloaded"; a populated one simply lacks this object.
+            world.isEmpty() -> MarkupDestination.OverlandNotDownloaded
+            else -> MarkupDestination.Unavailable
+        }
     }
 
     private suspend fun resolveItinerary(link: MarkupLink.ItineraryRef): MarkupDestination {

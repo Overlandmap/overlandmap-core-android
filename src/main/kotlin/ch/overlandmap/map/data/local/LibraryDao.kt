@@ -56,8 +56,8 @@ interface LibraryDao {
     suspend fun trackPack(id: String): TrackPack? = _trackPack(id)?.toModel()
 
     /** IDs of the purchased (non-sample) packs; free samples are excluded. */
-    @Query("SELECT documentId FROM track_pack WHERE isFreeSample = 0")
-    suspend fun purchasedPackIds(): List<String>
+    suspend fun purchasedPackIds(): List<String> =
+        allTrackPacks().filter { !it.isFreeSample }.map { it.documentId }
 
     /** IDs of all locally downloaded packs. */
     @Query("SELECT documentId FROM track_pack")
@@ -193,8 +193,34 @@ interface LibraryDao {
     suspend fun _insertComments(comments: List<CommentRow>): Unit
     suspend fun insertComments(comments: List<Comment>): Unit = _insertComments(comments.map { it.toRow() })
 
+    @Query("SELECT * FROM comment WHERE objectId = :objectId ORDER BY createdAt DESC")
+    suspend fun _commentsOf(objectId: String): List<CommentRow>
+    suspend fun commentsOf(objectId: String): List<Comment> = _commentsOf(objectId).map { it.toModel() }
+
     @Query("DELETE FROM comment WHERE objectId = :objectId")
     suspend fun deleteComments(objectId: String): Unit
+
+    @Query("DELETE FROM comment WHERE documentId = :documentId")
+    suspend fun deleteComment(documentId: String): Unit
+
+    suspend fun insertComment(comment: Comment): Unit = insertComments(listOf(comment))
+
+    /**
+     * Clears every comment hanging off a pack: comments on the pack itself (keyed by
+     * `objectId`, there is no `trackPackId` column) and on its itineraries (linked by
+     * `itinDocumentId`). Both must go, or a comment deleted remotely would linger forever.
+     */
+    @Query(
+        "DELETE FROM comment WHERE objectId = :trackPackId OR itinDocumentId IN " +
+            "(SELECT documentId FROM itinerary WHERE trackPackId = :trackPackId)"
+    )
+    suspend fun deleteCommentsOfPack(trackPackId: String): Unit
+
+    @Transaction
+    suspend fun replaceCommentsOfPack(trackPackId: String, comments: List<Comment>): Unit {
+        deleteCommentsOfPack(trackPackId)
+        insertComments(comments)
+    }
 
     @Transaction
     suspend fun replaceComments(objectId: String, comments: List<Comment>): Unit {
@@ -233,8 +259,26 @@ interface LibraryDao {
     @Query("DELETE FROM sidebar WHERE trackPackId = :trackPackId")
     suspend fun deleteSidebars(trackPackId: String): Unit
 
+    @Query("DELETE FROM contributed_waypoint WHERE trackPackId = :trackPackId")
+    suspend fun deletePackContributedWaypoints(trackPackId: String): Unit
+
+    @Query("DELETE FROM check_in WHERE trackPackId = :trackPackId")
+    suspend fun deletePackCheckIns(trackPackId: String): Unit
+
+    @Query("DELETE FROM sync_state WHERE trackPackId = :trackPackId")
+    suspend fun deletePackSyncStates(trackPackId: String): Unit
+
+    /**
+     * Removes a pack and everything cached for it: comments first (they are found through the
+     * pack's itineraries), then the content tables and the social caches. Votes are left in
+     * place, as on iOS.
+     */
     @Transaction
     suspend fun deletePackContent(trackPackId: String): Unit {
+        deleteCommentsOfPack(trackPackId)
+        deletePackContributedWaypoints(trackPackId)
+        deletePackCheckIns(trackPackId)
+        deletePackSyncStates(trackPackId)
         deleteItineraries(trackPackId)
         deleteSteps(trackPackId)
         deleteTracks(trackPackId)

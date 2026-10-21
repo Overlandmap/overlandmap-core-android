@@ -7,24 +7,36 @@ import androidx.core.content.FileProvider
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
 import ch.overlandmap.map.model.Track
+import ch.overlandmap.map.model.UniversalLink
 import ch.overlandmap.map.model.Waypoint
 import java.io.File
 
-/** The itinerary's universal link: editor / pack name / itinerary slug. */
-private fun itineraryLink(editorId: String?, packName: String?, itineraryId: String): String {
-    val editor = Uri.encode(editorId.orEmpty())
-    val pack = Uri.encode(packName.orEmpty())
-    val itinerary = Uri.encode(itineraryId)
-    return "https://overlandmap.ch/itinerary/$editor/$pack/$itinerary"
-}
+/** The site root, which iOS shares when an object has no usable link (missing editor…). */
+private const val SITE = "https://overlandmap.ch"
 
-/** Shares the itinerary's universal link through the system share sheet. */
-fun shareItineraryLink(context: Context, editorId: String?, packName: String?, itineraryId: String) {
+/** Shares [url] as text through the system share sheet. */
+fun shareText(context: Context, url: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, itineraryLink(editorId, packName, itineraryId))
+        putExtra(Intent.EXTRA_TEXT, url)
     }
     context.startActivity(Intent.createChooser(intent, null))
+}
+
+/** Shares the itinerary's universal link (`/itinerary/<editor>/<pack>/<id>`), at [stepId] when given. */
+fun shareItineraryLink(context: Context, editorId: String?, packName: String?, itineraryId: String, stepId: Int? = null) {
+    val url = UniversalLink.Itinerary(editorId.orEmpty(), packName.orEmpty(), itineraryId, stepId).url()
+    shareText(context, url ?: SITE)
+}
+
+/** Shares the pack's universal link (`/trackpack/<editor>/<name>`). */
+fun shareTrackPackLink(context: Context, editorId: String?, packName: String?) {
+    shareText(context, UniversalLink.TrackPack(editorId.orEmpty(), packName.orEmpty()).url() ?: SITE)
+}
+
+/** Shares a waypoint's universal link (`/waypoint/<geohash>`). */
+fun shareWaypointLink(context: Context, geohash: String?) {
+    shareText(context, geohash?.let { UniversalLink.Waypoint(it).url() } ?: SITE)
 }
 
 /**

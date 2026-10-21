@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -46,10 +47,14 @@ fun PhotoGridTile(
     freeBanner: Boolean = false,
     /** Shows the little clock badge: a newer version exists online. */
     updateBadge: Boolean = false,
+    /** Shows the "beta" pill: a release that is not published for everyone yet. */
+    betaBadge: Boolean = false,
     /** Large outlined text overlaid on the photo (e.g. an itinerary slug). */
     overlayText: String? = null,
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
+    /** Drawn in place of the photo when there is none (the Recordings / Imported tiles). */
+    placeholderIcon: ImageVector? = null,
 ) {
     Card(
         modifier = modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
@@ -70,10 +75,19 @@ fun PhotoGridTile(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentScale = ContentScale.Crop,
                 )
+                if (photoUrl == null && placeholderIcon != null) {
+                    Icon(
+                        placeholderIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Center).size(48.dp),
+                    )
+                }
                 overlayText?.let {
                     OutlinedId(it, Modifier.align(Alignment.TopStart).padding(6.dp))
                 }
                 if (freeBanner) FreeRibbon(Modifier.align(Alignment.TopStart))
+                if (betaBadge) BetaBadge(Modifier.align(Alignment.BottomEnd).padding(6.dp))
                 if (updateBadge) {
                     Icon(
                         Icons.Filled.Schedule,
@@ -124,5 +138,18 @@ private fun FreeRibbon(modifier: Modifier = Modifier) {
             .rotate(-45f)
             .background(Color(0xCCD32F2F))
             .padding(horizontal = 28.dp, vertical = 2.dp),
+    )
+}
+
+/** A small "beta" pill in the corner of a beta item's photo (iOS `BetaBadge`). */
+@Composable
+fun BetaBadge(modifier: Modifier = Modifier) {
+    Text(
+        stringResource(R.string.beta).uppercase(),
+        color = Color.White,
+        style = MaterialTheme.typography.labelSmall,
+        modifier = modifier
+            .background(Color(0xFF1565C0), MaterialTheme.shapes.extraSmall)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
     )
 }

@@ -41,7 +41,7 @@ data class PackDownloadProgress(
 class PackDownloadManager(
     private val context: Context,
     private val scope: CoroutineScope,
-    @Suppress("unused") private val library: LibraryRepository,
+    private val library: LibraryRepository,
 ) {
 
     private val workManager = WorkManager.getInstance(context)
@@ -61,6 +61,11 @@ class PackDownloadManager(
         }
     }
 
+    /** Stops every running or queued pack download (before signing out). */
+    fun cancelAll() {
+        workManager.cancelAllWorkByTag(PackDownloadWorker.TAG)
+    }
+
     fun isDownloading(packId: String): Boolean =
         progress.value[packId]?.let { it.error == null && !it.done } == true
 
@@ -74,8 +79,8 @@ class PackDownloadManager(
             PackAssetKind.CONTOUR -> "contour" to "mbtiles"
             PackAssetKind.FREE_ITINERARY -> throw IllegalArgumentException("zip has no map file")
         }
-        val name = asset.name.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        return File(File(context.filesDir, dir), "${packId}_$name.$extension")
+        // Named after the asset, not the pack: packs sharing an asset share the file.
+        return File(File(context.filesDir, dir), "${AssetFiles.fileStem(asset.documentId)}.$extension")
     }
 
     /** True when this map asset's file is already on disk. */
@@ -86,11 +91,18 @@ class PackDownloadManager(
     fun mapAssetBytes(packId: String, kind: PackAssetKind, asset: Asset): Long =
         mapFile(packId, kind, asset).takeIf { it.isFile }?.length() ?: 0L
 
-    /** Removes a downloaded map asset and any partial transfer. */
-    fun deleteMapAsset(packId: String, kind: PackAssetKind, asset: Asset) {
+    /**
+     * Removes a pack's downloaded map asset and any partial transfer. The file is shared by
+     * every pack referencing the asset, so it is only deleted when no other local pack does.
+     * Returns whether the file was deleted.
+     */
+    suspend fun deleteMapAsset(packId: String, kind: PackAssetKind, asset: Asset): Boolean {
+        val others = library.allTrackPacks()
+        if (AssetFiles.isReferencedByOtherPack(asset.documentId, kind, packId, others)) return false
         val file = mapFile(packId, kind, asset)
         file.delete()
         File(file.path + ".part").delete()
+        return true
     }
 
     /**
@@ -111,12 +123,14 @@ class PackDownloadManager(
         val destinations = mutableListOf<String>()
         val names = mutableListOf<String>()
         val sizes = mutableListOf<Long>()
+        val hashes = mutableListOf<String>()
         mapSelection.forEach { (kind, asset) ->
             val url = asset.url ?: return@forEach
             urls += url
             destinations += mapFile(packId, kind, asset).path
             names += asset.name
             sizes += asset.fileSizeBytes
+            hashes += asset.hash.orEmpty()
         }
         setProgress(packId, PackDownloadProgress())
         val request = OneTimeWorkRequestBuilder<PackDownloadWorker>()
@@ -128,6 +142,7 @@ class PackDownloadManager(
                     PackDownloadWorker.KEY_DESTS to destinations.toTypedArray(),
                     PackDownloadWorker.KEY_NAMES to names.toTypedArray(),
                     PackDownloadWorker.KEY_SIZES to sizes.toLongArray(),
+                    PackDownloadWorker.KEY_HASHES to hashes.toTypedArray(),
                 )
             )
             .setConstraints(
@@ -152,6 +167,7 @@ class PackDownloadManager(
         val destinations = mutableListOf<String>()
         val names = mutableListOf<String>()
         val sizes = mutableListOf<Long>()
+        val hashes = mutableListOf<String>()
         var zipIndex = -1
         var zipAssetVersion = 0
         var zipAssetVersionDate = 0L
@@ -163,6 +179,7 @@ class PackDownloadManager(
             urls += url
             names += asset.name
             sizes += asset.fileSizeBytes
+            hashes += asset.hash.orEmpty()
             destinations += when (kind) {
                 PackAssetKind.FREE_ITINERARY -> {
                     zipIndex = index
@@ -183,6 +200,7 @@ class PackDownloadManager(
                     PackDownloadWorker.KEY_DESTS to destinations.toTypedArray(),
                     PackDownloadWorker.KEY_NAMES to names.toTypedArray(),
                     PackDownloadWorker.KEY_SIZES to sizes.toLongArray(),
+                    PackDownloadWorker.KEY_HASHES to hashes.toTypedArray(),
                     PackDownloadWorker.KEY_ZIP_INDEX to zipIndex,
                     PackDownloadWorker.KEY_ASSET_VERSION to zipAssetVersion,
                     PackDownloadWorker.KEY_ASSET_VERSION_DATE to zipAssetVersionDate,
