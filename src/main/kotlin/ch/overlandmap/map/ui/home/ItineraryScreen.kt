@@ -231,7 +231,7 @@ fun ItineraryScreen(
     val app = context.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
     val isBeta = ch.overlandmap.map.ui.tracking.rememberIsBeta()
-    val withLocationPermission = ch.overlandmap.map.ui.tracking.rememberWithLocationPermission()
+    val withLocationPermission = ch.overlandmap.map.ui.tracking.rememberWithNavigationLocation()
     var restoreCam by remember {
         mutableStateOf(restore?.takeIf { it.zoom != null && it.lat != null && it.lon != null })
     }

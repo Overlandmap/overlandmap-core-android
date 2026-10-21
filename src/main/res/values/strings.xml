@@ -547,4 +547,5 @@
     <string name="auto_centering">Auto-centering active</string>
     <string name="navigation_waiting_gps">Waiting for GPS…</string>
     <string name="reverse_navigation">Reverse direction</string>
+    <string name="navigation_location_denied">Navigation is not possible: the app is not allowed to use your location. Allow location access in the system settings to navigate.</string>
 </resources>

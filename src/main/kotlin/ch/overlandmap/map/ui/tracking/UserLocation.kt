@@ -43,7 +43,7 @@ fun rememberUserLocation(): State<Coordinate?> {
 
     DisposableEffect(granted, lifecycle) {
         if (!granted) return@DisposableEffect onDispose {}
-        val source = AndroidLocationSource(context)
+        val source = AndroidLocationSource(context, allowNetwork = true)
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> source.start(2f) { fix -> if (fix.accuracyM >= 0) location.value = fix.coordinate }

@@ -14,6 +14,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
+import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,58 +35,81 @@ fun Location.toFix() = LocationFix(
 )
 
 /**
- * GPS fixes from the platform [LocationManager]. Updates keep arriving while the app is in the
+ * Fixes from the platform [LocationManager]. Updates keep arriving while the app is in the
  * background as long as the tracking foreground service runs (see [TrackingService]).
+ *
+ * The GPS is the source. With [allowNetwork] the network provider fills in while the GPS has no
+ * recent fix (indoors, before the first fix, a device or emulator without GPS); its fixes are never
+ * used once the GPS delivers. A recording keeps to the GPS: network positions would spoil a track.
  */
-class AndroidLocationSource(private val context: Context) : LocationSource {
+class AndroidLocationSource(private val context: Context, private val allowNetwork: Boolean = false) : LocationSource {
 
     @Volatile
     override var lastFix: LocationFix? = null
         private set
 
     private val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private var listener: LocationListener? = null
+    private val listeners = mutableListOf<LocationListener>()
+    private var lastGpsMs = 0L
+    private var fixCount = 0
+
+    private fun listener(gps: Boolean, onFix: (LocationFix) -> Unit) = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            val now = System.currentTimeMillis()
+            if (gps) lastGpsMs = now
+            else if (now - lastGpsMs < NETWORK_FALLBACK_AFTER_MS) return
+            val fix = location.toFix()
+            if (fix.accuracyM >= 0) lastFix = fix
+            if (++fixCount <= 3) Log.d(TAG, "location fix #$fixCount from ${location.provider}: ${fix.latitude},${fix.longitude} acc=${fix.accuracyM}")
+            onFix(fix)
+        }
+
+        // Required on API < 30, where these have no default implementation.
+        override fun onProviderEnabled(provider: String) { Log.d(TAG, "location: provider $provider enabled") }
+        override fun onProviderDisabled(provider: String) { Log.d(TAG, "location: provider $provider disabled") }
+
+        @Deprecated("Deprecated in API 29")
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+    }
 
     @SuppressLint("MissingPermission")
     override fun start(minDistanceMeters: Float, onFix: (LocationFix) -> Unit) {
         stop()
-        if (!hasFineLocationPermission(context)) return
-        val l = object : LocationListener {
-            override fun onLocationChanged(location: Location) {
-                val fix = location.toFix()
-                if (fix.accuracyM >= 0) lastFix = fix
-                onFix(fix)
+        val permitted = hasFineLocationPermission(context)
+        Log.d(TAG, "location start: permission=$permitted allowNetwork=$allowNetwork")
+        if (!permitted) return
+        lastGpsMs = 0L
+        fixCount = 0
+        fun register(provider: String, gps: Boolean) {
+            try {
+                // A disabled provider can still be listened to: updates start when the user turns location on.
+                if (!manager.isProviderEnabled(provider)) Log.d(TAG, "location: provider $provider is disabled in the system settings")
+                if (lastFix == null) manager.getLastKnownLocation(provider)?.let { lastFix = it.toFix() }
+                val l = listener(gps, onFix)
+                manager.requestLocationUpdates(provider, UPDATE_INTERVAL_MS, minDistanceMeters, l, Looper.getMainLooper())
+                listeners += l
+                Log.d(TAG, "location: listening to $provider (last known ${lastFix != null})")
+            } catch (e: SecurityException) {
+                Log.d(TAG, "location: $provider refused: ${e.message}")
+            } catch (e: IllegalArgumentException) {
+                Log.d(TAG, "location: no $provider on this device")
             }
-
-            // Required on API < 30, where these have no default implementation.
-            override fun onProviderEnabled(provider: String) {}
-            override fun onProviderDisabled(provider: String) {}
-
-            @Deprecated("Deprecated in API 29")
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
         }
-        listener = l
-        try {
-            if (lastFix == null) {
-                manager.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let { lastFix = it.toFix() }
-            }
-            manager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER, UPDATE_INTERVAL_MS, minDistanceMeters, l, Looper.getMainLooper(),
-            )
-        } catch (_: SecurityException) {
-            listener = null
-        } catch (_: IllegalArgumentException) {
-            listener = null // no GPS provider on this device
-        }
+        register(LocationManager.GPS_PROVIDER, gps = true)
+        if (allowNetwork) register(LocationManager.NETWORK_PROVIDER, gps = false)
     }
 
     override fun stop() {
-        listener?.let { manager.removeUpdates(it) }
-        listener = null
+        listeners.forEach { manager.removeUpdates(it) }
+        listeners.clear()
     }
 
     private companion object {
+        const val TAG = "NavDebug"
         const val UPDATE_INTERVAL_MS = 1_000L
+
+        /** Network fixes are used only when the GPS has been silent this long. */
+        const val NETWORK_FALLBACK_AFTER_MS = 10_000L
     }
 }
 

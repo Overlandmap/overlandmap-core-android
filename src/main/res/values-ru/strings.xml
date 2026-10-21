@@ -468,4 +468,5 @@
     <string name="auto_centering">Автоцентрирование включено</string>
     <string name="navigation_waiting_gps">Ожидание GPS…</string>
     <string name="reverse_navigation">Развернуть направление</string>
+    <string name="navigation_location_denied">Навигация невозможна: приложению не разрешено использовать ваше местоположение. Разрешите доступ к местоположению в настройках системы, чтобы начать навигацию.</string>
 </resources>

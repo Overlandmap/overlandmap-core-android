@@ -141,6 +141,8 @@ class NavigationCoordinator(
     private val onNavigatingChanged: (Boolean) -> Unit = {},
     /** Receives a line when the navigation ends, saying why. */
     private val log: (String) -> Unit = {},
+    /** Verbose trace of the decisions (start, first fix, mode and target changes, road route). */
+    private val debug: (String) -> Unit = {},
 ) {
     private val _state = MutableStateFlow(NavigationState())
     val state: StateFlow<NavigationState> = _state.asStateFlow()
@@ -221,6 +223,12 @@ class NavigationCoordinator(
             heading = s.heading,
         )
         rebuildNavigationTrack()
+        debug(
+            "start: itinerary=$itineraryId reverse=$reverse steps=${steps.size} (with position ${steps.count { it.coordinate() != null }}) " +
+                "trackPoints=${trackCoordinates.size} navTrack=${navTrack?.points?.size ?: "none"} " +
+                "target=${s.currentTargetIndex} restored=${restored != null} token=${when { mapboxToken == null -> "unknown"; mapboxToken.isEmpty() -> "none"; else -> "yes" }} " +
+                "initialFix=${(initialLocation ?: location.lastFix ?: s.currentLocation) != null}"
+        )
         flush()
         location.start(1f) { fix -> processLocation(fix) }
         if (!wasNavigating) onNavigatingChanged(true)
@@ -292,6 +300,7 @@ class NavigationCoordinator(
     }
 
     private fun leaveRoadMode() {
+        debug("road mode left -> itinerary mode")
         roadRouteJob?.cancel()
         roadRouteJob = null
         closestDistance = null
@@ -370,7 +379,10 @@ class NavigationCoordinator(
     }
 
     private fun process(fix: LocationFix) {
-        if (!s.isNavigating || fix.accuracyM < 0) return
+        if (!s.isNavigating || fix.accuracyM < 0) {
+            debug("fix ignored: navigating=${s.isNavigating} accuracy=${fix.accuracyM}")
+            return
+        }
         s = s.copy(currentLocation = fix)
 
         if (!hasFoundInitialClosestStep) {
@@ -381,6 +393,10 @@ class NavigationCoordinator(
             val selected = initialTargetIndex(user)
             s = s.copy(currentTargetIndex = selected)
             persist()
+            debug(
+                "first fix ${fix.latitude},${fix.longitude} acc=${fix.accuracyM}: initial target=$selected " +
+                    "distanceToStraight=${s.steps.getOrNull(selected)?.coordinate()?.let { user.distanceMeters(it).toInt() }} m mapboxToken=${mapboxToken?.let { if (it.isEmpty()) "none" else "yes" } ?: "unknown"}"
+            )
 
             // While the target is over 5 km away, follow Mapbox directions until it is under 1 km, then
             // switch to the bearing overlay. Nearer than 5 km, show the bearing overlay at once.
@@ -466,6 +482,7 @@ class NavigationCoordinator(
         roadRouteJob = scope.launch {
             try {
                 val route = directions.fetchRoute(origin, destination, language, token)
+                debug("road route: ${route.steps.size} steps, ${route.totalDistanceMeters.toInt()} m")
                 // Stopping, restarting or reaching the start invalidates this request.
                 if (!s.isNavigating || s.mode != NavigationMode.ROAD_TO_START) return@launch
                 s = s.copy(roadRoute = route, isCalculatingRoadRoute = false)
@@ -475,6 +492,7 @@ class NavigationCoordinator(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
+                debug("road route failed: ${e.message}")
                 if (!s.isNavigating || s.mode != NavigationMode.ROAD_TO_START) return@launch
                 // Offline or no route: never leave an endless spinner.
                 leaveRoadMode()
@@ -645,6 +663,7 @@ class NavigationCoordinator(
         get() = if (s.isReverse) s.currentTargetIndex <= 0 else s.currentTargetIndex >= s.steps.size - 1
 
     private fun setTarget(index: Int) {
+        debug("target ${s.currentTargetIndex} -> $index (reverse=${s.isReverse}, moving=${s.isMoving})")
         s = s.copy(currentTargetIndex = index, isApproachingTarget = true)
         finalArrivalArmed = false
         lastDistanceToTarget = null
@@ -756,6 +775,7 @@ class NavigationCoordinator(
             val since = stoppedSinceMs ?: fix.timeMs
             stoppedSinceMs = since
             if (fix.timeMs - since >= STOP_DEBOUNCE_MS) {
+                debug("motion: stopped (speed ${"%.2f".format(v)} m/s)")
                 s = s.copy(isMoving = false)
                 stoppedSinceMs = null
                 courseAnchor = null
@@ -763,6 +783,7 @@ class NavigationCoordinator(
                 trendAnchorDistance = null
             }
         } else if (v >= START_MOVING_SPEED) {
+            debug("motion: moving (speed ${"%.2f".format(v)} m/s)")
             s = s.copy(isMoving = true)
             stoppedSinceMs = null
             courseAnchor = user

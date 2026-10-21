@@ -466,4 +466,5 @@
     <string name="auto_centering">Automatische Zentrierung aktiv</string>
     <string name="navigation_waiting_gps">Warte auf GPS …</string>
     <string name="reverse_navigation">Richtung umkehren</string>
+    <string name="navigation_location_denied">Navigation ist nicht möglich: Die App darf Ihren Standort nicht verwenden. Erlauben Sie den Standortzugriff in den Systemeinstellungen, um zu navigieren.</string>
 </resources>

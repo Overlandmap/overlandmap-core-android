@@ -98,7 +98,7 @@ class OverlandApp : Application() {
         )
     }
     val savedNavigationStore by lazy { ch.overlandmap.map.navigation.SavedNavigationStore(userPreferences, appScope) }
-    private val navigationLocation by lazy { ch.overlandmap.map.tracking.AndroidLocationSource(this) }
+    private val navigationLocation by lazy { ch.overlandmap.map.tracking.AndroidLocationSource(this, allowNetwork = true) }
     private val headingSensor by lazy { ch.overlandmap.map.tracking.HeadingSensor(this) { navigationLocation.lastFix } }
     val navigationCoordinator: ch.overlandmap.map.navigation.NavigationCoordinator by lazy {
         val coordinator = ch.overlandmap.map.navigation.NavigationCoordinator(
@@ -107,6 +107,7 @@ class OverlandApp : Application() {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
             onTargetReached = { runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 100).startTone(android.media.ToneGenerator.TONE_PROP_ACK, 400) } },
             log = { line -> android.util.Log.i("Navigation", line) },
+            debug = { line -> android.util.Log.d("NavDebug", line) },
             onNavigatingChanged = { active ->
                 if (active) {
                     headingSensor.start()

@@ -1,7 +1,14 @@
 package ch.overlandmap.map.navigation
 
+import android.util.Log
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.geo.Coordinate
+import kotlinx.coroutines.withTimeoutOrNull
+
+private const val TAG = "NavDebug"
+
+/** The longest a navigation waits for a Mapbox token that isn't cached yet, before going without road directions. */
+private const val TOKEN_TIMEOUT_MS = 4000L
 
 /**
  * Loads a local itinerary and starts (or, with [initialTargetIndex], resumes) navigating it.
@@ -16,12 +23,26 @@ suspend fun OverlandApp.beginNavigation(
     language: String,
     initialTargetIndex: Int? = null,
 ): Boolean {
-    val itinerary = libraryRepository.itinerary(itineraryId) ?: return false
+    Log.d(TAG, "beginNavigation: itinerary=$itineraryId reverse=$reverse initialTarget=$initialTargetIndex")
+    val itinerary = libraryRepository.itinerary(itineraryId) ?: run {
+        Log.d(TAG, "beginNavigation: itinerary not found")
+        return false
+    }
     val steps = libraryRepository.steps(itineraryId).sortedBy { it.stepId }
-    if (steps.isEmpty()) return false
+    Log.d(TAG, "beginNavigation: ${steps.size} steps")
+    if (steps.isEmpty()) {
+        Log.d(TAG, "beginNavigation: the itinerary has no steps")
+        return false
+    }
     val tracks = libraryRepository.tracks(itineraryId)
     val trackCoordinates = tracks.flatMap { track -> track.coordinates().map { Coordinate(it.lat, it.lon) } }
-    val token = mapboxTokenManager.cachedTokenNow() ?: runCatching { mapboxTokenManager.validToken() }.getOrNull().orEmpty()
+    Log.d(TAG, "beginNavigation: ${tracks.size} tracks, ${trackCoordinates.size} points")
+    val cached = mapboxTokenManager.cachedTokenNow()
+    val token = cached ?: withTimeoutOrNull(TOKEN_TIMEOUT_MS) {
+        Log.d(TAG, "beginNavigation: no cached Mapbox token, fetching")
+        runCatching { mapboxTokenManager.validToken() }.getOrNull()
+    }.orEmpty()
+    Log.d(TAG, "beginNavigation: token ${if (cached != null) "cached" else if (token.isEmpty()) "unavailable" else "fetched"}, starting")
     navigationCoordinator.startNavigation(
         itineraryId = itineraryId,
         itineraryTitle = itinerary.name(language),
@@ -32,5 +53,6 @@ suspend fun OverlandApp.beginNavigation(
         language = language,
         mapboxToken = token,
     )
+    Log.d(TAG, "beginNavigation: started, navigating=${navigationCoordinator.isNavigating}")
     return true
 }

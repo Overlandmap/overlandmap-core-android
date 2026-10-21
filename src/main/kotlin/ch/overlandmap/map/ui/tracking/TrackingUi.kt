@@ -1,6 +1,9 @@
 package ch.overlandmap.map.ui.tracking
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -14,11 +17,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,7 +58,7 @@ fun rememberIsBeta(): Boolean {
  * recording and navigation controls while the app is in the background).
  */
 @Composable
-fun rememberWithLocationPermission(): (action: () -> Unit) -> Unit {
+fun rememberWithLocationPermission(onDenied: (() -> Unit)? = null): (action: () -> Unit) -> Unit {
     val context = LocalContext.current
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -61,7 +66,9 @@ fun rememberWithLocationPermission(): (action: () -> Unit) -> Unit {
         val action = pending
         pending = null
         if (granted && action != null) action()
-        else if (!granted) Toast.makeText(context, R.string.location_permission_needed, Toast.LENGTH_LONG).show()
+        else if (!granted) {
+            if (onDenied != null) onDenied() else Toast.makeText(context, R.string.location_permission_needed, Toast.LENGTH_LONG).show()
+        }
     }
     return { action ->
         if (hasFineLocationPermission(context)) {
@@ -128,4 +135,34 @@ fun ActiveRecordingBar(modifier: Modifier = Modifier) {
         }
     }
     if (addingWaypoint) VoiceWaypointSheet(onDismiss = { addingWaypoint = false })
+}
+
+/**
+ * Like [rememberWithLocationPermission] for starting a navigation: when the position can't be used
+ * (refused, or blocked in the system settings) a dialog says that navigation is impossible and
+ * offers the app's settings, and the action is not run.
+ */
+@Composable
+fun rememberWithNavigationLocation(): (action: () -> Unit) -> Unit {
+    val context = LocalContext.current
+    var denied by remember { mutableStateOf(false) }
+    val gate = rememberWithLocationPermission(onDenied = { denied = true })
+    if (denied) {
+        AlertDialog(
+            onDismissRequest = { denied = false },
+            title = { Text(stringResource(R.string.navigate)) },
+            text = { Text(stringResource(R.string.navigation_location_denied)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    denied = false
+                    context.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }) { Text(stringResource(R.string.settings)) }
+            },
+            dismissButton = { TextButton(onClick = { denied = false }) { Text(stringResource(R.string.ok)) } },
+        )
+    }
+    return gate
 }

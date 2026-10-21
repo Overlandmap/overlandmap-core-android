@@ -24,6 +24,16 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        // Android stubs (Log, etc.) return defaults instead of throwing in JVM tests.
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+ksp {
+    // Room exports its schema JSON here; a unit test compares it with the iOS schema.
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -56,6 +66,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-functions")
+    implementation("com.google.firebase:firebase-storage")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     // Google Sign-In (Credential Manager)
@@ -83,4 +94,9 @@ dependencies {
 
     // YAML parsing for the help/tutorial content shipped as app assets
     implementation("org.yaml:snakeyaml:2.3")
+
+    // JVM unit tests. The Android SDK's org.json is a stub on the JVM, so tests
+    // use the real implementation (same API) for the JSON-based code.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

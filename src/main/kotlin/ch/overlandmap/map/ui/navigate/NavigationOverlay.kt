@@ -1,5 +1,6 @@
 package ch.overlandmap.map.ui.navigate
 
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -87,6 +88,9 @@ private val HeadingYellow = Color(0xFFFFEB3B)
 @Composable
 fun NavigationOverlay(state: NavigationState, cameraBearing: Double, modifier: Modifier = Modifier) {
     val offTrack = state.isOffTrack
+    LaunchedEffect(state.isNavigating, state.mode, state.steps.size) {
+        Log.d("NavDebug", "HUD state: navigating=${state.isNavigating} mode=${state.mode} steps=${state.steps.size} location=${state.currentLocation != null}")
+    }
     Box(
         modifier
             .shadow(8.dp, PanelShape, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.35f))
@@ -110,7 +114,17 @@ fun NavigationOverlay(state: NavigationState, cameraBearing: Double, modifier: M
 private fun BearingInstructions(state: NavigationState, cameraBearing: Double) {
     val units = rememberUnitFormatter()
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        if (maxWidth > maxHeight * 1.2f) {
+        val wide = maxWidth > maxHeight * 1.2f
+        LaunchedEffect(maxWidth, maxHeight, state.currentTargetIndex, state.distanceToTargetMeters != null) {
+            Log.d(
+                "NavDebug",
+                "HUD content: ${maxWidth.value.toInt()}x${maxHeight.value.toInt()} dp, layout=${if (wide) "wide" else "tall"}, " +
+                    "step=${state.currentTargetStep?.name(state.language)} index=${state.currentTargetIndex}/${state.steps.size}, " +
+                    "distance=${state.distanceToTargetMeters?.toInt()} m, rel=${state.relativeBearingToTarget(cameraBearing)}, " +
+                    "heading=${state.deviceHeading(cameraBearing)}",
+            )
+        }
+        if (wide) {
             // A wide panel (portrait): the text on the left, and the dial as tall as the panel on the right.
             val side = min(maxHeight, maxWidth * 0.6f)
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -197,7 +211,17 @@ private fun FillingCompass(state: NavigationState, units: UnitFormatter, cameraB
         val side = min(maxWidth, maxHeight)
         val relative = state.relativeBearingToTarget(cameraBearing)
         Box(Modifier.size(side)) {
-            // Nothing is drawn until a bearing is known.
+            // Nothing is drawn until a bearing is known; until the first fix, say what is awaited.
+            if (relative == null && state.currentLocation == null) {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(Modifier.size(28.dp), color = Color.White, strokeWidth = 3.dp)
+                    Text(
+                        stringResource(R.string.navigation_waiting_gps),
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
+            }
             if (relative != null) {
                 CompassDial(
                     relativeBearing = relative,

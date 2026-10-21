@@ -468,4 +468,5 @@
     <string name="auto_centering">Automatisch centreren actief</string>
     <string name="navigation_waiting_gps">Wachten op GPS…</string>
     <string name="reverse_navigation">Richting omkeren</string>
+    <string name="navigation_location_denied">Navigeren is niet mogelijk: de app mag je locatie niet gebruiken. Sta locatietoegang toe in de systeeminstellingen om te navigeren.</string>
 </resources>

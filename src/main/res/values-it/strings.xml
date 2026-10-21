@@ -466,4 +466,5 @@
     <string name="auto_centering">Centratura automatica attiva</string>
     <string name="navigation_waiting_gps">In attesa del GPS…</string>
     <string name="reverse_navigation">Inverti la direzione</string>
+    <string name="navigation_location_denied">La navigazione non è possibile: l\'app non è autorizzata a usare la tua posizione. Consenti l\'accesso alla posizione nelle impostazioni di sistema per navigare.</string>
 </resources>

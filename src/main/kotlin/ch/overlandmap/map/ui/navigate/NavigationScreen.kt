@@ -85,7 +85,7 @@ import ch.overlandmap.map.navigation.NavigationMode
 import ch.overlandmap.map.navigation.beginNavigation
 import ch.overlandmap.map.navigation.coordinate
 import ch.overlandmap.map.ui.currentLanguage
-import ch.overlandmap.map.ui.tracking.rememberWithLocationPermission
+import ch.overlandmap.map.ui.tracking.rememberWithNavigationLocation
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.android.gestures.RotateGestureDetector
 import com.mapbox.android.gestures.StandardScaleGestureDetector
@@ -182,7 +182,7 @@ fun NavigationScreen(onStopped: () -> Unit) {
     val saved by app.savedNavigationStore.state.collectAsState()
     val scope = rememberCoroutineScope()
     val language = currentLanguage()
-    val withPermission = rememberWithLocationPermission()
+    val withPermission = rememberWithNavigationLocation()
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
 
@@ -192,8 +192,8 @@ fun NavigationScreen(onStopped: () -> Unit) {
     LaunchedEffect(Unit) {
         val resume = saved
         if (!coordinator.isNavigating && resume != null) {
-            restoring = true
             withPermission {
+                restoring = true
                 scope.launch {
                     val started = app.beginNavigation(resume.itineraryId, resume.isReverse, language, resume.targetIndex)
                     restoring = false
@@ -317,6 +317,14 @@ fun NavigationScreen(onStopped: () -> Unit) {
         val view = mapView ?: return@LaunchedEffect
         val bounds = content?.bounds ?: return@LaunchedEffect
         if (loadedStyle == null || mapW <= 0 || state.currentLocation != null) return@LaunchedEffect
+        // The fit is computed from the map view's own size: wait until it has been laid out (before
+        // that it is 0 and the fit comes out at the lowest zoom, the whole world).
+        var waited = 0
+        while ((view.width == 0 || view.height == 0) && waited < 40) {
+            delay(50)
+            waited++
+        }
+        if (state.currentLocation != null) return@LaunchedEffect
         val visible = visibleArea()
         val camera = view.mapboxMap.cameraForCoordinateBounds(
             CoordinateBounds(Point.fromLngLat(bounds.lonMin, bounds.latMin), Point.fromLngLat(bounds.lonMax, bounds.latMax)),
