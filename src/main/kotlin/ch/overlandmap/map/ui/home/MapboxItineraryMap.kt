@@ -1,5 +1,7 @@
 package ch.overlandmap.map.ui.home
 
+import android.view.Gravity
+import com.mapbox.maps.plugin.scalebar.scalebar
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.Icon
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import ch.overlandmap.map.R
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -180,6 +188,7 @@ fun MapboxItineraryMap(
     // All maki marker icons, decoded once and registered when the style loads.
     val makiIcons = remember { WaypointMarkers.bitmaps(context) }
     val userLocation by rememberUserLocation()
+    val controlsOffset = with(LocalDensity.current) { 100.toDp() }
     var fitted by remember { mutableStateOf(false) }
     var mapZoom by remember { mutableStateOf<Double?>(null) }
     var localMapView by remember { mutableStateOf<MapView?>(null) }
@@ -198,6 +207,11 @@ fun MapboxItineraryMap(
             modifier = Modifier.fillMaxSize(),
             styleUrl = styleUrl,
             onMapReady = { mapView ->
+                mapView.scalebar.updateSettings {
+                    position = Gravity.BOTTOM or Gravity.LEFT
+                    // Leave room for the Mapbox attribution/logo along the bottom edge.
+                    marginBottom = 32f * context.resources.displayMetrics.density
+                }
                 localMapView = mapView
                 onMapReady(mapView)
                 installTapHandler(mapView, onTapped)
@@ -252,7 +266,7 @@ fun MapboxItineraryMap(
                 loadedStyle = style
             },
         )
-        Column(modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)) {
+        Column(modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(top = controlsOffset).padding(12.dp)) {
             MapStyleMenu(
                 options = styleOptions,
                 hasMapboxToken = hasMapboxToken,
@@ -276,6 +290,29 @@ fun MapboxItineraryMap(
                 Box(contentAlignment = Alignment.Center) {
                     Text("3D", style = MaterialTheme.typography.labelLarge)
                 }
+            }
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                onClick = {
+                    val location = userLocation ?: return@Surface
+                    val map = localMapView?.mapboxMap ?: return@Surface
+                    onUserGesture()
+                    ch.overlandmap.map.ui.zoomToPointMapbox(
+                        map, location.latitude, location.longitude, zoom = map.cameraState.zoom.coerceAtLeast(14.0),
+                    )
+                },
+                enabled = userLocation != null,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                shadowElevation = 3.dp,
+                modifier = Modifier.size(44.dp),
+            ) {
+                Icon(
+                    Icons.Filled.MyLocation,
+                    contentDescription = stringResource(R.string.use_current_location),
+                    modifier = Modifier.padding(10.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (userLocation != null) 1f else 0.38f),
+                )
             }
         }
         // Debug: current map zoom level (toggled in Settings → Debug).

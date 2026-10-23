@@ -1,5 +1,8 @@
 package ch.overlandmap.map.ui.home
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,6 +76,7 @@ fun HomeScreen(
     val startRecording = rememberStartRecording()
     val packs by viewModel.packs.collectAsState()
     val lastUsed by viewModel.lastUsed.collectAsState()
+    val recordings by app.trackRecorder.recordings.collectAsState()
     var packToDelete by remember { mutableStateOf<TrackPack?>(null) }
     val lang = currentLanguage()
     // The "free" badge on a last-used itinerary only applies while its pack is
@@ -111,10 +115,11 @@ fun HomeScreen(
             }
         }
         val packList = packs
-        if (packList == null) {
+        val lastUsedList = lastUsed
+        if (packList == null || lastUsedList == null) {
             // Still loading from Room — show nothing to avoid "empty" flash.
             Spacer(modifier = Modifier.weight(1f))
-        } else if (packList.isEmpty()) {
+        } else if (packList.isEmpty() && lastUsedList.isEmpty() && recordings.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyLibrary(onOpenShop) }
             Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.weight(1f)) { RecordingsTile(TrackListMode.RECORDINGS, onOpenTrackList) }
@@ -127,11 +132,11 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f).fillMaxWidth(),
         ) {
-        if (lastUsed.isNotEmpty()) {
+        if (lastUsedList.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SectionTitle(stringResource(R.string.last_used))
             }
-            lastUsed.forEach { itinerary ->
+            lastUsedList.forEach { itinerary ->
                 item(key = "itin-${itinerary.documentId}") {
                     PhotoGridTile(
                         photoUrl = itinerary.titlePhotoUrl,
@@ -145,8 +150,10 @@ fun HomeScreen(
                 }
             }
         }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionTitle(stringResource(R.string.local_library))
+        if (packList.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionTitle(stringResource(R.string.local_library))
+            }
         }
         packList.forEach { pack ->
             item(key = "pack-${pack.documentId}") {
@@ -213,21 +220,26 @@ private fun SectionTitle(title: String) {
 @Composable
 private fun EmptyLibrary(onOpenShop: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.verticalScroll(rememberScrollState()),
+        ) {
             Image(
                 painter = painterResource(R.drawable.app_logo),
                 contentDescription = null,
                 modifier = Modifier.size(180.dp).padding(bottom = 24.dp),
             )
-            Text(stringResource(R.string.library_empty), style = MaterialTheme.typography.titleMedium)
-            // Tapping the hint jumps to the Shop tab.
-            Text(
-                stringResource(R.string.library_empty_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.clickable(onClick = onOpenShop),
-            )
+            Text(stringResource(R.string.library_welcome), style = MaterialTheme.typography.titleLarge)
+            // Show the same shopping-cart icon used by the second tab.
+            TextButton(onClick = onOpenShop) {
+                Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.padding(end = 12.dp))
+                Text(
+                    stringResource(R.string.library_empty_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }

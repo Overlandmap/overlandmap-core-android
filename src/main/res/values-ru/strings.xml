@@ -7,7 +7,7 @@
     <string name="tab_settings">Настройки</string>
 
     <string name="library_empty">Ваша библиотека пуста</string>
-    <string name="library_empty_hint">Загрузите маршруты из магазина, чтобы начать.</string>
+    <string name="library_empty_hint">Посмотрите доступные маршруты на второй вкладке со значком корзины.</string>
     <string name="library_delete_confirm">Удалить этот трек-пак с устройства?</string>
     <string name="check_for_update">Проверить обновления</string>
     <string name="update">Обновить</string>
@@ -172,7 +172,7 @@
     <string name="onboarding_world_map_downloading">Загрузка карты мира…</string>
     <string name="onboarding_world_map_pending">Карта мира будет загружена в фоновом режиме.</string>
     <string name="onboarding_accept_tutorial">Принять и начать обучение</string>
-    <string name="onboarding_accept_sample_multi">Принять и попробовать пример маршрута</string>
+    <string name="onboarding_accept_sample_multi">Принять и просмотреть маршруты</string>
     <string name="onboarding_accept_sample_single">Принять и загрузить пример маршрута</string>
     <string name="onboarding_downloading_sample">Загрузка примера маршрута…</string>
     <string name="wp_police_checkpoint">Пост</string>
@@ -469,4 +469,28 @@
     <string name="navigation_waiting_gps">Ожидание GPS…</string>
     <string name="reverse_navigation">Развернуть направление</string>
     <string name="navigation_location_denied">Навигация невозможна: приложению не разрешено использовать ваше местоположение. Разрешите доступ к местоположению в настройках системы, чтобы начать навигацию.</string>
+    <string name="bluetooth_gps">GPS по Bluetooth</string>
+    <string name="bluetooth_gps_simulation">Имитация поездки по GPS</string>
+    <string name="bluetooth_gps_hardware_yes">GPS-модуль доступен</string>
+    <string name="bluetooth_gps_hardware_no">GPS-модуль отсутствует</string>
+    <string name="bluetooth_gps_client">Принимать GPS</string>
+    <string name="bluetooth_gps_ignore_hardware">Использовать Bluetooth вместо GPS устройства</string>
+    <string name="bluetooth_gps_search">Найти GPS-серверы</string>
+    <string name="bluetooth_gps_scanning">Поиск…</string>
+    <string name="bluetooth_gps_no_servers">GPS-серверы не найдены. Повторите поиск для обновления.</string>
+    <string name="bluetooth_gps_connect">Подключиться к %1$s</string>
+    <string name="bluetooth_gps_connected">GPS-сервер подключён</string>
+    <string name="bluetooth_gps_unavailable">GPS недоступен</string>
+    <string name="bluetooth_gps_disconnect">Отключить GPS по Bluetooth</string>
+    <string name="bluetooth_gps_server">Передавать GPS</string>
+    <string name="bluetooth_gps_start">Запустить GPS-сервер</string>
+    <string name="bluetooth_gps_stop">Остановить сервер</string>
+    <string name="bluetooth_gps_local_track">Выбрать трек локального маршрута</string>
+    <string name="bluetooth_gps_import">Загрузить файл GPX</string>
+    <string name="bluetooth_gps_backward">Воспроизводить в обратном направлении</string>
+    <string name="bluetooth_gps_play">Начать воспроизведение</string>
+    <string name="bluetooth_gps_permission">Необходимы разрешения на Bluetooth и геолокацию.</string>
+    <string name="bluetooth_gps_invalid_track">Выберите GPX-трек, содержащий не менее двух точек.</string>
+    <string name="debug_show_zoom_buttons">Показывать кнопки масштаба карты</string>
+    <string name="library_welcome">Добро пожаловать!</string>
 </resources>

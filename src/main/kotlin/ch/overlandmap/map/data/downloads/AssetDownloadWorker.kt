@@ -14,6 +14,9 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import ch.overlandmap.map.R
 import ch.overlandmap.map.map.LocalTileServer
+import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +46,17 @@ class AssetDownloadWorker(context: Context, params: WorkerParameters) :
         runCatching { setForeground(foregroundInfo(title, 0)) }
 
         try {
+            // Resolve on every attempt: Storage download URLs may change between retries,
+            // and persisted work may still contain a bucket-relative path.
+            val downloadUrl = resolveAssetDownloadUrl(url) { path ->
+                val storage = FirebaseStorage.getInstance()
+                val reference = if (path.startsWith("gs://", ignoreCase = true)) {
+                    storage.getReferenceFromUrl(path)
+                } else {
+                    storage.reference.child(path)
+                }
+                reference.downloadUrl.await().toString()
+            }
             // The download callback is not suspendable: it feeds a counter
             // that a side coroutine turns into progress and notifications.
             val transferredBytes = AtomicLong(-1)
@@ -63,7 +77,7 @@ class AssetDownloadWorker(context: Context, params: WorkerParameters) :
                 }
             }
             try {
-                Downloads.download(url, destination, sha256) { transferredBytes.set(it) }
+                Downloads.download(downloadUrl, destination, sha256) { transferredBytes.set(it) }
             } finally {
                 reporter.cancel()
             }
@@ -78,6 +92,8 @@ class AssetDownloadWorker(context: Context, params: WorkerParameters) :
                 LocalTileServer.reloadArchives()
             }
             Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             // runAttemptCount is 0-based, so the first run is attempt 1.
             val attempt = runAttemptCount + 1

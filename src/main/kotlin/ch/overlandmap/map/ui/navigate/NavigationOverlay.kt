@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.MaterialTheme
 import ch.overlandmap.map.R
 import ch.overlandmap.map.navigation.CrossTrackSide
 import ch.overlandmap.map.navigation.NavigationMode
@@ -103,7 +104,11 @@ fun NavigationOverlay(state: NavigationState, cameraBearing: Double, modifier: M
             .padding(16.dp),
     ) {
         CompositionLocalProvider(LocalContentColor provides Color.White) {
-            if (state.mode == NavigationMode.ROAD_TO_START) RoadDirections(state) else BearingInstructions(state, cameraBearing)
+            if (state.currentLocation == null) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.bluetooth_gps_unavailable), style = MaterialTheme.typography.titleLarge)
+                }
+            } else if (state.mode == NavigationMode.ROAD_TO_START) RoadDirections(state) else BearingInstructions(state, cameraBearing)
         }
     }
 }

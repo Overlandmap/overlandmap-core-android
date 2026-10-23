@@ -109,6 +109,12 @@ fun SettingsScreen(
     onOpenDebug: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel { SettingsViewModel(overlandApp()) },
 ) {
+    var gpsPanel by remember { mutableStateOf<Int?>(null) }
+    if (gpsPanel != null) {
+        BluetoothGPSScreen(onBack = { gpsPanel = null }, simulationOnly = gpsPanel == 1)
+        androidx.activity.compose.BackHandler { gpsPanel = null }
+        return
+    }
     val user by viewModel.user.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val entitlements by viewModel.entitlements.collectAsState()
@@ -237,6 +243,12 @@ fun SettingsScreen(
             onClick = onOpenTextSize,
         )
         HorizontalDivider()
+        SubmenuRow(Icons.Filled.Map, stringResource(R.string.bluetooth_gps)) { gpsPanel = 0 }
+        HorizontalDivider()
+        if (isAdmin) {
+            SubmenuRow(Icons.Filled.Map, stringResource(R.string.bluetooth_gps_simulation)) { gpsPanel = 1 }
+            HorizontalDivider()
+        }
         SubmenuRow(
             icon = Icons.Filled.Download,
             label = stringResource(R.string.downloads),
@@ -734,6 +746,7 @@ fun DebugScreen(
     val showZoom by app.userPreferences.debugShowZoom.collectAsState(
         initial = app.userPreferences.debugShowZoomNow(),
     )
+    val showZoomButtons by app.userPreferences.debugShowZoomButtons.collectAsState(initial = false)
     val showPhotoSource by app.userPreferences.debugShowPhotoSource.collectAsState(
         initial = app.userPreferences.debugShowPhotoSourceNow(),
     )
@@ -742,6 +755,12 @@ fun DebugScreen(
             label = stringResource(R.string.debug_show_zoom),
             checked = showZoom,
             onChange = { scope.launch { app.userPreferences.setDebugShowZoom(it) } },
+        )
+        HorizontalDivider()
+        SwitchRow(
+            label = stringResource(R.string.debug_show_zoom_buttons),
+            checked = showZoomButtons,
+            onChange = { scope.launch { app.userPreferences.setDebugShowZoomButtons(it) } },
         )
         HorizontalDivider()
         SwitchRow(

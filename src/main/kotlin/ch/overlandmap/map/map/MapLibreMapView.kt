@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +50,7 @@ fun MapLibreMapView(
 ) {
     val context = LocalContext.current
     val preferences = (context.applicationContext as OverlandApp).userPreferences
+    val showZoomButtons by preferences.debugShowZoomButtons.collectAsState(initial = false)
     val mapView = remember { createMapView(context) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
 
@@ -93,7 +95,7 @@ fun MapLibreMapView(
                 mapView
             },
         )
-        Column(
+        if (showZoomButtons) Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(12.dp),

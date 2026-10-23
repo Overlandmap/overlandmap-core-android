@@ -7,7 +7,7 @@
     <string name="tab_settings">Instellingen</string>
 
     <string name="library_empty">Je bibliotheek is leeg</string>
-    <string name="library_empty_hint">Download routes uit de winkel om te beginnen.</string>
+    <string name="library_empty_hint">Bekijk de beschikbare routes op het tweede tabblad, met het winkelwagenpictogram.</string>
     <string name="library_delete_confirm">Dit track pack van je apparaat verwijderen?</string>
     <string name="check_for_update">Controleren op updates</string>
     <string name="update">Bijwerken</string>
@@ -170,7 +170,7 @@
     <string name="onboarding_world_map_downloading">Wereldkaart wordt gedownload…</string>
     <string name="onboarding_world_map_pending">De wereldkaart wordt op de achtergrond gedownload.</string>
     <string name="onboarding_accept_tutorial">Accepteren en de tutorial starten</string>
-    <string name="onboarding_accept_sample_multi">Accepteren en een voorbeeldroute proberen</string>
+    <string name="onboarding_accept_sample_multi">Accepteren en routes verkennen</string>
     <string name="onboarding_accept_sample_single">Accepteren en de voorbeeldroute downloaden</string>
     <string name="onboarding_downloading_sample">Voorbeeldroute wordt gedownload…</string>
     <string name="wp_police_checkpoint">Controlepost</string>
@@ -469,4 +469,28 @@
     <string name="navigation_waiting_gps">Wachten op GPS…</string>
     <string name="reverse_navigation">Richting omkeren</string>
     <string name="navigation_location_denied">Navigeren is niet mogelijk: de app mag je locatie niet gebruiken. Sta locatietoegang toe in de systeeminstellingen om te navigeren.</string>
+    <string name="bluetooth_gps">Bluetooth-GPS</string>
+    <string name="bluetooth_gps_simulation">GPS-rijsimulatie</string>
+    <string name="bluetooth_gps_hardware_yes">GPS-hardware beschikbaar</string>
+    <string name="bluetooth_gps_hardware_no">Geen GPS-hardware</string>
+    <string name="bluetooth_gps_client">GPS ontvangen</string>
+    <string name="bluetooth_gps_ignore_hardware">Bluetooth gebruiken in plaats van apparaat-GPS</string>
+    <string name="bluetooth_gps_search">GPS-servers zoeken</string>
+    <string name="bluetooth_gps_scanning">Zoeken…</string>
+    <string name="bluetooth_gps_no_servers">Geen GPS-servers gevonden. Zoek opnieuw om te vernieuwen.</string>
+    <string name="bluetooth_gps_connect">Verbinden met %1$s</string>
+    <string name="bluetooth_gps_connected">GPS-server verbonden</string>
+    <string name="bluetooth_gps_unavailable">GPS niet beschikbaar</string>
+    <string name="bluetooth_gps_disconnect">Bluetooth-GPS uitschakelen</string>
+    <string name="bluetooth_gps_server">GPS delen</string>
+    <string name="bluetooth_gps_start">GPS-server starten</string>
+    <string name="bluetooth_gps_stop">Server stoppen</string>
+    <string name="bluetooth_gps_local_track">Een lokaal routetrack kiezen</string>
+    <string name="bluetooth_gps_import">GPX-bestand laden</string>
+    <string name="bluetooth_gps_backward">Achteruit afspelen</string>
+    <string name="bluetooth_gps_play">Afspelen starten</string>
+    <string name="bluetooth_gps_permission">Bluetooth- en locatiemachtigingen zijn vereist.</string>
+    <string name="bluetooth_gps_invalid_track">Selecteer een GPX-track met minstens twee punten.</string>
+    <string name="debug_show_zoom_buttons">Zoomknoppen op de kaart tonen</string>
+    <string name="library_welcome">Welkom!</string>
 </resources>

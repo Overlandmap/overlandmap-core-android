@@ -373,6 +373,12 @@ class NavigationCoordinator(
 
     // ── Location updates ────────────────────────────────────────────────────
 
+    fun locationUnavailable() {
+        s = s.copy(currentLocation = null, distanceToTargetMeters = null)
+        resetMotionState()
+        flush()
+    }
+
     fun processLocation(fix: LocationFix) {
         process(fix)
         flush()

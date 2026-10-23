@@ -230,7 +230,6 @@ fun ItineraryScreen(
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
-    val isBeta = ch.overlandmap.map.ui.tracking.rememberIsBeta()
     val withLocationPermission = ch.overlandmap.map.ui.tracking.rememberWithNavigationLocation()
     var restoreCam by remember {
         mutableStateOf(restore?.takeIf { it.zoom != null && it.lat != null && it.lon != null })
@@ -309,6 +308,59 @@ fun ItineraryScreen(
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // The overflow menu, shared by the portrait top bar and the landscape
+    // map overlay (landscape has no app bar).
+    val itineraryMenu: @Composable () -> Unit = {
+        ItineraryMenu(
+            satelliteSelected = satelliteSelected,
+            onNavigate = { reverse ->
+                withLocationPermission {
+                    scope.launch {
+                        val started = app.beginNavigation(itineraryId, reverse, lang)
+                        if (started) onOpenNavigation()
+                    }
+                }
+            },
+            onShowOnMap = {
+                mapView?.mapboxMap?.let { m ->
+                    state.itinerary?.let { zoomToItineraryMapbox(m, it) }
+                }
+            },
+            onFullScreen = { mapFullScreen = true },
+            onShareLink = {
+                shareItineraryLink(
+                    context,
+                    editorId = state.itinerary?.let { ch.overlandmap.map.data.linkEditorId(it, state.trackPack) },
+                    packName = state.trackPack?.name,
+                    itineraryId = state.itinerary?.itineraryId ?: "",
+                )
+            },
+            onExportGpx = {
+                state.itinerary?.let {
+                    shareItineraryGpx(
+                        context, it, state.tracks, state.steps, state.waypoints, lang,
+                    )
+                }
+            },
+            onDownloadRegion = { satelliteMode = true },
+            onFlyover = {
+                // Cinematic flyover reads best on satellite in 3D:
+                // switch the base style and turn on terrain, then
+                // fly the route (the controls appear over the map).
+                if (!satelliteSelected) {
+                    scope.launch {
+                        app.userPreferences.setMapStyle(
+                            styleOptions.copy(base = BaseMapStyle.SATELLITE),
+                        )
+                    }
+                }
+                is3D = true
+                mapView?.let { mv -> flyover.start(mv, state.tracks) }
+            },
+            onSettings = onOpenSettings,
+        )
+    }
+
     // Same full-display layout as the pack screens.
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -327,57 +379,7 @@ fun ItineraryScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
                     },
-                    actions = {
-                        ItineraryMenu(
-                            satelliteSelected = satelliteSelected,
-                            showNavigation = isBeta,
-                            onNavigate = { reverse ->
-                                withLocationPermission {
-                                    scope.launch {
-                                        val started = app.beginNavigation(itineraryId, reverse, lang)
-                                        if (started) onOpenNavigation()
-                                    }
-                                }
-                            },
-                            onShowOnMap = {
-                                mapView?.mapboxMap?.let { m ->
-                                    state.itinerary?.let { zoomToItineraryMapbox(m, it) }
-                                }
-                            },
-                            onFullScreen = { mapFullScreen = true },
-                            onShareLink = {
-                                shareItineraryLink(
-                                    context,
-                                    editorId = state.itinerary?.let { ch.overlandmap.map.data.linkEditorId(it, state.trackPack) },
-                                    packName = state.trackPack?.name,
-                                    itineraryId = state.itinerary?.itineraryId ?: "",
-                                )
-                            },
-                            onExportGpx = {
-                                state.itinerary?.let {
-                                    shareItineraryGpx(
-                                        context, it, state.tracks, state.steps, state.waypoints, lang,
-                                    )
-                                }
-                            },
-                            onDownloadRegion = { satelliteMode = true },
-                            onFlyover = {
-                                // Cinematic flyover reads best on satellite in 3D:
-                                // switch the base style and turn on terrain, then
-                                // fly the route (the controls appear over the map).
-                                if (!satelliteSelected) {
-                                    scope.launch {
-                                        app.userPreferences.setMapStyle(
-                                            styleOptions.copy(base = BaseMapStyle.SATELLITE),
-                                        )
-                                    }
-                                }
-                                is3D = true
-                                mapView?.let { mv -> flyover.start(mv, state.tracks) }
-                            },
-                            onSettings = onOpenSettings,
-                        )
-                    },
+                    actions = { itineraryMenu() },
                 )
             }
         },
@@ -543,6 +545,24 @@ fun ItineraryScreen(
                         }
                     }
                     }
+                    // Landscape has no app bar: overlay a back button on the
+                    // map's top edge (the overflow menu sits by the tab row in
+                    // the right pane).
+                    if (landscape) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .statusBarsPadding()
+                                .padding(4.dp),
+                        ) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null,
+                                )
+                            }
+                        }
+                    }
                 }
             },
             bottom = {
@@ -553,38 +573,49 @@ fun ItineraryScreen(
                         .fillMaxSize()
                         .then(if (landscape) Modifier.statusBarsPadding() else Modifier),
                 ) {
-                    ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
-                        Tab(
-                            selected = tab == 0,
-                            onClick = { tab = 0 },
-                            text = {
-                                Text(
-                                    itinerary.itineraryId.ifEmpty { itinerary.name(lang) },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            },
-                        )
-                        Tab(
-                            selected = tab == 1,
-                            onClick = { tab = 1 },
-                            text = { Text(stringResource(R.string.steps)) },
-                        )
-                        Tab(
-                            selected = tab == 2,
-                            onClick = { tab = 2 },
-                            text = { Text(stringResource(R.string.photos)) },
-                        )
-                        Tab(
-                            selected = tab == 3,
-                            onClick = { tab = 3 },
-                            text = { Text(stringResource(R.string.weather)) },
-                        )
-                        Tab(
-                            selected = tab == 4,
-                            onClick = { tab = 4 },
-                            text = { Text(stringResource(R.string.comments)) },
-                        )
+                    // In landscape the app bar is gone, so the overflow menu
+                    // sits to the right of the tab row here in the right pane.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ScrollableTabRow(
+                            selectedTabIndex = tab,
+                            edgePadding = 0.dp,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Tab(
+                                selected = tab == 0,
+                                onClick = { tab = 0 },
+                                text = {
+                                    Text(
+                                        itinerary.itineraryId.ifEmpty { itinerary.name(lang) },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                            )
+                            Tab(
+                                selected = tab == 1,
+                                onClick = { tab = 1 },
+                                text = { Text(stringResource(R.string.steps)) },
+                            )
+                            Tab(
+                                selected = tab == 2,
+                                onClick = { tab = 2 },
+                                text = { Text(stringResource(R.string.photos)) },
+                            )
+                            Tab(
+                                selected = tab == 3,
+                                onClick = { tab = 3 },
+                                text = { Text(stringResource(R.string.weather)) },
+                            )
+                            Tab(
+                                selected = tab == 4,
+                                onClick = { tab = 4 },
+                                text = { Text(stringResource(R.string.comments)) },
+                            )
+                        }
+                        if (landscape) {
+                            itineraryMenu()
+                        }
                     }
                     when (tab) {
                         0 -> DescriptionTab(
@@ -817,7 +848,6 @@ private fun BulletedMarkup(
 @Composable
 private fun ItineraryMenu(
     satelliteSelected: Boolean,
-    showNavigation: Boolean,
     onNavigate: (reverse: Boolean) -> Unit,
     onShowOnMap: () -> Unit,
     onFullScreen: () -> Unit,
@@ -828,25 +858,25 @@ private fun ItineraryMenu(
     onSettings: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    IconButton(onClick = { open = true }) {
-        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.menu))
-    }
-    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+    // Wrap the button and menu in a Box so the DropdownMenu anchors to the
+    // button's position (not the parent Row's start) wherever this is placed.
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.menu))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
         DropdownMenuItem(
             text = { Text(stringResource(R.string.show_on_map)) },
             onClick = { open = false; onShowOnMap() },
         )
-        // Navigation is a beta feature.
-        if (showNavigation) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.navigate)) },
-                onClick = { open = false; onNavigate(false) },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.navigation_reverse)) },
-                onClick = { open = false; onNavigate(true) },
-            )
-        }
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.navigate)) },
+            onClick = { open = false; onNavigate(false) },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.navigation_reverse)) },
+            onClick = { open = false; onNavigate(true) },
+        )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.full_screen_map)) },
             onClick = { open = false; onFullScreen() },
@@ -872,6 +902,7 @@ private fun ItineraryMenu(
             text = { Text(stringResource(R.string.settings)) },
             onClick = { open = false; onSettings() },
         )
+        }
     }
 }
 

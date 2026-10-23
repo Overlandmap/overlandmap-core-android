@@ -42,8 +42,7 @@ fun rememberUserLocation(): State<Coordinate?> {
     }
 
     DisposableEffect(granted, lifecycle) {
-        if (!granted) return@DisposableEffect onDispose {}
-        val source = AndroidLocationSource(context, allowNetwork = true)
+        val source = ch.overlandmap.map.bluetooth.SelectedLocationSource(context) { location.value = null }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> source.start(2f) { fix -> if (fix.accuracyM >= 0) location.value = fix.coordinate }
@@ -52,6 +51,9 @@ fun rememberUserLocation(): State<Coordinate?> {
             }
         }
         lifecycle.addObserver(observer)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            source.start(2f) { fix -> if (fix.accuracyM >= 0) location.value = fix.coordinate }
+        }
         onDispose {
             lifecycle.removeObserver(observer)
             source.stop()

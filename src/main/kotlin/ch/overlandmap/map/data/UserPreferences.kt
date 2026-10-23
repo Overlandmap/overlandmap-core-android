@@ -46,6 +46,7 @@ class UserPreferences(private val context: Context) {
     private val lastZoomKey = doublePreferencesKey("last_zoom")
     private val lastLatKey = doublePreferencesKey("last_lat")
     private val lastLonKey = doublePreferencesKey("last_lon")
+    private val debugShowZoomButtonsKey = booleanPreferencesKey("debug_show_zoom_buttons")
     private val debugShowZoomKey = booleanPreferencesKey("debug_show_zoom")
     private val debugShowPhotoSourceKey = booleanPreferencesKey("debug_show_photo_source")
     private val lastCheckInsFetchKey = longPreferencesKey("last_check_ins_fetch")
@@ -74,6 +75,13 @@ class UserPreferences(private val context: Context) {
 
     /** [unitFormat] read synchronously, to seed UI state before the flow emits. */
     fun unitFormatNow(): UnitFormat = runBlocking { unitFormat.first() }
+
+    /** Debug: show map zoom in/out buttons (default hidden). */
+    val debugShowZoomButtons: Flow<Boolean> = context.dataStore.data.map { it[debugShowZoomButtonsKey] ?: false }
+
+    suspend fun setDebugShowZoomButtons(value: Boolean) {
+        context.dataStore.edit { it[debugShowZoomButtonsKey] = value }
+    }
 
     /** Debug: overlay the current map zoom on the itinerary map (default off). */
     val debugShowZoom: Flow<Boolean> = context.dataStore.data.map { it[debugShowZoomKey] ?: false }

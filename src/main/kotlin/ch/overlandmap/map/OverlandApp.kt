@@ -98,7 +98,8 @@ class OverlandApp : Application() {
         )
     }
     val savedNavigationStore by lazy { ch.overlandmap.map.navigation.SavedNavigationStore(userPreferences, appScope) }
-    private val navigationLocation by lazy { ch.overlandmap.map.tracking.AndroidLocationSource(this, allowNetwork = true) }
+    val bluetoothGPS by lazy { ch.overlandmap.map.bluetooth.BluetoothGPS(this) }
+    private val navigationLocation by lazy { ch.overlandmap.map.bluetooth.SelectedLocationSource(this) { navigationCoordinator.locationUnavailable() } }
     private val headingSensor by lazy { ch.overlandmap.map.tracking.HeadingSensor(this) { navigationLocation.lastFix } }
     val navigationCoordinator: ch.overlandmap.map.navigation.NavigationCoordinator by lazy {
         val coordinator = ch.overlandmap.map.navigation.NavigationCoordinator(

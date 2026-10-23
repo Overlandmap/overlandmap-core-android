@@ -23,8 +23,8 @@ class HomeViewModel(app: OverlandApp) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The five most recently opened itineraries (the "Last used" section). */
-    val lastUsed: StateFlow<List<Itinerary>> = library.observeLastOpened(5)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val lastUsed: StateFlow<List<Itinerary>?> = library.observeLastOpened(5)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun deletePack(trackPackId: String) {
         viewModelScope.launch { library.deletePack(trackPackId) }

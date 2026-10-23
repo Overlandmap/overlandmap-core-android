@@ -11,6 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +49,7 @@ fun MapboxMapView(
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
+    val zoomButtonsEnabled by app.userPreferences.debugShowZoomButtons.collectAsState(initial = false)
 
     // Wait for the Mapbox access token — MapView crashes without one.
     var tokenReady by remember { mutableStateOf(app.mapboxTokenManager.cachedTokenNow() != null) }
@@ -85,7 +87,7 @@ fun MapboxMapView(
             modifier = Modifier.fillMaxSize(),
             factory = { mapView },
         )
-        if (showZoomControls) Column(
+        if (showZoomControls && zoomButtonsEnabled) Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(12.dp),

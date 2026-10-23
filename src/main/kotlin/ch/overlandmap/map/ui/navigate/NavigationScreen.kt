@@ -177,6 +177,7 @@ private val TOP_BAR_HEIGHT = 56.dp
 fun NavigationScreen(onStopped: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
+    val showZoomButtons by app.userPreferences.debugShowZoomButtons.collectAsState(initial = false)
     val coordinator = app.navigationCoordinator
     val state by coordinator.state.collectAsState()
     val saved by app.savedNavigationStore.state.collectAsState()
@@ -568,7 +569,7 @@ fun NavigationScreen(onStopped: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
+            if (showZoomButtons) Column(
                 Modifier
                     .shadow(6.dp, RoundedCornerShape(12.dp))
                     .clip(RoundedCornerShape(12.dp))

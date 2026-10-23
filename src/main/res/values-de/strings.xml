@@ -7,7 +7,7 @@
     <string name="tab_settings">Einstellungen</string>
 
     <string name="library_empty">Deine Bibliothek ist leer</string>
-    <string name="library_empty_hint">Lade Reiserouten aus dem Shop herunter, um loszulegen.</string>
+    <string name="library_empty_hint">Entdecke die verfügbaren Routen im zweiten Tab mit dem Einkaufswagen-Symbol.</string>
     <string name="library_delete_confirm">Dieses Track Pack vom Gerät entfernen?</string>
     <string name="check_for_update">Nach Updates suchen</string>
     <string name="update">Aktualisieren</string>
@@ -170,7 +170,7 @@
     <string name="onboarding_world_map_downloading">Weltkarte wird heruntergeladen…</string>
     <string name="onboarding_world_map_pending">Die Weltkarte wird im Hintergrund heruntergeladen.</string>
     <string name="onboarding_accept_tutorial">Akzeptieren und Tutorial starten</string>
-    <string name="onboarding_accept_sample_multi">Akzeptieren und eine Beispielroute testen</string>
+    <string name="onboarding_accept_sample_multi">Akzeptieren und Routen erkunden</string>
     <string name="onboarding_accept_sample_single">Akzeptieren und die Beispielroute herunterladen</string>
     <string name="onboarding_downloading_sample">Beispielroute wird heruntergeladen…</string>
     <string name="wp_police_checkpoint">Kontrolle</string>
@@ -467,4 +467,28 @@
     <string name="navigation_waiting_gps">Warte auf GPS …</string>
     <string name="reverse_navigation">Richtung umkehren</string>
     <string name="navigation_location_denied">Navigation ist nicht möglich: Die App darf Ihren Standort nicht verwenden. Erlauben Sie den Standortzugriff in den Systemeinstellungen, um zu navigieren.</string>
+    <string name="bluetooth_gps">Bluetooth-GPS</string>
+    <string name="bluetooth_gps_simulation">GPS-Fahrsimulation</string>
+    <string name="bluetooth_gps_hardware_yes">GPS-Hardware verfügbar</string>
+    <string name="bluetooth_gps_hardware_no">Keine GPS-Hardware</string>
+    <string name="bluetooth_gps_client">GPS empfangen</string>
+    <string name="bluetooth_gps_ignore_hardware">Bluetooth statt Geräte-GPS verwenden</string>
+    <string name="bluetooth_gps_search">GPS-Server suchen</string>
+    <string name="bluetooth_gps_scanning">Suche…</string>
+    <string name="bluetooth_gps_no_servers">Keine GPS-Server gefunden. Zum Aktualisieren erneut suchen.</string>
+    <string name="bluetooth_gps_connect">Mit %1$s verbinden</string>
+    <string name="bluetooth_gps_connected">GPS-Server verbunden</string>
+    <string name="bluetooth_gps_unavailable">GPS nicht verfügbar</string>
+    <string name="bluetooth_gps_disconnect">Bluetooth-GPS deaktivieren</string>
+    <string name="bluetooth_gps_server">GPS teilen</string>
+    <string name="bluetooth_gps_start">GPS-Server starten</string>
+    <string name="bluetooth_gps_stop">Server stoppen</string>
+    <string name="bluetooth_gps_local_track">Lokalen Routentrack auswählen</string>
+    <string name="bluetooth_gps_import">GPX-Datei laden</string>
+    <string name="bluetooth_gps_backward">Rückwärts abspielen</string>
+    <string name="bluetooth_gps_play">Wiedergabe starten</string>
+    <string name="bluetooth_gps_permission">Bluetooth- und Standortberechtigungen sind erforderlich.</string>
+    <string name="bluetooth_gps_invalid_track">Wählen Sie einen GPX-Track mit mindestens zwei Punkten.</string>
+    <string name="debug_show_zoom_buttons">Zoomtasten auf der Karte anzeigen</string>
+    <string name="library_welcome">Willkommen!</string>
 </resources>
