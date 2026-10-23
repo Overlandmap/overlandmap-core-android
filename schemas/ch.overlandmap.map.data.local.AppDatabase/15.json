@@ -1,0 +1,1510 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 15,
+    "identityHash": "e397f1c341da3afb68eed769c3be7d3e",
+    "entities": [
+      {
+        "tableName": "track_pack",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `editorId` TEXT, `name` TEXT NOT NULL, `description` TEXT, `region` TEXT, `latMin` REAL, `latMax` REAL, `lonMin` REAL, `lonMax` REAL, `lastVersionCheck` TEXT, `isOld` INTEGER NOT NULL, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "editorId",
+            "columnName": "editorId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "region",
+            "columnName": "region",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "latMin",
+            "columnName": "latMin",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "latMax",
+            "columnName": "latMax",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lonMin",
+            "columnName": "lonMin",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lonMax",
+            "columnName": "lonMax",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lastVersionCheck",
+            "columnName": "lastVersionCheck",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isOld",
+            "columnName": "isOld",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_trackPack_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trackPack_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "idx_trackPack_region",
+            "unique": false,
+            "columnNames": [
+              "region"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trackPack_region` ON `${TABLE_NAME}` (`region`)"
+          },
+          {
+            "name": "idx_trackPack_editor",
+            "unique": false,
+            "columnNames": [
+              "editorId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trackPack_editor` ON `${TABLE_NAME}` (`editorId`)"
+          },
+          {
+            "name": "idx_trackPack_bounds",
+            "unique": false,
+            "columnNames": [
+              "latMin",
+              "latMax",
+              "lonMin",
+              "lonMax"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_trackPack_bounds` ON `${TABLE_NAME}` (`latMin`, `latMax`, `lonMin`, `lonMax`)"
+          }
+        ]
+      },
+      {
+        "tableName": "itinerary",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `trackPackId` TEXT NOT NULL, `itineraryId` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `lengthKm` REAL NOT NULL, `lengthDays` INTEGER NOT NULL, `difficulty` INTEGER NOT NULL, `roadType` INTEGER, `latMin` REAL, `latMax` REAL, `lonMin` REAL, `lonMax` REAL, `centerLat` REAL, `centerLon` REAL, `lastSeen` TEXT, `favourite` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itineraryId",
+            "columnName": "itineraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lengthKm",
+            "columnName": "lengthKm",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lengthDays",
+            "columnName": "lengthDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "roadType",
+            "columnName": "roadType",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "latMin",
+            "columnName": "latMin",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "latMax",
+            "columnName": "latMax",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lonMin",
+            "columnName": "lonMin",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lonMax",
+            "columnName": "lonMax",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "centerLat",
+            "columnName": "centerLat",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "centerLon",
+            "columnName": "centerLon",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lastSeen",
+            "columnName": "lastSeen",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "favourite",
+            "columnName": "favourite",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_itinerary_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId",
+              "itineraryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_trackPack` ON `${TABLE_NAME}` (`trackPackId`, `itineraryId`)"
+          },
+          {
+            "name": "idx_itinerary_itineraryId",
+            "unique": false,
+            "columnNames": [
+              "itineraryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_itineraryId` ON `${TABLE_NAME}` (`itineraryId`)"
+          },
+          {
+            "name": "idx_itinerary_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "idx_itinerary_lastSeen",
+            "unique": false,
+            "columnNames": [
+              "lastSeen"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_lastSeen` ON `${TABLE_NAME}` (`lastSeen`)"
+          },
+          {
+            "name": "idx_itinerary_lengthKm",
+            "unique": false,
+            "columnNames": [
+              "lengthKm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_lengthKm` ON `${TABLE_NAME}` (`lengthKm`)"
+          },
+          {
+            "name": "idx_itinerary_lengthDays",
+            "unique": false,
+            "columnNames": [
+              "lengthDays"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_lengthDays` ON `${TABLE_NAME}` (`lengthDays`)"
+          },
+          {
+            "name": "idx_itinerary_difficulty",
+            "unique": false,
+            "columnNames": [
+              "difficulty"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_difficulty` ON `${TABLE_NAME}` (`difficulty`)"
+          },
+          {
+            "name": "idx_itinerary_roadType",
+            "unique": false,
+            "columnNames": [
+              "roadType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_roadType` ON `${TABLE_NAME}` (`roadType`)"
+          },
+          {
+            "name": "idx_itinerary_bounds",
+            "unique": false,
+            "columnNames": [
+              "latMin",
+              "latMax",
+              "lonMin",
+              "lonMax"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_bounds` ON `${TABLE_NAME}` (`latMin`, `latMax`, `lonMin`, `lonMax`)"
+          },
+          {
+            "name": "idx_itinerary_centre",
+            "unique": false,
+            "columnNames": [
+              "centerLat",
+              "centerLon"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_itinerary_centre` ON `${TABLE_NAME}` (`centerLat`, `centerLon`)"
+          }
+        ]
+      },
+      {
+        "tableName": "itinerary_step",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `itineraryId` TEXT NOT NULL, `trackPackId` TEXT NOT NULL, `stepId` INTEGER NOT NULL, `name` TEXT, `description` TEXT, `geohash` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itineraryId",
+            "columnName": "itineraryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepId",
+            "columnName": "stepId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "geohash",
+            "columnName": "geohash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_step_itinerary",
+            "unique": false,
+            "columnNames": [
+              "itineraryId",
+              "stepId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_itinerary` ON `${TABLE_NAME}` (`itineraryId`, `stepId`)"
+          },
+          {
+            "name": "idx_step_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_trackPack` ON `${TABLE_NAME}` (`trackPackId`)"
+          },
+          {
+            "name": "idx_step_geohash",
+            "unique": false,
+            "columnNames": [
+              "geohash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_geohash` ON `${TABLE_NAME}` (`geohash`)"
+          }
+        ]
+      },
+      {
+        "tableName": "track",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `trackPackId` TEXT NOT NULL, `itineraryDocId` TEXT NOT NULL, `name` TEXT, `description` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itineraryDocId",
+            "columnName": "itineraryDocId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_track_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_track_trackPack` ON `${TABLE_NAME}` (`trackPackId`)"
+          },
+          {
+            "name": "idx_track_itinerary",
+            "unique": false,
+            "columnNames": [
+              "itineraryDocId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_track_itinerary` ON `${TABLE_NAME}` (`itineraryDocId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "waypoint",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `trackPackId` TEXT NOT NULL, `itineraryDocId` TEXT, `name` TEXT NOT NULL, `description` TEXT, `geohash` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itineraryDocId",
+            "columnName": "itineraryDocId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "geohash",
+            "columnName": "geohash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_waypoint_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_waypoint_trackPack` ON `${TABLE_NAME}` (`trackPackId`)"
+          },
+          {
+            "name": "idx_waypoint_itinerary",
+            "unique": false,
+            "columnNames": [
+              "itineraryDocId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_waypoint_itinerary` ON `${TABLE_NAME}` (`itineraryDocId`)"
+          },
+          {
+            "name": "idx_waypoint_geohash",
+            "unique": false,
+            "columnNames": [
+              "geohash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_waypoint_geohash` ON `${TABLE_NAME}` (`geohash`)"
+          },
+          {
+            "name": "idx_waypoint_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_waypoint_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sidebar",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `trackPackId` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_sidebar_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_sidebar_trackPack` ON `${TABLE_NAME}` (`trackPackId`)"
+          },
+          {
+            "name": "idx_sidebar_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_sidebar_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "comment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `objectId` TEXT, `geohash` TEXT, `type` TEXT, `rating` INTEGER, `itinDocumentId` TEXT, `createdAt` INTEGER, `userId` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "objectId",
+            "columnName": "objectId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "geohash",
+            "columnName": "geohash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "rating",
+            "columnName": "rating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "itinDocumentId",
+            "columnName": "itinDocumentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_comment_object",
+            "unique": false,
+            "columnNames": [
+              "objectId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_comment_object` ON `${TABLE_NAME}` (`objectId`)"
+          },
+          {
+            "name": "idx_comment_itin",
+            "unique": false,
+            "columnNames": [
+              "itinDocumentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_comment_itin` ON `${TABLE_NAME}` (`itinDocumentId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "pack_asset",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`trackPackId` TEXT NOT NULL, `kind` TEXT NOT NULL, `json` TEXT, PRIMARY KEY(`trackPackId`, `kind`))",
+        "fields": [
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "trackPackId",
+            "kind"
+          ]
+        }
+      },
+      {
+        "tableName": "country",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `name` TEXT, `iso_a2` TEXT COLLATE NOCASE, `overlanding` INTEGER, `carnet` INTEGER, `visa` INTEGER, `updatedAt` INTEGER, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isoA2",
+            "columnName": "iso_a2",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "overlanding",
+            "columnName": "overlanding",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "carnet",
+            "columnName": "carnet",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "visa",
+            "columnName": "visa",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        }
+      },
+      {
+        "tableName": "border",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `is_open` INTEGER, `country1` TEXT, `country2` TEXT, `updatedAt` INTEGER, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isOpen",
+            "columnName": "is_open",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "country1",
+            "columnName": "country1",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "country2",
+            "columnName": "country2",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_border_countries",
+            "unique": false,
+            "columnNames": [
+              "country1",
+              "country2"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_border_countries` ON `${TABLE_NAME}` (`country1`, `country2`)"
+          },
+          {
+            "name": "idx_border_country2",
+            "unique": false,
+            "columnNames": [
+              "country2"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_border_country2` ON `${TABLE_NAME}` (`country2`)"
+          },
+          {
+            "name": "idx_border_isOpen",
+            "unique": false,
+            "columnNames": [
+              "is_open"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_border_isOpen` ON `${TABLE_NAME}` (`is_open`)"
+          }
+        ]
+      },
+      {
+        "tableName": "border_post",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `name` TEXT, `is_open` INTEGER, `borderDocId` TEXT, `geohash` TEXT, `updatedAt` INTEGER, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isOpen",
+            "columnName": "is_open",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "borderDocId",
+            "columnName": "borderDocId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "geohash",
+            "columnName": "geohash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_borderPost_border",
+            "unique": false,
+            "columnNames": [
+              "borderDocId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_borderPost_border` ON `${TABLE_NAME}` (`borderDocId`)"
+          },
+          {
+            "name": "idx_borderPost_geohash",
+            "unique": false,
+            "columnNames": [
+              "geohash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_borderPost_geohash` ON `${TABLE_NAME}` (`geohash`)"
+          }
+        ]
+      },
+      {
+        "tableName": "contributed_waypoint",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `active` INTEGER, `trackPackId` TEXT, `geohash` TEXT, `type` TEXT, `itinDocumentId` TEXT, `lastUpdate` INTEGER, `userId` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "active",
+            "columnName": "active",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "geohash",
+            "columnName": "geohash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "itinDocumentId",
+            "columnName": "itinDocumentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastUpdate",
+            "columnName": "lastUpdate",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_contributed_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId",
+              "active"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_contributed_trackPack` ON `${TABLE_NAME}` (`trackPackId`, `active`)"
+          },
+          {
+            "name": "idx_contributed_itin",
+            "unique": false,
+            "columnNames": [
+              "itinDocumentId",
+              "active"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_contributed_itin` ON `${TABLE_NAME}` (`itinDocumentId`, `active`)"
+          },
+          {
+            "name": "idx_contributed_geohash",
+            "unique": false,
+            "columnNames": [
+              "geohash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_contributed_geohash` ON `${TABLE_NAME}` (`geohash`)"
+          }
+        ]
+      },
+      {
+        "tableName": "check_in",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `objectId` TEXT, `trackPackId` TEXT, `itinDocumentId` TEXT, `reason` TEXT, `createdAt` INTEGER, `userId` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "objectId",
+            "columnName": "objectId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "itinDocumentId",
+            "columnName": "itinDocumentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_checkin_object",
+            "unique": false,
+            "columnNames": [
+              "objectId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_checkin_object` ON `${TABLE_NAME}` (`objectId`)"
+          },
+          {
+            "name": "idx_checkin_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_checkin_trackPack` ON `${TABLE_NAME}` (`trackPackId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "vote",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `objectId` TEXT, `trackPackId` TEXT, `content` TEXT, `createdAt` INTEGER, `userId` TEXT, `upVote` INTEGER, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "objectId",
+            "columnName": "objectId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "upVote",
+            "columnName": "upVote",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_vote_object",
+            "unique": false,
+            "columnNames": [
+              "objectId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_vote_object` ON `${TABLE_NAME}` (`objectId`)"
+          },
+          {
+            "name": "idx_vote_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_vote_trackPack` ON `${TABLE_NAME}` (`trackPackId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "climate",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `geohash` TEXT, `month` INTEGER, `updatedAt` INTEGER, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "geohash",
+            "columnName": "geohash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "month",
+            "columnName": "month",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_climate_geohash",
+            "unique": false,
+            "columnNames": [
+              "geohash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_climate_geohash` ON `${TABLE_NAME}` (`geohash`)"
+          }
+        ]
+      },
+      {
+        "tableName": "discussion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `objectId` TEXT, `topic` TEXT, `geohash` TEXT, `createdAt` INTEGER, `userId` TEXT, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "objectId",
+            "columnName": "objectId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "topic",
+            "columnName": "topic",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "geohash",
+            "columnName": "geohash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_discussion_object",
+            "unique": false,
+            "columnNames": [
+              "objectId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_discussion_object` ON `${TABLE_NAME}` (`objectId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`trackPackId` TEXT NOT NULL, `kind` TEXT NOT NULL, `lastSync` INTEGER, PRIMARY KEY(`trackPackId`, `kind`))",
+        "fields": [
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSync",
+            "columnName": "lastSync",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "trackPackId",
+            "kind"
+          ]
+        }
+      },
+      {
+        "tableName": "zone",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `name` TEXT, `country` TEXT, `type` INTEGER, `updatedAt` INTEGER, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "country",
+            "columnName": "country",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_zone_country",
+            "unique": false,
+            "columnNames": [
+              "country"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_zone_country` ON `${TABLE_NAME}` (`country`)"
+          }
+        ]
+      },
+      {
+        "tableName": "setting",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`documentId` TEXT NOT NULL, `updatedAt` INTEGER, `json` TEXT, PRIMARY KEY(`documentId`))",
+        "fields": [
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "documentId"
+          ]
+        }
+      },
+      {
+        "tableName": "schema_meta",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`name` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`name`))",
+        "fields": [
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "name"
+          ]
+        }
+      },
+      {
+        "tableName": "download_item",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `trackPackId` TEXT, `kind` TEXT NOT NULL, `url` TEXT, `assetId` TEXT, `expectedBytes` INTEGER, `receivedBytes` INTEGER, `status` TEXT NOT NULL, `error` TEXT, `localPath` TEXT, `sessionTaskId` INTEGER, `updatedAt` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackPackId",
+            "columnName": "trackPackId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "expectedBytes",
+            "columnName": "expectedBytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "receivedBytes",
+            "columnName": "receivedBytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "error",
+            "columnName": "error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "localPath",
+            "columnName": "localPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sessionTaskId",
+            "columnName": "sessionTaskId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_download_trackPack",
+            "unique": false,
+            "columnNames": [
+              "trackPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_download_trackPack` ON `${TABLE_NAME}` (`trackPackId`)"
+          },
+          {
+            "name": "idx_download_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_download_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e397f1c341da3afb68eed769c3be7d3e')"
+    ]
+  }
+}
