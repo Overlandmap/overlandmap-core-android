@@ -16,6 +16,14 @@ import kotlinx.coroutines.*
 class BluetoothGPSForegroundService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var watcher: Job? = null
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+    @android.annotation.SuppressLint("WakelockTimeout")
+    private fun keepAwake() {
+        if (wakeLock == null) wakeLock = getSystemService(android.os.PowerManager::class.java)
+            .newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "$packageName:${javaClass.simpleName}")
+            .apply { acquire() }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val gps = (application as OverlandApp).bluetoothGPS
@@ -39,6 +47,7 @@ class BluetoothGPSForegroundService : Service() {
                 (if (gps.hardwareServer) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0)
             startForeground(7812, notification, type)
         } else startForeground(7812, notification)
+        keepAwake()
         if (watcher == null) watcher = scope.launch {
             gps.state.collect {
                 if (!it.server && !it.startingServer && !it.connected) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
@@ -46,7 +55,10 @@ class BluetoothGPSForegroundService : Service() {
         }
         return START_NOT_STICKY
     }
-    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+    override fun onDestroy() {
+        wakeLock?.let { if (it.isHeld) it.release() }; wakeLock = null
+        scope.cancel(); super.onDestroy()
+    }
     companion object {
         private const val CHANNEL = "bluetooth-gps"
         private const val STOP = "ch.overlandmap.STOP_BLUETOOTH_GPS"

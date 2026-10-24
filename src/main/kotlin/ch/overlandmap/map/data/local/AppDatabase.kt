@@ -30,6 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 abstract class AppDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
     abstract fun worldDao(): WorldDao
+    abstract fun nearbyDao(): NearbyDao
     abstract fun socialDao(): SocialDao
 
     companion object {

@@ -43,6 +43,7 @@ data class ItineraryStep(
     override val swimming: Boolean = false,
     val titlePhotoId: String? = null,
     val titlePhotoCaption: String? = null,
+    val translatedTitleCaption: Map<String, String>? = null,
     /** Access / opening status of this step, and its free-text detail. */
     override val openKind: OpenKind? = null,
     override val openDetails: String? = null,
@@ -56,8 +57,10 @@ data class ItineraryStep(
 
     fun fullName(lang: String): String = "$stepId. ${name(lang)}"
 
+    fun titlePhotoCaption(lang: String): String? = localized(titlePhotoCaption, translatedTitleCaption, lang)
+
     companion object {
-        private val KNOWN = arrayOf("description", "distanceKm", "documentId", "ele", "geohash", "hasFuel", "hasHotel", "id", "isBivouac", "isBorder", "isBridge", "isCafe", "isEmbassy", "isFerry", "isHistoricalSite", "isHotSpring", "isIntersection", "isMountainPass", "isPoliceCheckpoint", "isReligiousSite", "isViewpoint", "isWaterCrossing", "isWaterfall", "location", "name", "openDetails", "openKind", "swimming", "titlePhotoCaption", "titlePhotoId", "trackPackId", "translatedDesc", "translatedName")
+        private val KNOWN = arrayOf("description", "distanceKm", "documentId", "ele", "geohash", "hasFuel", "hasHotel", "id", "isBivouac", "isBorder", "isBridge", "isCafe", "isEmbassy", "isFerry", "isHistoricalSite", "isHotSpring", "isIntersection", "isMountainPass", "isPoliceCheckpoint", "isReligiousSite", "isViewpoint", "isWaterCrossing", "isWaterfall", "location", "name", "openDetails", "openKind", "swimming", "titlePhotoCaption", "translatedTitleCaption", "titlePhotoId", "trackPackId", "translatedDesc", "translatedName")
 
         fun fromFirestore(documentId: String, itineraryId: String, data: Map<String, Any?>) =
             ItineraryStep(
@@ -94,6 +97,7 @@ data class ItineraryStep(
                 swimming = FS.bool(data["swimming"]),
                 titlePhotoId = FS.str(data["titlePhotoId"]),
                 titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
+            translatedTitleCaption = FS.stringMap(data["translatedTitleCaption"]),
                 openKind = OpenKind.fromRaw(FS.str(data["openKind"])),
                 openDetails = FS.str(data["openDetails"]),
                 extra = scalarExtras(data, *KNOWN),

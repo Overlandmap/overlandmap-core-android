@@ -93,7 +93,7 @@ class OverlandApp : Application() {
     val trackRecorder: ch.overlandmap.map.tracking.TrackRecorder by lazy {
         ch.overlandmap.map.tracking.TrackRecorder(
             store = ch.overlandmap.map.tracking.TrackStore(java.io.File(filesDir, "recordings")),
-            location = ch.overlandmap.map.tracking.AndroidLocationSource(this),
+            location = ch.overlandmap.map.bluetooth.SelectedLocationSource(this, allowNetwork = false),
             onRecordingChanged = { active -> if (active) ch.overlandmap.map.tracking.TrackingService.start(this) },
         )
     }
@@ -166,6 +166,7 @@ class OverlandApp : Application() {
     val overlandDataManager by lazy {
         OverlandDataManager(this, appScope, shopRepository, database.worldDao(), ftsIndex)
     }
+    val nearbySearchRepository by lazy { ch.overlandmap.map.data.NearbySearchRepository(database.nearbyDao(), libraryRepository::itinerary) }
     val searchRepository by lazy { SearchRepository(ftsIndex, libraryRepository) }
     val satelliteTileManager by lazy { SatelliteTileManager(this, appScope) }
     val userPreferences by lazy { UserPreferences(this) }
@@ -214,6 +215,15 @@ class OverlandApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: android.app.Activity) { bluetoothGPS.restore() }
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) {}
+            override fun onActivityStarted(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivityStopped(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {}
+        })
         FirebaseApp.initializeApp(this)
         // On first launch, default the interface and map languages to the
         // device language (if supported), otherwise English.

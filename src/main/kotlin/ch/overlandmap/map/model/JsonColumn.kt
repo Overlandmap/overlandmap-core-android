@@ -113,3 +113,12 @@ fun JSONObject.putExtra(extra: Map<String, Any?>) {
 /** The `extra` object written by [putExtra], or empty. */
 fun JSONObject.extraOrEmpty(): Map<String, Any?> =
     optJSONObject("extra")?.let { Extra.objectToMap(it) } ?: emptyMap()
+
+/** Keeps translated captions aligned with their photo indexes through offline storage. */
+fun JSONObject.captionListsOrNull(key: String): Map<String, List<String>>? {
+    val obj = optJSONObject(key) ?: return null
+    return obj.keys().asSequence().mapNotNull { language ->
+        val captions = obj.optJSONArray(language) ?: return@mapNotNull null
+        language to (0 until captions.length()).map { captions.optString(it, "") }
+    }.toMap().takeIf { it.isNotEmpty() }
+}

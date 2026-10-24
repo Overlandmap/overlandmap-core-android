@@ -1145,14 +1145,14 @@ private fun StepsTab(
                 step.titlePhotoUrl?.let { url ->
                     AsyncImage(
                         model = url,
-                        contentDescription = step.titlePhotoCaption,
+                        contentDescription = step.titlePhotoCaption(lang),
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(4f / 3f)
                             .clickable { openPhoto = true },
                         contentScale = ContentScale.Crop,
                     )
-                    step.titlePhotoCaption?.let {
+                    step.titlePhotoCaption(lang)?.let {
                         MarkupText(
                             it,
                             style = MaterialTheme.typography.bodySmall.copy(
@@ -1169,7 +1169,7 @@ private fun StepsTab(
             if (openPhoto && step.titlePhotoUrl != null) {
                 FullScreenPhotoViewer(
                     photos = listOf(
-                        viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption),
+                        viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption(lang)),
                     ),
                     startIndex = 0,
                     onDismiss = { openPhoto = false },
@@ -1318,23 +1318,24 @@ private fun PoiIcon(
 
 @Composable
 private fun PhotosTab(state: ItineraryState) {
+    val lang = currentLanguage()
     // The itinerary's own photos followed by each step's title photo (with its
     // caption). Deduplicated by URL, keeping the first (captioned) occurrence.
-    val photos = remember(state) {
+    val photos = remember(state, lang) {
         buildList {
             state.itinerary?.let {
                 if (it.titlePhotoId != null || it.localPhotoPath != null) {
-                    add(viewerPhoto(it.titlePhotoId, it.localPhotoPath, null))
+                    add(viewerPhoto(it.titlePhotoId, it.localPhotoPath, it.titlePhotoCaption(lang)))
                 }
             }
             state.itinerary?.let { itin ->
                 itin.localOtherPhotoPaths?.forEachIndexed { index, path ->
-                    add(ViewerPhoto("file://$path", placeholderUrl = null, caption = itin.otherPhotoCaptions?.getOrNull(index)))
+                    add(ViewerPhoto("file://$path", placeholderUrl = null, caption = itin.otherPhotoCaption(index, lang)))
                 }
             }
             state.steps.forEach { step ->
                 if (step.titlePhotoId != null || step.localPhotoPath != null) {
-                    add(viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption))
+                    add(viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption(lang)))
                 }
             }
         }.distinctBy { it.url }

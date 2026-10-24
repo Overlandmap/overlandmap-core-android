@@ -213,13 +213,13 @@ private fun SidebarContent(
     var popupItinerary by remember { mutableStateOf<Itinerary?>(null) }
     var openedPhoto by remember { mutableStateOf<Int?>(null) }
 
-    val photos = remember(sidebar) {
+    val photos = remember(sidebar, lang) {
         buildList {
             if (sidebar.titlePhotoId != null || sidebar.localPhotoPath != null) {
-                add(viewerPhoto(sidebar.titlePhotoId, sidebar.localPhotoPath, sidebar.titlePhotoCaption))
+                add(viewerPhoto(sidebar.titlePhotoId, sidebar.localPhotoPath, sidebar.titlePhotoCaption(lang)))
             }
             sidebar.localOtherPhotoPaths?.forEachIndexed { index, path ->
-                add(ViewerPhoto("file://$path", placeholderUrl = null, caption = sidebar.otherPhotoCaptions?.getOrNull(index)))
+                add(ViewerPhoto("file://$path", placeholderUrl = null, caption = sidebar.otherPhotoCaption(index, lang)))
             }
         }
     }
@@ -352,10 +352,11 @@ private fun SidebarContent(
 
 @Composable
 private fun TitlePhoto(sidebar: Sidebar, photos: List<ViewerPhoto>, onClick: () -> Unit) {
+    val lang = currentLanguage()
     val url = sidebar.titlePhotoUrl ?: return
     AsyncImage(
         model = url,
-        contentDescription = sidebar.titlePhotoCaption,
+        contentDescription = sidebar.titlePhotoCaption(lang),
         modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f).clickable(onClick = onClick),
         contentScale = ContentScale.Crop,
     )

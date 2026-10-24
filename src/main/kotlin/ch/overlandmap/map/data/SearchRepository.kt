@@ -16,6 +16,8 @@ data class SearchResult(
     val stepId: Int? = null,
     /** The itinerary's human slug (e.g. "L9"), shown in red for itinerary/step hits. */
     val itinerarySlug: String? = null,
+    val distanceKm: Double? = null,
+    val contributedWaypoint: ch.overlandmap.map.model.ContributedWaypoint? = null,
 )
 
 /** Full-text search over the local library and world data. */

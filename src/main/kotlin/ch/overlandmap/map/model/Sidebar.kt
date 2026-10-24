@@ -15,10 +15,12 @@ data class Sidebar(
     val translatedDesc: Map<String, String>? = null,
     val titlePhotoId: String? = null,
     val titlePhotoCaption: String? = null,
+    val translatedTitleCaption: Map<String, String>? = null,
     /** Absolute path of the title photo unpacked from a downloaded zip. */
     val localPhotoPath: String? = null,
     /** Captions of the extra photos, in order (`otherPhotoCaptions`). */
     val otherPhotoCaptions: List<String>? = null,
+    val translatedOtherPhotoCaptions: Map<String, List<String>>? = null,
     /** Absolute paths of the extra photos unpacked from a downloaded zip. */
     val localOtherPhotoPaths: List<String>? = null,
     /** Unmodelled fields: `hasMap`, the `table*` definition… (sidebars are small, so all are kept). */
@@ -64,10 +66,18 @@ data class Sidebar(
 
     fun description(lang: String): String? = localized(description, translatedDesc, lang)
 
+    fun titlePhotoCaption(lang: String): String? = localized(titlePhotoCaption, translatedTitleCaption, lang)
+
+    fun otherPhotoCaption(index: Int, lang: String): String? =
+        localized(otherPhotoCaptions?.getOrNull(index),
+            translatedOtherPhotoCaptions?.mapNotNull { (language, captions) ->
+                captions.getOrNull(index)?.takeIf { it.isNotBlank() }?.let { language to it }
+            }?.toMap(), lang)
+
     companion object {
         private val KNOWN = arrayOf(
             "name", "trackPackId", "translatedName", "description", "translatedDesc", "titlePhotoId",
-            "titlePhotoCaption", "otherPhotoCaptions", "titlePhotoUrl", "otherPhotoUrls",
+            "titlePhotoCaption", "translatedTitleCaption", "otherPhotoCaptions", "translatedOtherPhotoCaptions", "titlePhotoUrl", "otherPhotoUrls",
         )
 
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Sidebar(
@@ -79,7 +89,9 @@ data class Sidebar(
             translatedDesc = FS.stringMap(data["translatedDesc"]),
             titlePhotoId = FS.str(data["titlePhotoId"]),
             titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
+            translatedTitleCaption = FS.stringMap(data["translatedTitleCaption"]),
             otherPhotoCaptions = FS.stringList(data["otherPhotoCaptions"]),
+            translatedOtherPhotoCaptions = FS.captionLists(data["translatedOtherPhotoCaptions"]),
             extra = FS.jsonSafe(data).without(*KNOWN),
         )
     }

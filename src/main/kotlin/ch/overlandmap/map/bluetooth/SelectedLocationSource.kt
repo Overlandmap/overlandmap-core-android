@@ -5,25 +5,24 @@ import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.tracking.*
 import kotlinx.coroutines.*
 
-/** Hardware takes priority while producing fixes, unless explicitly ignored. */
+/** A connected client uses remote fixes exclusively, including when they become stale. */
 object LocationSourcePolicy {
-    fun select(client: Boolean, hasHardware: Boolean, ignoreHardware: Boolean,
+    fun select(connected: Boolean,
         hardware: LocationFix?, remote: LocationFix?, now: Long): LocationFix? {
         fun fresh(fix: LocationFix?, age: Long) = fix?.takeIf { now - it.timeMs in 0..age && it.accuracyM >= 0 }
-        if (!client) return hardware?.takeIf { it.accuracyM >= 0 }
-        if (hasHardware && !ignoreHardware) fresh(hardware, 5_000)?.let { return it }
+        if (!connected) return hardware?.takeIf { it.accuracyM >= 0 }
         return fresh(remote, 10_000)
     }
 }
 
-/** A single source policy for map positions and navigation; recordings retain hardware GPS. */
-class SelectedLocationSource(private val context: Context, private val onUnavailable: () -> Unit = {}) : LocationSource {
+/** Shared source selection for maps, navigation and track recording. */
+class SelectedLocationSource(private val context: Context, private val allowNetwork: Boolean = true, private val onUnavailable: () -> Unit = {}) : LocationSource {
     private val bluetooth = (context.applicationContext as OverlandApp).bluetoothGPS
-    private var hardware = AndroidLocationSource(context, allowNetwork = true)
+    private var hardware = AndroidLocationSource(context, allowNetwork = allowNetwork)
     private var job: Job? = null
     private var ownFix: LocationFix? = null
-    override val lastFix: LocationFix? get() = LocationSourcePolicy.select(bluetooth.state.value.client,
-        bluetooth.hasHardware, bluetooth.state.value.ignoreHardware, ownFix, bluetooth.remoteFix.value, System.currentTimeMillis())
+    override val lastFix: LocationFix? get() = LocationSourcePolicy.select(bluetooth.state.value.connected,
+        ownFix, bluetooth.remoteFix.value, System.currentTimeMillis())
     override fun start(minDistanceMeters: Float, onFix: (LocationFix) -> Unit) {
         stop()
         job = CoroutineScope(Dispatchers.Main.immediate).launch {
@@ -33,12 +32,12 @@ class SelectedLocationSource(private val context: Context, private val onUnavail
             var initialized = false
             while (isActive) {
                 val s = bluetooth.state.value
-                val needsHardware = !s.client || (bluetooth.hasHardware && !s.ignoreHardware)
-                if (needsHardware != listening || clientMode != s.client) {
-                    listening = needsHardware; clientMode = s.client
+                val needsHardware = !s.connected
+                if (needsHardware != listening || clientMode != s.connected) {
+                    listening = needsHardware; clientMode = s.connected
                     hardware.stop(); ownFix = null
-                    // A client may prefer genuine GPS; network positioning must not hide a remote fix.
-                    hardware = AndroidLocationSource(context, allowNetwork = !s.client)
+                    // Never let device positioning hide a connected remote GPS.
+                    hardware = AndroidLocationSource(context, allowNetwork = allowNetwork && !s.connected)
                     // Receive stationary fixes too, so freshness never depends on travelling 2 metres.
                     if (listening) hardware.start(0f) { ownFix = it }
                 }

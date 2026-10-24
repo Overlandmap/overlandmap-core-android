@@ -2,9 +2,13 @@ package ch.overlandmap.map.ui
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.util.DisplayMetrics
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import ch.overlandmap.map.R
 import ch.overlandmap.map.model.WaypointType
 
@@ -71,24 +75,53 @@ object WaypointMarkers {
         else -> DEFAULT
     }
 
-    /**
-     * Edge of every marker bitmap, in pixels. The bundled maki pngs are 30x30;
-     * the vector icons are rasterized to the same size so all markers come out
-     * the same size on the map (a vector's intrinsic size is dp-based, so it
-     * would otherwise scale with screen density while the pngs would not).
-     */
+    /** Common badge width; four extra vertical pixels leave room around the circle. */
     private const val SIZE_PX = 30
 
-    /** Every maki icon as a bitmap keyed by its image id, for `style.addImage`. */
+    /** Map marker: category badge and a separate white name capsule. */
+    fun named(context: Context, name: String, icon: String): Bitmap {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 13f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }
+        val label = name.trim()
+        val labelWidth = if (label.isEmpty()) 0f else paint.measureText(label) + 18f
+        val width = SIZE_PX + if (labelWidth > 0) 8 + kotlin.math.ceil(labelWidth).toInt() else 0
+        return Bitmap.createBitmap(width, SIZE_PX + 4, Bitmap.Config.ARGB_8888).apply {
+            density = DisplayMetrics.DENSITY_DEFAULT
+            val canvas = Canvas(this)
+            drawBadge(context, canvas, drawables[icon] ?: drawables.getValue(DEFAULT))
+            if (labelWidth > 0) {
+                paint.color = Color.WHITE
+                canvas.drawRoundRect(RectF(38f, 2f, width.toFloat(), 32f), 15f, 15f, paint)
+                paint.color = Color.BLACK
+                val baseline = 17f - (paint.fontMetrics.ascent + paint.fontMetrics.descent) / 2f
+                canvas.drawText(label, 47f, baseline, paint)
+            }
+        }
+    }
+
+    /** Consistent white circular background for every itinerary map icon. */
+    private fun drawBadge(context: Context, canvas: Canvas, resource: Int) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        canvas.drawCircle(15f, 17f, 14f, paint)
+        paint.color = Color.rgb(160, 160, 160)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1f
+        canvas.drawCircle(15f, 17f, 14f, paint)
+        ContextCompat.getDrawable(context, resource)?.mutate()?.let { icon ->
+            icon.setBounds(6, 7, 24, 27)
+            icon.draw(canvas)
+        }
+    }
+
+    /** Every maki icon in a white badge, keyed by its image id for `style.addImage`. */
     fun bitmaps(context: Context): Map<String, Bitmap> =
-        drawables.mapNotNull { (name, res) ->
-            val drawable = ContextCompat.getDrawable(context, res) ?: return@mapNotNull null
-            // Copy (don't mutate the cached resource bitmap) and give it a real
-            // density: a drawable-nodpi bitmap reports DENSITY_NONE, which makes
-            // Mapbox's addImage compute a zero scale and draw nothing.
-            val bitmap = drawable.toBitmap(SIZE_PX, SIZE_PX)
-                .copy(Bitmap.Config.ARGB_8888, false)
-                .apply { density = DisplayMetrics.DENSITY_DEFAULT }
-            name to bitmap
-        }.toMap()
+        drawables.mapValues { (_, resource) ->
+            Bitmap.createBitmap(SIZE_PX, SIZE_PX + 4, Bitmap.Config.ARGB_8888).apply {
+                // A real density is required for Mapbox to compute the image scale.
+                density = DisplayMetrics.DENSITY_DEFAULT
+                drawBadge(context, Canvas(this), resource)
+            }
+        }
 }

@@ -31,15 +31,11 @@ class BluetoothGPSTest {
     @Test fun sourcePriorityAndFallback() {
         val own = LocationFix(1.0, 2.0, timeMs = 99000)
         val remote = LocationFix(3.0, 4.0, timeMs = 100000)
-        fun select(client: Boolean = true, hw: Boolean = true, ignore: Boolean = false, hardware: LocationFix? = own, now: Long = 100000) =
-            LocationSourcePolicy.select(client, hw, ignore, hardware, remote, now)
-        assertEquals(own, select())
-        assertEquals(remote, select(ignore = true))
-        assertEquals(remote, select(hw = false))
-        assertEquals(remote, select(hardware = own.copy(timeMs = 1000)))
-        assertEquals(own, select(client = false))
-        assertNull(select(ignore = true, now = 120000))
-        assertNull(LocationSourcePolicy.select(true, false, false, own, null, 100000))
+        assertEquals(own, LocationSourcePolicy.select(false, own, remote, 100000))
+        assertEquals(remote, LocationSourcePolicy.select(true, own, remote, 100000))
+        assertNull(LocationSourcePolicy.select(true, own, remote, 120000))
+        assertNull(LocationSourcePolicy.select(true, own, null, 100000))
+        assertEquals(remote, LocationSourcePolicy.select(true, null, remote, 100000))
     }
     @Test fun playbackSpeedDirectionDuplicatesAndFinish() {
         val a = Coordinate(0.0, 0.0); val b = Coordinate(0.0, 0.01)

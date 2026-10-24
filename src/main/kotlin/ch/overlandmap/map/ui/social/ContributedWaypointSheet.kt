@@ -149,7 +149,7 @@ fun ContributedWaypointSheet(
         )
     }
     viewing?.let { w ->
-        WaypointViewer(
+        ContributedWaypointViewer(
             w, trackPackId,
             onZoom = { w.lat?.let { lat -> w.lon?.let { lon -> onZoom(Coordinate(lat, lon)); onDismiss() } } },
             onDismiss = { viewing = null },
@@ -285,7 +285,7 @@ private fun WaypointEditor(
 
 /** Someone else's shared waypoint: the text, who shared it, votes, and a way to zoom to it. */
 @Composable
-private fun WaypointViewer(w: ContributedWaypoint, trackPackId: String, onZoom: () -> Unit, onDismiss: () -> Unit) {
+internal fun ContributedWaypointViewer(w: ContributedWaypoint, trackPackId: String, onZoom: (() -> Unit)?, onDismiss: () -> Unit) {
     val app = LocalContext.current.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
     val gate = rememberAuthGate()
@@ -331,7 +331,7 @@ private fun WaypointViewer(w: ContributedWaypoint, trackPackId: String, onZoom: 
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.ok)) } },
         dismissButton = {
-            OutlinedButton(onClick = onZoom) {
+            if (onZoom != null) OutlinedButton(onClick = onZoom) {
                 Icon(Icons.Filled.ZoomIn, contentDescription = stringResource(R.string.show_on_map))
             }
         },

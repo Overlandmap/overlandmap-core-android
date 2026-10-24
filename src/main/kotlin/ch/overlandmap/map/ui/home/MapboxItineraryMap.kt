@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.map.MapStyles
 import ch.overlandmap.map.ui.WaypointMarkers
+import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.map.MapboxMapView
 import ch.overlandmap.map.map.addMapboxUserLocationLayer
 import ch.overlandmap.map.map.updateMapboxUserLocation
@@ -187,6 +188,12 @@ fun MapboxItineraryMap(
     }
     // All maki marker icons, decoded once and registered when the style loads.
     val makiIcons = remember { WaypointMarkers.bitmaps(context) }
+    val waypointLanguage = currentLanguage()
+    val namedWaypointIcons = remember(waypoints, otherWaypoints, waypointLanguage) {
+        (waypoints + otherWaypoints).associate {
+            "itinerary-waypoint:${it.documentId}" to WaypointMarkers.named(context, it.name(waypointLanguage), WaypointMarkers.makiFor(it))
+        }
+    }
     val userLocation by rememberUserLocation()
     val controlsOffset = with(LocalDensity.current) { 100.toDp() }
     var fitted by remember { mutableStateOf(false) }
@@ -241,6 +248,7 @@ fun MapboxItineraryMap(
                 // screen, not the curved surface), so waypoints appear shifted.
                 style.setProjection(projection(ProjectionName.MERCATOR))
                 makiIcons.forEach { (name, bitmap) -> style.addImage(name, bitmap) }
+                namedWaypointIcons.forEach { (name, bitmap) -> style.addImage(name, bitmap) }
                 addTracksLayer(style, trackPackId)
                 addItineraryLayer(style, tracks)
                 addWaypointLayer(style, waypoints)
@@ -376,8 +384,9 @@ fun MapboxItineraryMap(
     // Apply the waypoint-category filter: show/hide the itinerary's own
     // waypoints and populate the other-waypoints layer. Re-runs when the style
     // reloads, the filter changes, or the pack's waypoints change.
-    LaunchedEffect(loadedStyle, waypointFilter, otherWaypoints) {
+    LaunchedEffect(loadedStyle, waypointFilter, otherWaypoints, namedWaypointIcons) {
         val style = loadedStyle ?: return@LaunchedEffect
+        namedWaypointIcons.forEach { (name, bitmap) -> style.addImage(name, bitmap) }
         updateOtherWaypoints(style, otherWaypoints, waypointFilter)
     }
 }
@@ -479,21 +488,22 @@ private fun addWaypointLayer(style: Style, waypoints: List<Waypoint>) {
         val lon = waypoint.lon ?: return@mapNotNull null
         Feature.fromGeometry(Point.fromLngLat(lon, lat)).also {
             it.addStringProperty(WAYPOINT_DOC_ID, waypoint.documentId)
-            it.addStringProperty(WAYPOINT_ICON_KEY, WaypointMarkers.makiFor(waypoint))
+            it.addStringProperty("unlabeledIcon", WaypointMarkers.makiFor(waypoint))
+            it.addStringProperty(WAYPOINT_ICON_KEY, "itinerary-waypoint:${waypoint.documentId}")
         }
     }
     if (features.isEmpty()) return
     style.addSource(
         geoJsonSource(WAYPOINTS_SOURCE) { featureCollection(FeatureCollection.fromFeatures(features)) }
     )
-    // The waypoint's maki icon, center-anchored. A center anchor draws the icon
-    // at the exact projected point at every zoom; a bottom anchor offsets it in
-    // screen space, which diverges from the surface and drifts when zoomed out
-    // (the step numbers, center-anchored, stay put too).
+    // Keep every circular badge centered on its coordinate with the name extending right.
     style.addLayer(
         symbolLayer(WAYPOINTS_LAYER, WAYPOINTS_SOURCE) {
-            iconImage(Expression.get(WAYPOINT_ICON_KEY))
-            iconAnchor(IconAnchor.CENTER)
+            // Switch at zoom 10 without hiding or moving the waypoint pin.
+            iconImage(Expression.fromRaw("""["step", ["zoom"], ["get", "unlabeledIcon"], 10, ["get", "$WAYPOINT_ICON_KEY"]]"""))
+            // Keep the pin center on its coordinate while the name extends right.
+            iconAnchor(IconAnchor.LEFT)
+            iconOffset(listOf(-15.0, 0.0))
             iconAllowOverlap(true)
             iconSize(1.5)
         }
@@ -515,8 +525,9 @@ private fun addOtherWaypointLayer(style: Style) {
     )
     style.addLayer(
         symbolLayer(OTHER_WAYPOINTS_LAYER, OTHER_WAYPOINTS_SOURCE) {
-            iconImage(Expression.get(WAYPOINT_ICON_KEY))
-            iconAnchor(IconAnchor.CENTER)
+            iconImage(Expression.fromRaw("""["step", ["zoom"], ["get", "unlabeledIcon"], 10, ["get", "$WAYPOINT_ICON_KEY"]]"""))
+            iconAnchor(IconAnchor.LEFT)
+            iconOffset(listOf(-15.0, 0.0))
             iconAllowOverlap(true)
             iconSize(1.5)
         }
@@ -546,7 +557,8 @@ private fun updateOtherWaypoints(
         val lon = wp.lon ?: return@mapNotNull null
         Feature.fromGeometry(Point.fromLngLat(lon, lat)).also {
             it.addStringProperty(WAYPOINT_DOC_ID, wp.documentId)
-            it.addStringProperty(WAYPOINT_ICON_KEY, WaypointMarkers.makiFor(wp))
+            it.addStringProperty("unlabeledIcon", WaypointMarkers.makiFor(wp))
+            it.addStringProperty(WAYPOINT_ICON_KEY, "itinerary-waypoint:${wp.documentId}")
         }
     }
     style.getSourceAs<com.mapbox.maps.extension.style.sources.generated.GeoJsonSource>(OTHER_WAYPOINTS_SOURCE)

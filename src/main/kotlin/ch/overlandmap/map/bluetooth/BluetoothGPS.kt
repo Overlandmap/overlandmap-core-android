@@ -18,12 +18,36 @@ import kotlinx.coroutines.flow.MutableStateFlow
 @Suppress("DEPRECATION")
 class BluetoothGPS(private val context: Context) {
     data class Peer(val address: String, val name: String, val seen: Long)
-    data class Status(val client: Boolean = false, val ignoreHardware: Boolean = false,
+    data class Status(val client: Boolean = false,
         val scanning: Boolean = false, val connected: Boolean = false, val server: Boolean = false, val startingServer: Boolean = false, val connecting: Boolean = false,
         val peers: List<Peer> = emptyList(), val error: String? = null, val simulation: Boolean = false)
     val state = MutableStateFlow(Status())
     val remoteFix = MutableStateFlow<LocationFix?>(null)
     val hasHardware = context.packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)
+    private val preferences = context.getSharedPreferences("bluetooth-gps", Context.MODE_PRIVATE)
+    private var reconnectAddress: String? = null
+    private var reconnectName: String? = null
+    private var connectingPeer: Peer? = null
+    private var restored = false
+    /** Called only once an activity is visible, so location foreground services may start. */
+    fun restore() {
+        if (restored) return
+        val permissions = if (android.os.Build.VERSION.SDK_INT >= 31) listOf(
+            android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN,
+            android.Manifest.permission.BLUETOOTH_ADVERTISE) else emptyList()
+        if (permissions.any { androidx.core.content.ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }) return
+        if (adapter?.isEnabled != true || !hasFineLocationPermission(context)) return
+        restored = true
+        when (preferences.getString("role", null)) {
+            "server" -> startServer()
+            "client" -> {
+                reconnectAddress = preferences.getString("address", null)
+                reconnectName = preferences.getString("name", null)
+                scan()
+            }
+        }
+    }
+    private fun rememberRole(role: String?) { preferences.edit().putString("role", role).apply() }
     private val handler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val manager = context.getSystemService(BluetoothManager::class.java)
@@ -58,7 +82,7 @@ class BluetoothGPS(private val context: Context) {
         val receiver = object : android.content.BroadcastReceiver() {
             override fun onReceive(c: Context, intent: android.content.Intent) {
                 if (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1) == BluetoothAdapter.STATE_OFF) {
-                    attempt { disconnect() }; stopServer(); change { it.copy(scanning = false, peers = emptyList()) }
+                    attempt { disconnect() }; stopServer(clearPreference = false); restored = false; change { it.copy(scanning = false, peers = emptyList()) }
                 }
             }
         }
@@ -73,8 +97,10 @@ class BluetoothGPS(private val context: Context) {
     private val scan = object : ScanCallback() {
         override fun onScanResult(type: Int, result: ScanResult) = main {
             if (!state.value.scanning) return@main
-            val peer = Peer(result.device.address, result.scanRecord?.deviceName ?: "OverlandMap GPS", System.currentTimeMillis())
+            val name = result.scanRecord?.deviceName ?: result.device.name ?: "OverlandMap"
+            val peer = Peer(result.device.address, if (name.endsWith(" GPS")) name else "$name GPS", System.currentTimeMillis())
             change { it.copy(peers = (it.peers.filter { p -> p.address != peer.address } + peer)) }
+            if (peer.address == reconnectAddress || peer.name == reconnectName) { reconnectAddress = null; reconnectName = null; connect(peer) }
         }
         override fun onScanFailed(code: Int) = main { change { it.copy(scanning = false, error = "Bluetooth scan failed ($code)") } }
     }
@@ -86,13 +112,16 @@ class BluetoothGPS(private val context: Context) {
         handler.removeCallbacks(stopScanTask); handler.postDelayed(stopScanTask, 15000)
     }
     private val stopScanTask = Runnable { stopScan() }
-    fun stopScan() { attempt { adapter?.bluetoothLeScanner?.stopScan(scan) }; change { it.copy(scanning = false) } }
-    fun ignoreHardware(value: Boolean) { change { it.copy(ignoreHardware = value) } }
-    fun disableClient() { stopScan(); disconnect(); change { it.copy(client = false) } }
+    fun stopScan() { handler.removeCallbacks(stopScanTask); attempt { adapter?.bluetoothLeScanner?.stopScan(scan) }; change { it.copy(scanning = false) } }
+    fun disableClient() {
+        reconnectAddress = null; reconnectName = null
+        if (preferences.getString("role", null) == "client") rememberRole(null)
+        stopScan(); disconnect(); change { it.copy(client = false) }
+    }
     fun disconnect() { val old = gatt; gatt = null; remoteFix.value = null;
         attempt { try { old?.disconnect() } finally { old?.close() } }; handler.removeCallbacks(connectionTimeout); change { it.copy(connected = false, connecting = false) } }
     fun connect(peer: Peer) = attempt(onFailure = { disconnect() }) {
-        requireBluetooth(); stopServer(); stopScan(); disconnect()
+        requireBluetooth(); stopServer(); stopScan(); disconnect(); connectingPeer = peer
         change { it.copy(client = true, connecting = true) }
         gatt = adapter!!.getRemoteDevice(peer.address).connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
         check(gatt != null) { "Cannot connect to GPS server." }
@@ -120,7 +149,9 @@ class BluetoothGPS(private val context: Context) {
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) = main {
             if (g !== gatt) return@main
             if (status != BluetoothGatt.GATT_SUCCESS) { disconnect(); return@main }
-            handler.removeCallbacks(connectionTimeout); change { it.copy(connected = true, connecting = false) }; attempt { BluetoothGPSForegroundService.start(context) }; g.readCharacteristic(d.characteristic)
+            handler.removeCallbacks(connectionTimeout)
+            connectingPeer?.let { preferences.edit().putString("role", "client").putString("address", it.address).putString("name", it.name).apply() }
+            change { it.copy(connected = true, connecting = false) }; attempt { BluetoothGPSForegroundService.start(context) }; g.readCharacteristic(d.characteristic)
         }
         override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic) { receive(g, c.value ?: return) }
         override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray) { receive(g, value) }
@@ -136,7 +167,7 @@ class BluetoothGPS(private val context: Context) {
     }
     private fun advertiser(generation: Int) = object : AdvertiseCallback() {
         override fun onStartSuccess(settings: AdvertiseSettings) = serverMain(generation) {
-            handler.removeCallbacks(serverTimeout); change { it.copy(server = true, startingServer = false) }
+            handler.removeCallbacks(serverTimeout); if (hardwareServer) rememberRole("server"); change { it.copy(server = true, startingServer = false) }
         }
         override fun onStartFailure(code: Int) = serverMain(generation) {
             stopServer(); change { it.copy(error = "Cannot advertise GPS ($code)") }
@@ -149,7 +180,7 @@ class BluetoothGPS(private val context: Context) {
             attempt(onFailure = { stopServer() }) {
                 adapter!!.bluetoothLeAdvertiser.startAdvertising(AdvertiseSettings.Builder().setConnectable(true).setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY).build(),
                     AdvertiseData.Builder().addServiceUuid(ParcelUuid(BluetoothGPSProtocol.service)).build(),
-                    AdvertiseData.Builder().build(), advertising!!)
+                    AdvertiseData.Builder().setIncludeDeviceName(true).build(), advertising!!)
             }
         }
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) = serverMain(generation) {
@@ -177,7 +208,7 @@ class BluetoothGPS(private val context: Context) {
         requireBluetooth(); check(simulationOnly || hasHardware) { "This device has no GPS hardware." }
         check(simulationOnly || hasFineLocationPermission(context)) { "Location permission is required." }
         check(adapter?.bluetoothLeAdvertiser != null) { "Bluetooth LE advertising is unavailable on this device." }
-        disableClient(); stopServer()
+        disableClient(); stopServer(clearPreference = false)
         val c = BluetoothGattCharacteristic(BluetoothGPSProtocol.characteristic,
             BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ)
         c.addDescriptor(BluetoothGattDescriptor(BluetoothGPSProtocol.cccd, BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE))
@@ -192,7 +223,8 @@ class BluetoothGPS(private val context: Context) {
         BluetoothGPSForegroundService.start(context)
         if (!simulationOnly) hardware.start(0f) { if (it.accuracyM >= 0) broadcast(it) }
     }
-    fun stopServer() {
+    fun stopServer(clearPreference: Boolean = true) {
+        if (clearPreference && preferences.getString("role", null) == "server") rememberRole(null)
         serverGeneration++; handler.removeCallbacks(serverTimeout)
         playback?.cancel(); playback = null; hardware.stop(); hardwareServer = false
         attempt { try { advertising?.let { adapter?.bluetoothLeAdvertiser?.stopAdvertising(it) } } finally { server?.close() } }

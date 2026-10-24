@@ -5,6 +5,10 @@ import androidx.lifecycle.viewModelScope
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.data.SearchResult
 import java.util.Locale
+import ch.overlandmap.map.data.NearbySearchRepository
+import ch.overlandmap.map.geo.Coordinate
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +26,7 @@ import kotlinx.coroutines.flow.stateIn
  * reaches [SearchRepository.minQueryLength] characters.
  */
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-class SearchViewModel(app: OverlandApp) : ViewModel() {
+class SearchViewModel(private val app: OverlandApp) : ViewModel() {
 
     private val repo = app.searchRepository
 
@@ -40,6 +44,32 @@ class SearchViewModel(app: OverlandApp) : ViewModel() {
                 .getOrDefault(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    enum class Mode { TEXT, NEARBY }
+    val mode = MutableStateFlow(Mode.TEXT)
+    data class NearbyRequest(val location: Coordinate, val radiusKm: Double, val type: NearbySearchRepository.Type)
+    data class NearbyState(val results: List<SearchResult> = emptyList(), val loading: Boolean = false, val error: String? = null)
+    private val nearbyRequest = MutableStateFlow<NearbyRequest?>(null)
+    private var lastNearby: Pair<NearbyRequest, List<SearchResult>>? = null
+    val nearby: StateFlow<NearbyState> = nearbyRequest.debounce(250).transformLatest { request ->
+        if (request == null) { lastNearby = null; emit(NearbyState()); return@transformLatest }
+        // Retain the list during position-only refreshes, so GPS updates don't flash a spinner.
+        val previous = lastNearby?.takeIf { it.first.type == request.type && it.first.radiusKm == request.radiusKm }?.second.orEmpty()
+        emit(NearbyState(results = previous, loading = true))
+        try {
+            val found = app.nearbySearchRepository.search(request.location, request.radiusKm, request.type, Locale.getDefault().language)
+            lastNearby = request to found
+            emit(NearbyState(results = found))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emit(NearbyState(error = e.localizedMessage ?: e.javaClass.simpleName))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NearbyState())
+
+    fun searchNearby(location: Coordinate?, radiusKm: Double?, type: NearbySearchRepository.Type) {
+        nearbyRequest.value = if (location == null || radiusKm == null) null else NearbyRequest(location, radiusKm, type)
+    }
 
     fun setQuery(value: String) {
         query.value = value

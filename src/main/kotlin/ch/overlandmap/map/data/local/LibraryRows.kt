@@ -15,6 +15,8 @@ import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.Track
 import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.model.Waypoint
+import ch.overlandmap.map.model.captionListsOrNull
+import ch.overlandmap.map.model.FS
 import ch.overlandmap.map.model.buildJsonColumn
 import ch.overlandmap.map.model.doubleOrNull
 import ch.overlandmap.map.model.extraOrEmpty
@@ -228,7 +230,9 @@ fun Itinerary.toRow() = ItineraryRow(
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titleBlurHash", titleBlurHash)
         putIfNotNull("titlePhotoCaption", titlePhotoCaption)
+        putIfNotEmpty("translatedTitleCaption", translatedTitleCaption)
         putIfNotEmpty("otherPhotoCaptions", otherPhotoCaptions)
+        translatedOtherPhotoCaptions?.let { put("translatedOtherPhotoCaptions", org.json.JSONObject(it)) }
         putIfNotNull("createdAt", createdAt)
         putIfNotNull("lastUpdate", lastUpdate)
         putIfNotNull("localPhotoPath", localPhotoPath)
@@ -265,7 +269,10 @@ fun ItineraryRow.toModel(): Itinerary = parseJsonColumn(json).let { j ->
         titlePhotoId = j.stringOrNull("titlePhotoId"),
         titleBlurHash = j.stringOrNull("titleBlurHash"),
         titlePhotoCaption = j.stringOrNull("titlePhotoCaption"),
+        translatedTitleCaption = j.stringMapOrNull("translatedTitleCaption")
+            ?: FS.stringMap(j.extraOrEmpty()["translatedTitleCaption"]),
         otherPhotoCaptions = j.stringListOrNull("otherPhotoCaptions"),
+        translatedOtherPhotoCaptions = j.captionListsOrNull("translatedOtherPhotoCaptions"),
         latMin = latMin,
         latMax = latMax,
         lonMin = lonMin,
@@ -313,6 +320,7 @@ fun ItineraryStep.toRow() = ItineraryStepRow(
         putIfNotNull("distanceKm", distanceKm)
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titlePhotoCaption", titlePhotoCaption)
+        putIfNotEmpty("translatedTitleCaption", translatedTitleCaption)
         putIfNotNull("localPhotoPath", localPhotoPath)
         putExtra(extra)
     },
@@ -353,6 +361,8 @@ fun ItineraryStepRow.toModel(): ItineraryStep = parseJsonColumn(json).let { j ->
         swimming = j.flag("swimming"),
         titlePhotoId = j.stringOrNull("titlePhotoId"),
         titlePhotoCaption = j.stringOrNull("titlePhotoCaption"),
+        translatedTitleCaption = j.stringMapOrNull("translatedTitleCaption")
+            ?: FS.stringMap(j.extraOrEmpty()["translatedTitleCaption"]),
         openKind = OpenKind.fromRaw(j.stringOrNull("openKind")),
         openDetails = j.stringOrNull("openDetails"),
         localPhotoPath = j.stringOrNull("localPhotoPath"),
@@ -498,8 +508,10 @@ fun Sidebar.toRow() = SidebarRow(
         putIfNotEmpty("translatedDesc", translatedDesc)
         putIfNotNull("titlePhotoId", titlePhotoId)
         putIfNotNull("titlePhotoCaption", titlePhotoCaption)
+        putIfNotEmpty("translatedTitleCaption", translatedTitleCaption)
         putIfNotNull("localPhotoPath", localPhotoPath)
         putIfNotEmpty("otherPhotoCaptions", otherPhotoCaptions)
+        translatedOtherPhotoCaptions?.let { put("translatedOtherPhotoCaptions", org.json.JSONObject(it)) }
         putIfNotEmpty("localOtherPhotoPaths", localOtherPhotoPaths)
         putExtra(extra)
     },
@@ -515,8 +527,11 @@ fun SidebarRow.toModel(): Sidebar = parseJsonColumn(json).let { j ->
         translatedDesc = j.stringMapOrNull("translatedDesc"),
         titlePhotoId = j.stringOrNull("titlePhotoId"),
         titlePhotoCaption = j.stringOrNull("titlePhotoCaption"),
+        translatedTitleCaption = j.stringMapOrNull("translatedTitleCaption")
+            ?: FS.stringMap(j.extraOrEmpty()["translatedTitleCaption"]),
         localPhotoPath = j.stringOrNull("localPhotoPath"),
         otherPhotoCaptions = j.stringListOrNull("otherPhotoCaptions"),
+        translatedOtherPhotoCaptions = j.captionListsOrNull("translatedOtherPhotoCaptions"),
         localOtherPhotoPaths = j.stringListOrNull("localOtherPhotoPaths"),
         extra = j.extraOrEmpty(),
     )

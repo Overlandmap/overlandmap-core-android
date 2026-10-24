@@ -8,6 +8,7 @@
     <!-- Asset downloads run as WorkManager foreground services so they keep
          going when the app is suspended. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Recording a track or navigating keeps GPS running with the screen off (TrackingService). -->

@@ -467,7 +467,7 @@
     <string name="navigation_waiting_gps">In attesa del GPS…</string>
     <string name="reverse_navigation">Inverti la direzione</string>
     <string name="navigation_location_denied">La navigazione non è possibile: l\'app non è autorizzata a usare la tua posizione. Consenti l\'accesso alla posizione nelle impostazioni di sistema per navigare.</string>
-    <string name="bluetooth_gps">GPS Bluetooth</string>
+    <string name="bluetooth_gps">GPS remoto</string>
     <string name="bluetooth_gps_simulation">Simulazione di guida GPS</string>
     <string name="bluetooth_gps_hardware_yes">Hardware GPS disponibile</string>
     <string name="bluetooth_gps_hardware_no">Nessun hardware GPS</string>
@@ -481,7 +481,7 @@
     <string name="bluetooth_gps_unavailable">GPS non disponibile</string>
     <string name="bluetooth_gps_disconnect">Disattiva GPS Bluetooth</string>
     <string name="bluetooth_gps_server">Condividi GPS</string>
-    <string name="bluetooth_gps_start">Avvia server GPS</string>
+    <string name="bluetooth_gps_start">Inizia a trasmettere i dati GPS</string>
     <string name="bluetooth_gps_stop">Arresta server</string>
     <string name="bluetooth_gps_local_track">Scegli una traccia di itinerario locale</string>
     <string name="bluetooth_gps_import">Carica file GPX</string>
@@ -491,4 +491,19 @@
     <string name="bluetooth_gps_invalid_track">Seleziona una traccia GPX con almeno due punti.</string>
     <string name="debug_show_zoom_buttons">Mostra i pulsanti di zoom della mappa</string>
     <string name="library_welcome">Benvenuto!</string>
+    <string name="search_text_mode">Testo</string>
+    <string name="search_nearby_mode">Nelle vicinanze</string>
+    <string name="search_max_distance">Distanza massima</string>
+    <string name="search_invalid_radius">Inserisci una distanza maggiore di zero.</string>
+    <string name="search_location_unavailable">In attesa della posizione. Consenti la localizzazione o collega un server GPS Bluetooth.</string>
+    <string name="search_type_all">Tutti</string>
+    <string name="search_type_itinerary">Itinerari e tappe</string>
+    <string name="search_type_waypoint">Punti di percorso</string>
+    <string name="search_type_border_post">Posti di frontiera</string>
+    <string name="search_result_type">Tipo</string>
+    <string name="search_nearby_action">Cerca nelle vicinanze</string>
+    <string name="search_extend_radius">Estendi a %1$s %2$s</string>
+    <string name="bluetooth_gps_server_tab">Server</string>
+    <string name="bluetooth_gps_client_tab">Client</string>
+    <string name="bluetooth_gps_client_description">Ricevi i dati GPS da un altro dispositivo dotato di GPS. Apri OverlandMap su quel dispositivo, vai in Impostazioni → GPS remoto e nella scheda “Server” tocca “Inizia a trasmettere i dati GPS”. Quando il dispositivo appare qui, tocca “Connetti”.</string>
 </resources>

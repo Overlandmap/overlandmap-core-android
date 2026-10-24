@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -76,28 +77,41 @@ fun BluetoothGPSScreen(onBack: () -> Unit, simulationOnly: Boolean = false) {
     }
     SettingsSubScreen(stringResource(if (simulationOnly) R.string.bluetooth_gps_simulation else R.string.bluetooth_gps), onBack) {
         if (!simulationOnly) {
-            Text(stringResource(if (gps.hasHardware) R.string.bluetooth_gps_hardware_yes else R.string.bluetooth_gps_hardware_no))
+            var clientTab by rememberSaveable { mutableStateOf(status.client) }
+            LaunchedEffect(clientTab) {
+                if (clientTab && !status.connected && !status.connecting && !status.scanning) authorized { gps.scan() }
+            }
+            TabRow(selectedTabIndex = if (clientTab) 1 else 0) {
+                Tab(selected = !clientTab, onClick = { clientTab = false; gps.disableClient() },
+                    text = { Text(stringResource(R.string.bluetooth_gps_server_tab)) })
+                Tab(selected = clientTab, onClick = {
+                    if (!clientTab) { gps.stopServer(); clientTab = true }
+                    else if (!status.connected && !status.connecting) authorized { gps.scan() }
+                }, text = { Text(stringResource(R.string.bluetooth_gps_client_tab)) })
+            }
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.bluetooth_gps_client), style = MaterialTheme.typography.titleMedium)
-            Row {
-                Text(stringResource(R.string.bluetooth_gps_ignore_hardware), Modifier.weight(1f))
-                Switch(status.ignoreHardware, { gps.ignoreHardware(it) })
-            }
-            Button(onClick = { authorized { gps.scan() } }, enabled = !status.scanning) {
-                Text(stringResource(if (status.scanning) R.string.bluetooth_gps_scanning else R.string.bluetooth_gps_search))
-            }
-            if (status.peers.isEmpty()) Text(stringResource(R.string.bluetooth_gps_no_servers))
-            status.peers.forEach { peer ->
-                OutlinedButton(onClick = { authorized { gps.connect(peer) } }, enabled = !status.connecting && !status.connected) { Text(stringResource(R.string.bluetooth_gps_connect, "${peer.name} (${peer.address})")) }
-            }
-            if (status.client) {
-                Text(stringResource(if (status.connected) R.string.bluetooth_gps_connected else R.string.bluetooth_gps_unavailable))
-                TextButton(onClick = { gps.disableClient() }) { Text(stringResource(R.string.bluetooth_gps_disconnect)) }
-            }
-            HorizontalDivider(Modifier.padding(vertical = 16.dp))
-            Text(stringResource(R.string.bluetooth_gps_server), style = MaterialTheme.typography.titleMedium)
-            Button(onClick = { if (status.server || status.startingServer) gps.stopServer() else authorized { gps.startServer() } }, enabled = status.server || status.startingServer || gps.hasHardware) {
-                Text(stringResource(if (status.server || status.startingServer) R.string.bluetooth_gps_stop else R.string.bluetooth_gps_start))
+            if (!clientTab) {
+                Button(onClick = { if (status.server || status.startingServer) gps.stopServer() else authorized { gps.startServer() } },
+                    enabled = status.server || status.startingServer || gps.hasHardware) {
+                    Text(stringResource(if (status.server || status.startingServer) R.string.bluetooth_gps_stop else R.string.bluetooth_gps_start))
+                }
+            } else {
+                Text(stringResource(R.string.bluetooth_gps_client_description))
+                Spacer(Modifier.height(12.dp))
+                if (status.scanning) Text(stringResource(R.string.bluetooth_gps_scanning))
+                if (!status.scanning && !status.connected && !status.connecting) {
+                    Text(stringResource(R.string.bluetooth_gps_no_servers))
+                    TextButton(onClick = { authorized { gps.scan() } }) { Text(stringResource(R.string.bluetooth_gps_search)) }
+                }
+                status.peers.forEach { peer ->
+                    OutlinedButton(onClick = { authorized { gps.connect(peer) } }, enabled = !status.connecting && !status.connected) {
+                        Text(stringResource(R.string.bluetooth_gps_connect, peer.name))
+                    }
+                }
+                if (status.connected || status.connecting) {
+                    Text(stringResource(if (status.connected) R.string.bluetooth_gps_connected else R.string.bluetooth_gps_scanning))
+                    TextButton(onClick = { gps.disableClient(); authorized { gps.scan() } }) { Text(stringResource(R.string.bluetooth_gps_disconnect)) }
+                }
             }
         } else if (entitlements?.hasAdmin == true) {
             Text(title)

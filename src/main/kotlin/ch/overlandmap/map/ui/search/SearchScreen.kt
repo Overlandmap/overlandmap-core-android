@@ -66,11 +66,11 @@ import ch.overlandmap.map.ui.MapPopupState
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.world.OverlandingSelection
 import kotlinx.coroutines.launch
+import ch.overlandmap.map.ui.rememberUnitFormatter
 
 /**
- * Full-screen full-text search (the multi-pack app's Home button). Field, then
- * results; a tap opens the matching viewer, with waypoints shown as their popup
- * here (no live map, so both popup actions open the waypoint's itinerary).
+ * Search from Home: text or nearby results, with matching detail viewers.
+ * Waypoints use their popup here; both actions open the parent itinerary.
  */
 @Composable
 fun SearchScreen(
@@ -81,31 +81,20 @@ fun SearchScreen(
     onOpenOverlanding: (OverlandingSelection) -> Unit,
     viewModel: SearchViewModel = viewModel { SearchViewModel(overlandApp()) },
 ) {
-    val query by viewModel.query.collectAsState()
-    val results by viewModel.results.collectAsState()
     val scope = rememberCoroutineScope()
     var waypoint by remember { mutableStateOf<Waypoint?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        SearchField(
-            query = query,
-            onQueryChange = viewModel::setQuery,
-            leading = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.close),
-                    )
-                }
-            },
-        )
-        HorizontalDivider()
-        SearchResultsList(
-            results = results,
-            query = query,
-            minQueryLength = viewModel.minQueryLength,
-            modifier = Modifier.fillMaxSize(),
-        ) { result ->
+    SearchContent(
+        viewModel = viewModel,
+        leading = {
+            IconButton(onClick = {
+                if (viewModel.mode.value == SearchViewModel.Mode.NEARBY) viewModel.mode.value = SearchViewModel.Mode.TEXT
+                else onBack()
+            }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.close))
+            }
+        },
+        onResultClick = { result ->
             when (result.type) {
                 FtsIndex.TYPE_ITINERARY -> onOpenItinerary(result.documentId, null)
                 FtsIndex.TYPE_STEP ->
@@ -119,8 +108,8 @@ fun SearchScreen(
                 FtsIndex.TYPE_BORDER_POST -> onOpenOverlanding(OverlandingSelection.OfBorderPost(result.documentId))
                 FtsIndex.TYPE_ZONE -> onOpenOverlanding(OverlandingSelection.OfZone(result.documentId))
             }
-        }
-    }
+        },
+    )
 
     waypoint?.let { wp ->
         val openItinerary = {
@@ -148,23 +137,11 @@ fun SearchTabContent(
     modifier: Modifier = Modifier,
     viewModel: SearchViewModel = viewModel { SearchViewModel(overlandApp()) },
 ) {
-    val query by viewModel.query.collectAsState()
-    val results by viewModel.results.collectAsState()
-    Column(modifier = modifier.fillMaxSize()) {
-        SearchField(query = query, onQueryChange = viewModel::setQuery)
-        HorizontalDivider()
-        SearchResultsList(
-            results = results,
-            query = query,
-            minQueryLength = viewModel.minQueryLength,
-            modifier = Modifier.fillMaxSize(),
-            onResultClick = onResultClick,
-        )
-    }
+    SearchContent(viewModel = viewModel, modifier = modifier, onResultClick = onResultClick)
 }
 
 @Composable
-private fun SearchField(
+internal fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     leading: @Composable (() -> Unit)? = null,
@@ -202,31 +179,32 @@ private fun SearchField(
 }
 
 @Composable
-private fun SearchResultsList(
+internal fun SearchResultsList(
     results: List<SearchResult>,
     query: String,
     minQueryLength: Int,
     modifier: Modifier = Modifier,
     onResultClick: (SearchResult) -> Unit,
+    footer: @Composable (() -> Unit)? = null,
 ) {
-    if (query.trim().length >= minQueryLength && results.isEmpty()) {
-        Box(modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-            Text(
-                stringResource(R.string.search_no_results),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    } else {
-        LazyColumn(modifier = modifier, contentPadding = PaddingValues(vertical = 4.dp)) {
-            items(results, key = { it.type + it.documentId }) { result ->
-                SearchRow(result) { onResultClick(result) }
+    LazyColumn(modifier = modifier, contentPadding = PaddingValues(vertical = 4.dp)) {
+        if (query.trim().length >= minQueryLength && results.isEmpty()) {
+            item(key = "search-empty") {
+                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.search_no_results), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
+        items(results, key = { it.type + it.documentId }) { result ->
+            SearchRow(result) { onResultClick(result) }
+        }
+        if (footer != null) item(key = "search-footer") { footer() }
     }
 }
 
 @Composable
 private fun SearchRow(result: SearchResult, onClick: () -> Unit) {
+    val units = rememberUnitFormatter()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -255,6 +233,10 @@ private fun SearchRow(result: SearchResult, onClick: () -> Unit) {
                     maxLines = 2,
                 )
             }
+        }
+        result.distanceKm?.let { distance ->
+            Text(units.navigationDistance(distance * 1000), style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -286,7 +268,7 @@ private fun titleFor(result: SearchResult) = buildAnnotatedString {
 private fun iconFor(type: String): ImageVector = when (type) {
     FtsIndex.TYPE_ITINERARY -> Icons.Filled.Map
     FtsIndex.TYPE_STEP -> Icons.Filled.Signpost
-    FtsIndex.TYPE_WAYPOINT -> Icons.Filled.LocationOn
+    FtsIndex.TYPE_WAYPOINT, FtsIndex.TYPE_CONTRIBUTED_WAYPOINT -> Icons.Filled.LocationOn
     FtsIndex.TYPE_SIDEBAR -> Icons.AutoMirrored.Filled.Article
     FtsIndex.TYPE_TRACK_PACK -> Icons.Filled.Layers
     FtsIndex.TYPE_COUNTRY -> Icons.Filled.Public

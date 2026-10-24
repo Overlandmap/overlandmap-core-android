@@ -469,7 +469,7 @@
     <string name="navigation_waiting_gps">Wachten op GPS…</string>
     <string name="reverse_navigation">Richting omkeren</string>
     <string name="navigation_location_denied">Navigeren is niet mogelijk: de app mag je locatie niet gebruiken. Sta locatietoegang toe in de systeeminstellingen om te navigeren.</string>
-    <string name="bluetooth_gps">Bluetooth-GPS</string>
+    <string name="bluetooth_gps">Externe GPS</string>
     <string name="bluetooth_gps_simulation">GPS-rijsimulatie</string>
     <string name="bluetooth_gps_hardware_yes">GPS-hardware beschikbaar</string>
     <string name="bluetooth_gps_hardware_no">Geen GPS-hardware</string>
@@ -483,7 +483,7 @@
     <string name="bluetooth_gps_unavailable">GPS niet beschikbaar</string>
     <string name="bluetooth_gps_disconnect">Bluetooth-GPS uitschakelen</string>
     <string name="bluetooth_gps_server">GPS delen</string>
-    <string name="bluetooth_gps_start">GPS-server starten</string>
+    <string name="bluetooth_gps_start">GPS-gegevens uitzenden</string>
     <string name="bluetooth_gps_stop">Server stoppen</string>
     <string name="bluetooth_gps_local_track">Een lokaal routetrack kiezen</string>
     <string name="bluetooth_gps_import">GPX-bestand laden</string>
@@ -493,4 +493,19 @@
     <string name="bluetooth_gps_invalid_track">Selecteer een GPX-track met minstens twee punten.</string>
     <string name="debug_show_zoom_buttons">Zoomknoppen op de kaart tonen</string>
     <string name="library_welcome">Welkom!</string>
+    <string name="search_text_mode">Tekst</string>
+    <string name="search_nearby_mode">In de buurt</string>
+    <string name="search_max_distance">Maximale afstand</string>
+    <string name="search_invalid_radius">Voer een afstand groter dan nul in.</string>
+    <string name="search_location_unavailable">Wachten op je locatie. Geef locatietoegang of verbind een Bluetooth-GPS-server.</string>
+    <string name="search_type_all">Alles</string>
+    <string name="search_type_itinerary">Routes en etappes</string>
+    <string name="search_type_waypoint">Routepunten</string>
+    <string name="search_type_border_post">Grensposten</string>
+    <string name="search_result_type">Type</string>
+    <string name="search_nearby_action">In de buurt zoeken</string>
+    <string name="search_extend_radius">Uitbreiden tot %1$s %2$s</string>
+    <string name="bluetooth_gps_server_tab">Server</string>
+    <string name="bluetooth_gps_client_tab">Client</string>
+    <string name="bluetooth_gps_client_description">Ontvang GPS-gegevens van een ander apparaat met GPS-hardware. Open OverlandMap op dat apparaat, ga naar Instellingen → Externe GPS en tik op het tabblad “Server” op “GPS-gegevens uitzenden”. Zodra het apparaat hier verschijnt, tik je op “Verbinden”.</string>
 </resources>

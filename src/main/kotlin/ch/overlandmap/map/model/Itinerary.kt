@@ -49,7 +49,9 @@ data class Itinerary(
     val titleBlurHash: String? = null,
     /** Photo captions; indexed for search along with the description. */
     val titlePhotoCaption: String? = null,
+    val translatedTitleCaption: Map<String, String>? = null,
     val otherPhotoCaptions: List<String>? = null,
+    val translatedOtherPhotoCaptions: Map<String, List<String>>? = null,
     val latMin: Double? = null,
     val latMax: Double? = null,
     val lonMin: Double? = null,
@@ -96,8 +98,16 @@ data class Itinerary(
         return if (parts.isEmpty()) body else body + "\n" + parts.joinToString("\n")
     }
 
+    fun titlePhotoCaption(lang: String): String? = localized(titlePhotoCaption, translatedTitleCaption, lang)
+
+    fun otherPhotoCaption(index: Int, lang: String): String? =
+        localized(otherPhotoCaptions?.getOrNull(index),
+            translatedOtherPhotoCaptions?.mapNotNull { (language, captions) ->
+                captions.getOrNull(index)?.takeIf { it.isNotBlank() }?.let { language to it }
+            }?.toMap(), lang)
+
     companion object {
-        private val KNOWN = arrayOf("beta", "center", "createdAt", "description", "difficulty", "fuelRange", "highlights", "isBuyable", "isFree", "itineraryId", "lastUpdate", "latMax", "latMin", "lengthDays", "lengthKM", "lonMax", "lonMin", "lovesCount", "name", "offroadPercent", "otherPhotoCaptions", "permit", "roadConditions", "titleBlurHash", "titlePhotoCaption", "titlePhotoId", "trackIds", "trackPackId", "translatedDesc", "translatedHighlights", "translatedName", "translatedRoadConditions")
+        private val KNOWN = arrayOf("beta", "center", "createdAt", "description", "difficulty", "fuelRange", "highlights", "isBuyable", "isFree", "itineraryId", "lastUpdate", "latMax", "latMin", "lengthDays", "lengthKM", "lonMax", "lonMin", "lovesCount", "name", "offroadPercent", "otherPhotoCaptions", "translatedOtherPhotoCaptions", "permit", "roadConditions", "titleBlurHash", "titlePhotoCaption", "translatedTitleCaption", "titlePhotoId", "trackIds", "trackPackId", "translatedDesc", "translatedHighlights", "translatedName", "translatedRoadConditions")
 
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Itinerary(
             documentId = documentId,
@@ -126,7 +136,9 @@ data class Itinerary(
             titlePhotoId = FS.str(data["titlePhotoId"]),
             titleBlurHash = FS.str(data["titleBlurHash"]),
             titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
+            translatedTitleCaption = FS.stringMap(data["translatedTitleCaption"]),
             otherPhotoCaptions = FS.stringList(data["otherPhotoCaptions"]),
+            translatedOtherPhotoCaptions = FS.captionLists(data["translatedOtherPhotoCaptions"]),
             latMin = FS.double(data["latMin"]),
             latMax = FS.double(data["latMax"]),
             lonMin = FS.double(data["lonMin"]),

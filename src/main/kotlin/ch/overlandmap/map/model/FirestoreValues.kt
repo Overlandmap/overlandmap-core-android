@@ -91,6 +91,13 @@ object FS {
     fun stringList(v: Any?): List<String>? =
         (v as? List<*>)?.filterIsInstance<String>()
 
+    /** Language → ordered photo captions; preserve positions when a caption is missing. */
+    fun captionLists(value: Any?): Map<String, List<String>>? =
+        (value as? Map<*, *>)?.mapNotNull { (language, captions) ->
+            if (language !is String || captions !is List<*>) null
+            else language to captions.map { it as? String ?: "" }
+        }?.toMap()?.takeIf { it.isNotEmpty() }
+
     fun stringMap(v: Any?): Map<String, String>? =
         (v as? Map<*, *>)
             ?.mapNotNull { (k, value) ->
