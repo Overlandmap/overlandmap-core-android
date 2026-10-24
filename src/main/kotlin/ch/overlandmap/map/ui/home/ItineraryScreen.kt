@@ -1102,7 +1102,8 @@ private fun StepsTab(
     // otherwise swiping back onto the launch-time step would be a no-op.
     val currentSelected by rememberUpdatedState(selectedStepIndex)
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.currentPage }.collect { page ->
+        // Intermediate pages during a map-triggered animation must not change its destination.
+        snapshotFlow { pagerState.settledPage }.collect { page ->
             if (page != currentSelected) onSelectStep(page)
         }
     }

@@ -585,9 +585,16 @@ private fun installTapHandler(mapView: MapView, onTapped: (ItineraryMapTap) -> U
             box(20.0),
             RenderedQueryOptions(listOf(STEPS_CIRCLES, STEPS_CIRCLES_SELECTED), null),
         ) { stepResult ->
-            val stepId = stepResult.value?.firstNotNullOfOrNull {
-                it.queriedFeature.feature.getStringProperty(STEP_ID)?.toIntOrNull()
+            // Render order is unrelated to distance: neighboring steps can both
+            // intersect the touch box, especially when the selected layer is on top.
+            val targets = stepResult.value.orEmpty().mapNotNull {
+                val feature = it.queriedFeature.feature
+                val id = feature.getStringProperty(STEP_ID)?.toIntOrNull() ?: return@mapNotNull null
+                val coordinate = feature.geometry() as? Point ?: return@mapNotNull null
+                val center = map.pixelForCoordinate(coordinate)
+                StepTapTarget(id, center.x, center.y)
             }
+            val stepId = nearestStepToTap(screen.x, screen.y, targets)
             if (stepId != null) {
                 onTapped(ItineraryMapTap.OnStep(stepId, position))
                 return@queryRenderedFeatures
