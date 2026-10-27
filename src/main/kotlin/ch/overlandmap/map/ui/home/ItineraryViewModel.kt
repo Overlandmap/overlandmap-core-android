@@ -7,6 +7,7 @@ import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryStep
 import ch.overlandmap.map.model.Track
+import ch.overlandmap.map.model.Sidebar
 import ch.overlandmap.map.model.TrackPack
 import ch.overlandmap.map.model.Waypoint
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ data class ItineraryState(
     val itinerary: Itinerary? = null,
     /** The itinerary's pack, for editor/name in the share link. */
     val trackPack: TrackPack? = null,
+    val sidebars: List<Sidebar> = emptyList(),
     val steps: List<ItineraryStep> = emptyList(),
     val tracks: List<Track> = emptyList(),
     val waypoints: List<Waypoint> = emptyList(),
@@ -59,6 +61,7 @@ class ItineraryViewModel(app: OverlandApp, private val itineraryId: String) : Vi
                 loading = false,
                 itinerary = itinerary,
                 trackPack = itinerary?.let { library.trackPack(it.trackPackId) },
+                sidebars = itinerary?.let { library.sidebars(it.trackPackId) } ?: emptyList(),
                 steps = library.steps(itineraryId).sortedBy { it.stepId },
                 tracks = library.tracks(itineraryId),
                 waypoints = own,

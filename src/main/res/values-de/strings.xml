@@ -510,4 +510,5 @@
     <string name="crash_report_message">Ein lokaler Absturzbericht ist verfügbar. Teile ihn zur Diagnose mit dem Entwickler. Es wird nichts automatisch gesendet.</string>
     <string name="crash_report_share">Absturzbericht teilen</string>
     <string name="crash_report_discard">Bericht löschen</string>
+    <string name="itinerary_permit_sidebar">Weitere Informationen finden Sie unter %1$s</string>
 </resources>

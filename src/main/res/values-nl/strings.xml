@@ -512,4 +512,5 @@
     <string name="crash_report_message">Er is een lokaal crashrapport beschikbaar. Deel het met de ontwikkelaar om het probleem te onderzoeken. Er wordt niets automatisch verzonden.</string>
     <string name="crash_report_share">Crashrapport delen</string>
     <string name="crash_report_discard">Rapport verwijderen</string>
+    <string name="itinerary_permit_sidebar">Zie %1$s voor meer informatie</string>
 </resources>

@@ -225,6 +225,8 @@ fun Itinerary.toRow() = ItineraryRow(
         putIfTrue("isFree", isFree)
         putIfTrue("isBuyable", isBuyable)
         putIfTrue("permit", permit)
+        putIfNotNull("permitSidebar", permitSidebar)
+        putIfNotEmpty("translatedPermitDesc", translatedPermitDesc)
         putIfTrue("beta", isBeta)
         putIfNotNull("lovesCount", lovesCount)
         putIfNotNull("titlePhotoId", titlePhotoId)
@@ -264,6 +266,9 @@ fun ItineraryRow.toModel(): Itinerary = parseJsonColumn(json).let { j ->
         isFree = j.flag("isFree"),
         isBuyable = j.flag("isBuyable"),
         permit = j.flag("permit"),
+        permitSidebar = j.stringOrNull("permitSidebar") ?: FS.str(j.extraOrEmpty()["permitSidebar"]),
+        translatedPermitDesc = j.stringMapOrNull("translatedPermitDesc")
+            ?: FS.stringMap(j.extraOrEmpty()["translatedPermitDesc"]),
         isBeta = j.flag("beta"),
         lovesCount = j.intOrNull("lovesCount") ?: 0,
         titlePhotoId = j.stringOrNull("titlePhotoId"),

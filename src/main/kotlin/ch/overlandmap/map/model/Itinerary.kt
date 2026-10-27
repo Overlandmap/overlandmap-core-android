@@ -42,6 +42,8 @@ data class Itinerary(
      */
     val isBuyable: Boolean = false,
     val permit: Boolean = false,
+    val permitSidebar: String? = null,
+    val translatedPermitDesc: Map<String, String>? = null,
     /** A beta release (`beta`), shown with a badge. */
     val isBeta: Boolean = false,
     val lovesCount: Int = 0,
@@ -107,7 +109,7 @@ data class Itinerary(
             }?.toMap(), lang)
 
     companion object {
-        private val KNOWN = arrayOf("beta", "center", "createdAt", "description", "difficulty", "fuelRange", "highlights", "isBuyable", "isFree", "itineraryId", "lastUpdate", "latMax", "latMin", "lengthDays", "lengthKM", "lonMax", "lonMin", "lovesCount", "name", "offroadPercent", "otherPhotoCaptions", "translatedOtherPhotoCaptions", "permit", "roadConditions", "titleBlurHash", "titlePhotoCaption", "translatedTitleCaption", "titlePhotoId", "trackIds", "trackPackId", "translatedDesc", "translatedHighlights", "translatedName", "translatedRoadConditions")
+        private val KNOWN = arrayOf("beta", "center", "createdAt", "description", "difficulty", "fuelRange", "highlights", "isBuyable", "isFree", "itineraryId", "lastUpdate", "latMax", "latMin", "lengthDays", "lengthKM", "lonMax", "lonMin", "lovesCount", "name", "offroadPercent", "otherPhotoCaptions", "translatedOtherPhotoCaptions", "permit", "permitSidebar", "translatedPermitDesc", "roadConditions", "titleBlurHash", "titlePhotoCaption", "translatedTitleCaption", "titlePhotoId", "trackIds", "trackPackId", "translatedDesc", "translatedHighlights", "translatedName", "translatedRoadConditions")
 
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Itinerary(
             documentId = documentId,
@@ -131,6 +133,8 @@ data class Itinerary(
             offroadPercent = FS.int(data["offroadPercent"]),
             isFree = FS.bool(data["isFree"]),
             permit = FS.bool(data["permit"]),
+            permitSidebar = FS.str(data["permitSidebar"]),
+            translatedPermitDesc = FS.stringMap(data["translatedPermitDesc"]),
             isBeta = FS.bool(data["beta"]),
             lovesCount = FS.int(data["lovesCount"]) ?: 0,
             titlePhotoId = FS.str(data["titlePhotoId"]),

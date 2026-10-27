@@ -512,4 +512,5 @@
     <string name="crash_report_message">Доступен локальный отчёт о сбое. Поделитесь им с разработчиком для диагностики. Ничего не отправляется автоматически.</string>
     <string name="crash_report_share">Поделиться отчётом</string>
     <string name="crash_report_discard">Удалить отчёт</string>
+    <string name="itinerary_permit_sidebar">Подробнее см. %1$s</string>
 </resources>

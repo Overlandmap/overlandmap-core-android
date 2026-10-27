@@ -98,6 +98,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -124,6 +130,8 @@ import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.ItineraryDifficulty
 import ch.overlandmap.map.model.OpenKind
 import ch.overlandmap.map.model.Track
+import ch.overlandmap.map.model.Sidebar
+import ch.overlandmap.map.model.LocalizedLookup
 import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.MapObjectPopup
 import ch.overlandmap.map.ui.MapPopupKind
@@ -630,6 +638,8 @@ fun ItineraryScreen(
                         0 -> DescriptionTab(
                             itinerary = itinerary,
                             tracks = state.tracks,
+                            sidebars = state.sidebars,
+                            onOpenSidebar = onOpenSidebar,
                             units = units,
                             lang = lang,
                             onLink = onLink,
@@ -747,6 +757,8 @@ fun ItineraryScreen(
 private fun DescriptionTab(
     itinerary: Itinerary,
     tracks: List<Track>,
+    sidebars: List<Sidebar>,
+    onOpenSidebar: (String) -> Unit,
     units: UnitFormatter,
     lang: String,
     onLink: (MarkupLink, String) -> Unit,
@@ -771,6 +783,36 @@ private fun DescriptionTab(
                 count = contributedCount,
                 modifier = Modifier.padding(start = 8.dp),
             )
+        }
+        if (itinerary.permit) {
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                Text(stringResource(R.string.zone_permit), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                val sidebarName = itinerary.permitSidebar?.takeIf { it.isNotBlank() }
+                if (sidebarName != null) {
+                    val sidebar = sidebars.firstOrNull { it.name == sidebarName }
+                    if (sidebar != null) {
+                        val name = sidebar.name(lang)
+                        val sentence = stringResource(R.string.itinerary_permit_sidebar, name)
+                        val start = sentence.indexOf(name)
+                        val linkColor = MaterialTheme.colorScheme.primary
+                        Text(buildAnnotatedString {
+                            if (start >= 0) {
+                                append(sentence.substring(0, start))
+                                withLink(LinkAnnotation.Clickable(
+                                    tag = "permit-sidebar",
+                                    styles = TextLinkStyles(style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)),
+                                    linkInteractionListener = { onOpenSidebar(sidebar.documentId) },
+                                )) { append(name) }
+                                append(sentence.substring(start + name.length))
+                            } else append(sentence)
+                        }, style = MaterialTheme.typography.bodyMedium)
+                    }
+                } else {
+                    LocalizedLookup.value(itinerary.translatedPermitDesc, lang)?.takeIf { it.isNotBlank() }?.let {
+                        MarkupText(it, style = MaterialTheme.typography.bodyMedium, onLinkClick = onLink, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
         }
         itinerary.description(lang)?.let {
             MarkupText(

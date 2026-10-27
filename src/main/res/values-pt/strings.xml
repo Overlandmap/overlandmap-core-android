@@ -510,4 +510,5 @@
     <string name="crash_report_message">Está disponível um relatório local. Partilhe-o com o programador para ajudar no diagnóstico. Nada é enviado automaticamente.</string>
     <string name="crash_report_share">Partilhar relatório</string>
     <string name="crash_report_discard">Eliminar relatório</string>
+    <string name="itinerary_permit_sidebar">Consulte %1$s para mais informações</string>
 </resources>

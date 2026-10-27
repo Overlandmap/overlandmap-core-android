@@ -510,4 +510,5 @@
     <string name="crash_report_message">È disponibile un rapporto locale. Condividilo con lo sviluppatore per la diagnosi. Nulla viene inviato automaticamente.</string>
     <string name="crash_report_share">Condividi rapporto</string>
     <string name="crash_report_discard">Elimina rapporto</string>
+    <string name="itinerary_permit_sidebar">Vedi %1$s per maggiori informazioni</string>
 </resources>

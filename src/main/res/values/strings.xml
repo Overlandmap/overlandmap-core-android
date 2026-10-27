@@ -591,4 +591,5 @@
     <string name="crash_report_message">A local crash report is available. Share it with the developer to help diagnose the problem. Nothing is sent automatically.</string>
     <string name="crash_report_share">Share crash report</string>
     <string name="crash_report_discard">Discard report</string>
+    <string name="itinerary_permit_sidebar">See %1$s for more information</string>
 </resources>
