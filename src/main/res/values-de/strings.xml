@@ -467,7 +467,7 @@
     <string name="navigation_waiting_gps">Warte auf GPS …</string>
     <string name="reverse_navigation">Richtung umkehren</string>
     <string name="navigation_location_denied">Navigation ist nicht möglich: Die App darf Ihren Standort nicht verwenden. Erlauben Sie den Standortzugriff in den Systemeinstellungen, um zu navigieren.</string>
-    <string name="bluetooth_gps">Remote-GPS</string>
+    <string name="bluetooth_gps">GPS-Freigabe</string>
     <string name="bluetooth_gps_simulation">GPS-Fahrsimulation</string>
     <string name="bluetooth_gps_hardware_yes">GPS-Hardware verfügbar</string>
     <string name="bluetooth_gps_hardware_no">Keine GPS-Hardware</string>
@@ -505,5 +505,9 @@
     <string name="search_extend_radius">Auf %1$s %2$s erweitern</string>
     <string name="bluetooth_gps_server_tab">Server</string>
     <string name="bluetooth_gps_client_tab">Client</string>
-    <string name="bluetooth_gps_client_description">Empfange GPS-Daten von einem anderen Gerät mit GPS-Hardware. Öffne OverlandMap auf diesem Gerät, gehe zu Einstellungen → Remote-GPS und tippe im Tab „Server“ auf „GPS-Daten übertragen“. Wenn das Gerät hier erscheint, tippe auf „Verbinden“.</string>
+    <string name="bluetooth_gps_client_description">Empfange GPS-Daten von einem anderen Gerät mit GPS-Hardware. Öffne OverlandMap auf diesem Gerät, gehe zu Einstellungen → GPS-Freigabe und tippe im Tab „Server“ auf „GPS-Daten übertragen“. Wenn das Gerät hier erscheint, tippe auf „Verbinden“.</string>
+    <string name="crash_report_title">Vorheriger App-Absturz</string>
+    <string name="crash_report_message">Ein lokaler Absturzbericht ist verfügbar. Teile ihn zur Diagnose mit dem Entwickler. Es wird nichts automatisch gesendet.</string>
+    <string name="crash_report_share">Absturzbericht teilen</string>
+    <string name="crash_report_discard">Bericht löschen</string>
 </resources>

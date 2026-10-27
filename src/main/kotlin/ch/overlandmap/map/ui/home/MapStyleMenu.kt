@@ -68,6 +68,7 @@ fun MapStyleMenu(
     waypointFilter: Set<WaypointCategory>,
     onWaypointFilterChange: (Set<WaypointCategory>) -> Unit,
     modifier: Modifier = Modifier,
+    showWaypointFilter: Boolean = true,
 ) {
     var sheetOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -94,6 +95,7 @@ fun MapStyleMenu(
                 options = options,
                 hasMapboxToken = hasMapboxToken,
                 onChange = onChange,
+                showWaypointFilter = showWaypointFilter,
                 waypointFilter = waypointFilter,
                 onWaypointFilterChange = onWaypointFilterChange,
             )
@@ -103,6 +105,7 @@ fun MapStyleMenu(
 
 @Composable
 private fun StyleSheetContent(
+    showWaypointFilter: Boolean,
     options: MapStyleOptions,
     hasMapboxToken: Boolean,
     onChange: (MapStyleOptions) -> Unit,
@@ -197,46 +200,48 @@ private fun StyleSheetContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        // Row 3: the waypoint-category filter.
-        Text(
-            stringResource(R.string.waypoints),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-        Spacer(Modifier.size(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            WaypointChip(
-                stringResource(R.string.wp_itinerary),
-                R.drawable.marker_stroked,
-                WaypointCategory.ITINERARY in waypointFilter,
-            ) { toggle(waypointFilter, WaypointCategory.ITINERARY, onWaypointFilterChange) }
-            WaypointChip(
-                stringResource(R.string.wp_mountain_pass),
-                R.drawable.mountain_pass,
-                WaypointCategory.MOUNTAIN_PASS in waypointFilter,
-            ) { toggle(waypointFilter, WaypointCategory.MOUNTAIN_PASS, onWaypointFilterChange) }
-            WaypointChip(
-                stringResource(R.string.wp_fuel),
-                R.drawable.fuel_,
-                WaypointCategory.FUEL in waypointFilter,
-            ) { toggle(waypointFilter, WaypointCategory.FUEL, onWaypointFilterChange) }
-            WaypointChip(
-                stringResource(R.string.wp_police_checkpoint),
-                R.drawable.checkpoint,
-                WaypointCategory.POLICE_CHECKPOINT in waypointFilter,
-            ) { toggle(waypointFilter, WaypointCategory.POLICE_CHECKPOINT, onWaypointFilterChange) }
-            WaypointChip(
-                stringResource(R.string.wp_viewpoint),
-                R.drawable.camera,
-                WaypointCategory.VIEWPOINT in waypointFilter,
-            ) { toggle(waypointFilter, WaypointCategory.VIEWPOINT, onWaypointFilterChange) }
+        if (showWaypointFilter) {
+            // Row 3: the waypoint-category filter.
+            Text(
+                stringResource(R.string.waypoints),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            Spacer(Modifier.size(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                WaypointChip(
+                    stringResource(R.string.wp_itinerary),
+                    R.drawable.marker_stroked,
+                    WaypointCategory.ITINERARY in waypointFilter,
+                ) { toggle(waypointFilter, WaypointCategory.ITINERARY, onWaypointFilterChange) }
+                WaypointChip(
+                    stringResource(R.string.wp_mountain_pass),
+                    R.drawable.mountain_pass,
+                    WaypointCategory.MOUNTAIN_PASS in waypointFilter,
+                ) { toggle(waypointFilter, WaypointCategory.MOUNTAIN_PASS, onWaypointFilterChange) }
+                WaypointChip(
+                    stringResource(R.string.wp_fuel),
+                    R.drawable.fuel_,
+                    WaypointCategory.FUEL in waypointFilter,
+                ) { toggle(waypointFilter, WaypointCategory.FUEL, onWaypointFilterChange) }
+                WaypointChip(
+                    stringResource(R.string.wp_police_checkpoint),
+                    R.drawable.checkpoint,
+                    WaypointCategory.POLICE_CHECKPOINT in waypointFilter,
+                ) { toggle(waypointFilter, WaypointCategory.POLICE_CHECKPOINT, onWaypointFilterChange) }
+                WaypointChip(
+                    stringResource(R.string.wp_viewpoint),
+                    R.drawable.camera,
+                    WaypointCategory.VIEWPOINT in waypointFilter,
+                ) { toggle(waypointFilter, WaypointCategory.VIEWPOINT, onWaypointFilterChange) }
+            }
         }
     }
 }

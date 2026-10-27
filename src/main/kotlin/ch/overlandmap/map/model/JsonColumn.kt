@@ -74,7 +74,7 @@ fun JSONObject.putWaypointCommon(o: WaypointType) {
     putIfTrue("isCafe", o.isCafe)
     putIfTrue("isFerry", o.isFerry)
     putIfTrue("isWaterfall", o.isWaterfall)
-    putIfTrue("swimming", o.swimming)
+    putIfTrue("isSwimming", o.isSwimming)
     putIfNotNull("openKind", o.openKind?.raw)
     putIfNotNull("openDetails", o.openDetails)
 }

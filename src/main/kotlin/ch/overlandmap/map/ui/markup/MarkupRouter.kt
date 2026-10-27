@@ -27,6 +27,7 @@ sealed interface MarkupDestination {
     /** A buyable teaser has no content: buy popup, not the screen. */
     data class ShowBuyable(val itinerary: Itinerary) : MarkupDestination
     data class ShowSidebar(val sidebar: Sidebar) : MarkupDestination
+    data class ShowTrack(val track: ch.overlandmap.map.model.Track) : MarkupDestination
     data class ShowWaypoint(val waypoint: Waypoint) : MarkupDestination
     data class OpenUrl(val url: String) : MarkupDestination
     /** A country, border, border post or zone, shown in the Overlanding tab. */
@@ -68,7 +69,8 @@ class MarkupRouter(
             library.waypointByGeohash(link.geohash)
                 ?.let { MarkupDestination.ShowWaypoint(it) }
                 ?: MarkupDestination.Unavailable
-        is MarkupLink.TrackRef -> MarkupDestination.Unavailable // TODO, like the Flutter app
+        is MarkupLink.TrackRef -> library.trackByName(trackPackId, link.name)
+            ?.let { MarkupDestination.ShowTrack(it) } ?: MarkupDestination.Unavailable
         is MarkupLink.EntityRef -> resolveEntity(link)
     }
 

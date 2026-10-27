@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.AirportShuttle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.LocalShipping
@@ -211,6 +212,7 @@ fun ItineraryScreen(
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenPack: (packId: String) -> Unit,
     onOpenSidebar: (sidebarId: String) -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit = {},
     /** Called once a navigation along this itinerary has started (to switch to the Nav tab). */
     onOpenNavigation: () -> Unit = {},
@@ -313,6 +315,7 @@ fun ItineraryScreen(
     val itineraryMenu: @Composable () -> Unit = {
         ItineraryMenu(
             satelliteSelected = satelliteSelected,
+            onSearch = onOpenSearch,
             onNavigate = { reverse ->
                 withLocationPermission {
                     scope.launch {
@@ -379,7 +382,12 @@ fun ItineraryScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
                     },
-                    actions = { itineraryMenu() },
+                    actions = {
+                        IconButton(onClick = onOpenSearch) {
+                            Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search))
+                        }
+                        itineraryMenu()
+                    },
                 )
             }
         },
@@ -504,6 +512,7 @@ fun ItineraryScreen(
                                     is MapPopupKind.OfWaypoint -> openWaypoint = kind.waypoint
                                     is MapPopupKind.OfItinerary ->
                                         onOpenItinerary(kind.itinerary.documentId, null)
+                                    is MapPopupKind.OfTrack -> Unit
                                     is MapPopupKind.Buy -> onOpenPack(kind.packId)
                                 }
                             },
@@ -625,6 +634,7 @@ fun ItineraryScreen(
                             lang = lang,
                             onLink = onLink,
                             onAddWaypoint = { authGate.require(R.string.sign_in_to_add_discussion) { showAddWaypoint = true } },
+                            onZoom = { mapView?.mapboxMap?.let { zoomToPopupObjectMapbox(it, MapPopupKind.OfItinerary(itinerary)) } },
                             contributedCount = contributed.size,
                             onProfileCursor = { profileCursor = it },
                         )
@@ -640,7 +650,7 @@ fun ItineraryScreen(
                                 mapView?.let { fitStepsMapbox(it, step, neighbor) }
                             },
                         )
-                        2 -> PhotosTab(state)
+                        2 -> PhotosTab(state, onOpenStep = ::jumpToStep)
                         3 -> WeatherTab(state.steps, lang)
                         4 -> CommentsSection(
                             CommentScope(itinerary.documentId, itinerary.trackPackId, itinerary.documentId),
@@ -741,6 +751,7 @@ private fun DescriptionTab(
     lang: String,
     onLink: (MarkupLink, String) -> Unit,
     onAddWaypoint: () -> Unit,
+    onZoom: () -> Unit,
     contributedCount: Int,
     onProfileCursor: (ElevationCursor?) -> Unit,
 ) {
@@ -756,6 +767,7 @@ private fun DescriptionTab(
             PropertiesBox(itinerary, units)
             ItineraryActions(
                 onAddWaypoint = onAddWaypoint,
+                onZoom = onZoom,
                 count = contributedCount,
                 modifier = Modifier.padding(start = 8.dp),
             )
@@ -848,6 +860,7 @@ private fun BulletedMarkup(
 @Composable
 private fun ItineraryMenu(
     satelliteSelected: Boolean,
+    onSearch: () -> Unit,
     onNavigate: (reverse: Boolean) -> Unit,
     onShowOnMap: () -> Unit,
     onFullScreen: () -> Unit,
@@ -865,6 +878,10 @@ private fun ItineraryMenu(
             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.menu))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.search)) },
+            onClick = { open = false; onSearch() },
+        )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.show_on_map)) },
             onClick = { open = false; onShowOnMap() },
@@ -954,6 +971,7 @@ private fun FlyoverControls(
 @Composable
 private fun ItineraryActions(
     onAddWaypoint: () -> Unit,
+    onZoom: () -> Unit,
     count: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -966,6 +984,9 @@ private fun ItineraryActions(
             } else {
                 Icon(Icons.Filled.AddLocationAlt, contentDescription = stringResource(R.string.add_contributed_waypoint))
             }
+        }
+        IconButton(onClick = onZoom) {
+            Icon(Icons.Filled.ZoomIn, contentDescription = stringResource(R.string.zoom_to_object))
         }
     }
 }
@@ -1318,29 +1339,9 @@ private fun PoiIcon(
 }
 
 @Composable
-private fun PhotosTab(state: ItineraryState) {
+private fun PhotosTab(state: ItineraryState, onOpenStep: (Int) -> Unit) {
     val lang = currentLanguage()
-    // The itinerary's own photos followed by each step's title photo (with its
-    // caption). Deduplicated by URL, keeping the first (captioned) occurrence.
-    val photos = remember(state, lang) {
-        buildList {
-            state.itinerary?.let {
-                if (it.titlePhotoId != null || it.localPhotoPath != null) {
-                    add(viewerPhoto(it.titlePhotoId, it.localPhotoPath, it.titlePhotoCaption(lang)))
-                }
-            }
-            state.itinerary?.let { itin ->
-                itin.localOtherPhotoPaths?.forEachIndexed { index, path ->
-                    add(ViewerPhoto("file://$path", placeholderUrl = null, caption = itin.otherPhotoCaption(index, lang)))
-                }
-            }
-            state.steps.forEach { step ->
-                if (step.titlePhotoId != null || step.localPhotoPath != null) {
-                    add(viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption(lang)))
-                }
-            }
-        }.distinctBy { it.url }
-    }
+    val photos = remember(state, lang) { itineraryViewerPhotos(state, lang) }
     var openedIndex by remember { mutableStateOf<Int?>(null) }
 
     if (photos.isEmpty()) {
@@ -1373,16 +1374,41 @@ private fun PhotosTab(state: ItineraryState) {
     }
 
     openedIndex?.let { start ->
-        FullScreenPhotoViewer(photos, start, onDismiss = { openedIndex = null })
+        FullScreenPhotoViewer(photos, start, onDismiss = { openedIndex = null }, onOpenStep = onOpenStep)
     }
 }
+
+/** Itinerary photos stay unlinked; step photos retain their source through paging. */
+internal fun itineraryViewerPhotos(state: ItineraryState, lang: String): List<ViewerPhoto> =
+    buildList {
+        state.itinerary?.let {
+            if (it.titlePhotoId != null || it.localPhotoPath != null) {
+                add(viewerPhoto(it.titlePhotoId, it.localPhotoPath, it.titlePhotoCaption(lang)))
+            }
+        }
+        state.itinerary?.let { itin ->
+            itin.localOtherPhotoPaths?.forEachIndexed { index, path ->
+                add(ViewerPhoto("file://$path", placeholderUrl = null, caption = itin.otherPhotoCaption(index, lang)))
+            }
+        }
+        state.steps.forEach { step ->
+            if (step.titlePhotoId != null || step.localPhotoPath != null) {
+                add(viewerPhoto(step.titlePhotoId, step.localPhotoPath, step.titlePhotoCaption(lang)).copy(sourceStep = step))
+            }
+        }
+    }.distinctBy { it.url }
 
 /**
  * A photo for the full-screen viewer: [url] is loaded first (the high-res
  * online image when available), with [placeholderUrl] (the downloaded local
  * copy) shown while it loads and used as the fallback when offline.
  */
-data class ViewerPhoto(val url: String, val placeholderUrl: String?, val caption: String?)
+data class ViewerPhoto(
+    val url: String,
+    val placeholderUrl: String?,
+    val caption: String?,
+    val sourceStep: ItineraryStep? = null,
+)
 
 /**
  * Builds a [ViewerPhoto] preferring the high-res online image (from
@@ -1403,8 +1429,11 @@ internal fun viewerPhoto(titlePhotoId: String?, localPhotoPath: String?, caption
 internal fun FullScreenPhotoViewer(
     photos: List<ViewerPhoto>,
     startIndex: Int,
+    onOpenStep: ((Int) -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
+    val lang = currentLanguage()
+    val latestDismiss by rememberUpdatedState(onDismiss)
     // Debug: whether to overlay which image (online/offline) is shown.
     val app = LocalContext.current.applicationContext as OverlandApp
     val showPhotoSource by app.userPreferences.debugShowPhotoSource.collectAsState(
@@ -1467,14 +1496,29 @@ internal fun FullScreenPhotoViewer(
                                 // content coordinates; see the graphicsLayer).
                                 awaitEachGesture {
                                     awaitFirstDown(requireUnconsumed = false)
+                                    var drag = Offset.Zero
+                                    var dismissDrag = false
+                                    var transformed = false
+                                    var horizontalDrag = false
                                     do {
                                         val event = awaitPointerEvent()
                                         val pressed = event.changes.count { it.pressed }
+                                        if (pressed >= 2) { transformed = true; dismissDrag = false }
+                                        // Single-finger vertical swipes dismiss; horizontal swipes
+                                        // browse at normal size or pan while zoomed.
+                                        if (!transformed) {
+                                            drag += event.calculatePan()
+                                            if (!dismissDrag && !horizontalDrag && drag.getDistance() > viewConfiguration.touchSlop) {
+                                                dismissDrag = kotlin.math.abs(drag.y) > kotlin.math.abs(drag.x)
+                                                horizontalDrag = !dismissDrag
+                                            }
+                                            if (dismissDrag) event.changes.forEach { it.consume() }
+                                        }
                                         // Require a finger down: on the final
                                         // (all-up) event the centroid is
                                         // Unspecified, which would push the
                                         // offset to NaN and blank the image.
-                                        if (pressed >= 1 && (pressed >= 2 || scale > 1f)) {
+                                        if (!dismissDrag && pressed >= 1 && (pressed >= 2 || scale > 1f)) {
                                             val zoomChange =
                                                 if (pressed >= 2) event.calculateZoom() else 1f
                                             val pan = event.calculatePan()
@@ -1492,6 +1536,9 @@ internal fun FullScreenPhotoViewer(
                                             }
                                         }
                                     } while (event.changes.any { it.pressed })
+                                    if (dismissDrag && !transformed && kotlin.math.abs(drag.y) >= 72.dp.toPx()) {
+                                        latestDismiss()
+                                    }
                                 }
                             }
                             .pointerInput(page) {
@@ -1546,6 +1593,20 @@ internal fun FullScreenPhotoViewer(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(Color.Black.copy(alpha = 0.5f))
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                )
+                            }
+                            photos[page].sourceStep?.takeIf { onOpenStep != null }?.let { step ->
+                                Text(
+                                    step.fullName(lang),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                    ),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .clickable { latestDismiss(); onOpenStep?.invoke(step.stepId) }
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                 )
                             }

@@ -42,7 +42,7 @@ class NearbySearchRepository(private val dao: NearbyDao, private val loadItinera
                 val step = row.toModel()
                 val parent = itinerary(step.itineraryId)
                 add(SearchResult(FtsIndex.TYPE_STEP, step.documentId, step.name(lang), step.description(lang).orEmpty(),
-                    step.itineraryId, step.stepId, parent?.itineraryId), step.lat, step.lon, step.geohash)
+                    step.itineraryId, step.stepId, parent?.itineraryId, markerType = step), step.lat, step.lon, step.geohash)
                 if (parent != null) addItinerary(parent, step.lat, step.lon, step.geohash)
             }
             for (prefix in prefixes) {
@@ -54,7 +54,7 @@ class NearbySearchRepository(private val dao: NearbyDao, private val loadItinera
             val waypoints = prefixes.flatMap { dao.waypoints(it, it + "~") } + dao.unindexedWaypoints(precision)
             for (row in waypoints.distinctBy { it.documentId }) {
                 val w = row.toModel()
-                add(SearchResult(FtsIndex.TYPE_WAYPOINT, w.documentId, w.name(lang), w.description(lang).orEmpty(), w.itineraryId), w.lat, w.lon, w.geohash)
+                add(SearchResult(FtsIndex.TYPE_WAYPOINT, w.documentId, w.name(lang), w.description(lang).orEmpty(), w.itineraryId, markerType = w), w.lat, w.lon, w.geohash)
             }
             val contributed = prefixes.flatMap { dao.contributed(it, it + "~") } + dao.unindexedContributed(precision)
             for (row in contributed.distinctBy { it.documentId }) {

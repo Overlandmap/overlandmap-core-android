@@ -78,6 +78,7 @@ fun SidebarMap(
         modifier = modifier,
         styleUrl = styleUrl,
         onMapReady = { ready ->
+            ready.uiSettings.isRotateGesturesEnabled = false
             map = ready
             ready.addOnMapClickListener { latLng ->
                 val p = ready.projection.toScreenLocation(latLng)

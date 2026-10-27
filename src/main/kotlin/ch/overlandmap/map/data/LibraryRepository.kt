@@ -98,6 +98,8 @@ class LibraryRepository(
     suspend fun itineraryBySlug(trackPackId: String, slug: String) =
         dao.itineraryBySlug(trackPackId, slug)
 
+    suspend fun trackByName(trackPackId: String, name: String) = dao.trackByName(trackPackId, name)
+
     suspend fun waypointByName(trackPackId: String, name: String) =
         dao.waypointByName(trackPackId, name)
 

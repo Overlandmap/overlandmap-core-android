@@ -215,8 +215,12 @@ class OverlandApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        ch.overlandmap.map.diagnostics.CrashReports.install(this)
         registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(activity: android.app.Activity) { bluetoothGPS.restore() }
+            override fun onActivityResumed(activity: android.app.Activity) {
+                ch.overlandmap.map.diagnostics.CrashReports.offerPreviousCrash(activity)
+                bluetoothGPS.restore()
+            }
             override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) {}
             override fun onActivityStarted(activity: android.app.Activity) {}
             override fun onActivityPaused(activity: android.app.Activity) {}

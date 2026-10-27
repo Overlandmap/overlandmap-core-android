@@ -467,7 +467,7 @@
     <string name="navigation_waiting_gps">Esperando al GPS…</string>
     <string name="reverse_navigation">Invertir la dirección</string>
     <string name="navigation_location_denied">La navegación no es posible: la aplicación no tiene permiso para usar tu ubicación. Permite el acceso a la ubicación en los ajustes del sistema para navegar.</string>
-    <string name="bluetooth_gps">GPS remoto</string>
+    <string name="bluetooth_gps">Compartir GPS</string>
     <string name="bluetooth_gps_simulation">Simulación de conducción GPS</string>
     <string name="bluetooth_gps_hardware_yes">Hardware GPS disponible</string>
     <string name="bluetooth_gps_hardware_no">Sin hardware GPS</string>
@@ -505,5 +505,9 @@
     <string name="search_extend_radius">Ampliar a %1$s %2$s</string>
     <string name="bluetooth_gps_server_tab">Servidor</string>
     <string name="bluetooth_gps_client_tab">Cliente</string>
-    <string name="bluetooth_gps_client_description">Recibe información GPS de otro dispositivo con GPS integrado. Abre OverlandMap en ese dispositivo, ve a Ajustes → GPS remoto y en la pestaña «Servidor» toca «Iniciar transmisión de datos GPS». Cuando el dispositivo aparezca aquí, toca «Conectar».</string>
+    <string name="bluetooth_gps_client_description">Recibe información GPS de otro dispositivo con GPS integrado. Abre OverlandMap en ese dispositivo, ve a Ajustes → Compartir GPS y en la pestaña «Servidor» toca «Iniciar transmisión de datos GPS». Cuando el dispositivo aparezca aquí, toca «Conectar».</string>
+    <string name="crash_report_title">Cierre inesperado anterior</string>
+    <string name="crash_report_message">Hay un informe local disponible. Compártelo con el desarrollador para diagnosticar el problema. No se envía nada automáticamente.</string>
+    <string name="crash_report_share">Compartir informe</string>
+    <string name="crash_report_discard">Eliminar informe</string>
 </resources>

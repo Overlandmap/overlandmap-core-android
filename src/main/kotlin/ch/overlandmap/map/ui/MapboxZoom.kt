@@ -29,6 +29,13 @@ fun zoomToPopupObjectMapbox(map: MapboxMap, kind: MapPopupKind) {
             val lon = kind.waypoint.lon ?: return
             zoomToPointMapbox(map, lat, lon)
         }
+        is MapPopupKind.OfTrack -> {
+            val bounds = kind.track.extent() ?: return
+            map.setCamera(map.cameraForCoordinateBounds(
+                CoordinateBounds(Point.fromLngLat(bounds.lonMin, bounds.latMin), Point.fromLngLat(bounds.lonMax, bounds.latMax)),
+                EdgeInsets(60.0, 60.0, 60.0, 60.0), null, null,
+            ))
+        }
         is MapPopupKind.Buy -> Unit
     }
 }

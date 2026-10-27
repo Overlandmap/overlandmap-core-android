@@ -476,7 +476,7 @@
     <string name="navigation_waiting_gps">En attente du GPS…</string>
     <string name="reverse_navigation">Inverser la direction</string>
     <string name="navigation_location_denied">La navigation est impossible : l\'application n\'est pas autorisée à utiliser votre position. Autorisez l\'accès à la position dans les réglages du système pour naviguer.</string>
-    <string name="bluetooth_gps">GPS distant</string>
+    <string name="bluetooth_gps">Partage GPS</string>
     <string name="bluetooth_gps_simulation">Simulation de conduite GPS</string>
     <string name="bluetooth_gps_hardware_yes">Matériel GPS disponible</string>
     <string name="bluetooth_gps_hardware_no">Aucun matériel GPS</string>
@@ -515,5 +515,9 @@
     <string name="waypoints">Balises</string>
     <string name="bluetooth_gps_server_tab">Serveur</string>
     <string name="bluetooth_gps_client_tab">Client</string>
-    <string name="bluetooth_gps_client_description">Recevez les données GPS d’un autre appareil équipé d’un GPS. Ouvrez OverlandMap sur cet appareil, allez dans Réglages → GPS distant, puis dans l’onglet « Serveur », appuyez sur « Commencer à diffuser les données GPS ». Lorsque l’appareil apparaît ici, appuyez sur « Connecter ».</string>
+    <string name="bluetooth_gps_client_description">Recevez les données GPS d’un autre appareil équipé d’un GPS. Ouvrez OverlandMap sur cet appareil, allez dans Réglages → Partage GPS, puis dans l’onglet « Serveur », appuyez sur « Commencer à diffuser les données GPS ». Lorsque l’appareil apparaît ici, appuyez sur « Connecter ».</string>
+    <string name="crash_report_title">Arrêt inattendu de l’application</string>
+    <string name="crash_report_message">Un rapport local est disponible. Partagez-le avec le développeur pour aider au diagnostic. Rien n’est envoyé automatiquement.</string>
+    <string name="crash_report_share">Partager le rapport</string>
+    <string name="crash_report_discard">Supprimer le rapport</string>
 </resources>

@@ -25,6 +25,11 @@ import kotlinx.coroutines.flow.map
 @Dao
 interface LibraryDao {
 
+    @Query("SELECT * FROM track WHERE trackPackId = :trackPackId AND name = :name COLLATE NOCASE ORDER BY documentId LIMIT 1")
+    suspend fun _trackByName(trackPackId: String, name: String): TrackRow?
+    suspend fun trackByName(trackPackId: String, name: String): Track? =
+        _trackByName(trackPackId, name)?.toModel()
+
     @Query("SELECT * FROM track_pack ORDER BY name")
     fun _observeTrackPacks(): Flow<List<TrackPackRow>>
     fun observeTrackPacks(): Flow<List<TrackPack>> =

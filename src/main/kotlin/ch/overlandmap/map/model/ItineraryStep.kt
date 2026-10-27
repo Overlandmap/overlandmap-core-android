@@ -40,7 +40,7 @@ data class ItineraryStep(
     override val isCafe: Boolean = false,
     override val isFerry: Boolean = false,
     override val isWaterfall: Boolean = false,
-    override val swimming: Boolean = false,
+    override val isSwimming: Boolean = false,
     val titlePhotoId: String? = null,
     val titlePhotoCaption: String? = null,
     val translatedTitleCaption: Map<String, String>? = null,
@@ -60,7 +60,7 @@ data class ItineraryStep(
     fun titlePhotoCaption(lang: String): String? = localized(titlePhotoCaption, translatedTitleCaption, lang)
 
     companion object {
-        private val KNOWN = arrayOf("description", "distanceKm", "documentId", "ele", "geohash", "hasFuel", "hasHotel", "id", "isBivouac", "isBorder", "isBridge", "isCafe", "isEmbassy", "isFerry", "isHistoricalSite", "isHotSpring", "isIntersection", "isMountainPass", "isPoliceCheckpoint", "isReligiousSite", "isViewpoint", "isWaterCrossing", "isWaterfall", "location", "name", "openDetails", "openKind", "swimming", "titlePhotoCaption", "translatedTitleCaption", "titlePhotoId", "trackPackId", "translatedDesc", "translatedName")
+        private val KNOWN = arrayOf("description", "distanceKm", "documentId", "ele", "geohash", "hasFuel", "hasHotel", "id", "isBivouac", "isBorder", "isBridge", "isCafe", "isEmbassy", "isFerry", "isHistoricalSite", "isHotSpring", "isIntersection", "isMountainPass", "isPoliceCheckpoint", "isReligiousSite", "isViewpoint", "isWaterCrossing", "isWaterfall", "location", "name", "openDetails", "openKind", "isSwimming", "titlePhotoCaption", "translatedTitleCaption", "titlePhotoId", "trackPackId", "translatedDesc", "translatedName")
 
         fun fromFirestore(documentId: String, itineraryId: String, data: Map<String, Any?>) =
             ItineraryStep(
@@ -94,7 +94,7 @@ data class ItineraryStep(
                 isCafe = FS.bool(data["isCafe"]),
                 isFerry = FS.bool(data["isFerry"]),
                 isWaterfall = FS.bool(data["isWaterfall"]),
-                swimming = FS.bool(data["swimming"]),
+                isSwimming = FS.bool(data["isSwimming"]),
                 titlePhotoId = FS.str(data["titlePhotoId"]),
                 titlePhotoCaption = FS.str(data["titlePhotoCaption"]),
             translatedTitleCaption = FS.stringMap(data["translatedTitleCaption"]),

@@ -32,8 +32,10 @@ internal fun SearchContent(
     onResultClick: (SearchResult) -> Unit,
 ) {
     val mode by viewModel.mode.collectAsState()
+    LaunchedEffect(mode) { ch.overlandmap.map.diagnostics.CrashReports.note("Search UI opened; mode=$mode") }
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
+    val searchError by viewModel.error.collectAsState()
     val keyboard = LocalSoftwareKeyboardController.current
     val units = rememberUnitFormatter()
     val metric = units.format.distanceMetric
@@ -57,6 +59,9 @@ internal fun SearchContent(
             leading = leading,
         )
         HorizontalDivider()
+        if (mode == SearchViewModel.Mode.TEXT && searchError != null) {
+            Text(searchError.orEmpty(), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
+        }
         if (mode == SearchViewModel.Mode.TEXT) {
             SearchResultsList(
                 results, query, viewModel.minQueryLength, Modifier.weight(1f), open,

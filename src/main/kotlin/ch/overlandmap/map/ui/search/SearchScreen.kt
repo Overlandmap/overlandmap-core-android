@@ -129,7 +129,7 @@ fun SearchScreen(
 /**
  * Search embedded as a screen tab (the single-pack app's track-pack screen):
  * just the field and results, no top bar. [onResultClick] lets the host react —
- * e.g. anchor the tapped object's popup over the map on the other half.
+ * navigate directly to the selected object.
  */
 @Composable
 fun SearchTabContent(
@@ -195,7 +195,7 @@ internal fun SearchResultsList(
                 }
             }
         }
-        items(results, key = { it.type + it.documentId }) { result ->
+        items(results, key = { "${it.type}:${it.documentId}" }) { result ->
             SearchRow(result) { onResultClick(result) }
         }
         if (footer != null) item(key = "search-footer") { footer() }
@@ -205,6 +205,10 @@ internal fun SearchResultsList(
 @Composable
 private fun SearchRow(result: SearchResult, onClick: () -> Unit) {
     val units = rememberUnitFormatter()
+    run {
+        val icon = result.markerType?.let { ch.overlandmap.map.ui.WaypointMarkers.makiFor(it) } ?: "generic"
+        ch.overlandmap.map.diagnostics.CrashReports.note("Render search row; type=${result.type}; icon=$icon")
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -213,12 +217,22 @@ private fun SearchRow(result: SearchResult, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        Icon(
-            imageVector = iconFor(result.type),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp),
-        )
+        val marker = result.markerType
+        if (marker != null && ch.overlandmap.map.ui.WaypointMarkers.makiFor(marker) != ch.overlandmap.map.ui.WaypointMarkers.DEFAULT) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(ch.overlandmap.map.ui.WaypointMarkers.drawableFor(marker)),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+        } else {
+            Icon(
+                imageVector = iconFor(result.type),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 titleFor(result),

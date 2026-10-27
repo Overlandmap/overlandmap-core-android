@@ -179,7 +179,10 @@ private fun SidebarContent(
         if (!needsPackData) return@produceState
         val library = app.libraryRepository
         val itineraries = library.itinerariesOf(sidebar.trackPackId)
-        val lines = itineraries.flatMap { library.tracks(it.documentId) }.mapNotNull { track ->
+        val mapItineraries = if (sidebar.tableEntity == "Itinerary") itineraries.filter {
+            ch.overlandmap.map.model.FS.str(it.extra["sidebarDocId"]) == sidebar.documentId
+        } else itineraries
+        val lines = mapItineraries.flatMap { library.tracks(it.documentId) }.mapNotNull { track ->
             val points = TrackGeometry.simplify(TrackGeometry.decode(track.coordsBase64), 0.005)
             points.map { it.latitude to it.longitude }.takeIf { it.size > 1 }
         }
@@ -193,17 +196,26 @@ private fun SidebarContent(
         if (!sidebar.hasTable || d == null) emptyList()
         else SidebarTable.build(sidebar, d.waypoints, d.steps, d.itineraries, units, lang, labels)
     }
+    val mapRows = remember(sidebar, data, units, lang) {
+        val d = data
+        if (!sidebar.hasMap || d == null) emptyList()
+        else SidebarTable.buildForMap(sidebar, d.waypoints, d.steps, d.itineraries, units, lang, labels)
+    }
     var focus by remember { mutableStateOf<SidebarFocus?>(null) }
     var focusToken by remember { mutableStateOf(0) }
     // The map first frames the table's objects rather than the whole pack.
-    LaunchedEffect(rows) {
-        val boxes = rows.mapNotNull { r ->
+    LaunchedEffect(mapRows, data) {
+        val boxes = mapRows.mapNotNull { r ->
             r.bounds ?: if (r.lat != null && r.lon != null) GeoBounds(r.lat, r.lat, r.lon, r.lon) else null
         }
-        if (boxes.isNotEmpty()) {
+        val lineBounds = if (sidebar.tableEntity == "Itinerary") GeoBounds.containing(
+            data?.lines.orEmpty().flatten().map { (lat, lon) -> ch.overlandmap.map.geo.Coordinate(lat, lon) },
+        ) else null
+        val allBoxes = boxes + listOfNotNull(lineBounds)
+        if (allBoxes.isNotEmpty()) {
             focus = SidebarFocus(
                 bounds = GeoBounds(
-                    boxes.minOf { it.latMin }, boxes.maxOf { it.latMax }, boxes.minOf { it.lonMin }, boxes.maxOf { it.lonMax },
+                    allBoxes.minOf { it.latMin }, allBoxes.maxOf { it.latMax }, allBoxes.minOf { it.lonMin }, allBoxes.maxOf { it.lonMax },
                 ),
                 token = ++focusToken,
             )
@@ -235,9 +247,16 @@ private fun SidebarContent(
             Box(mod) {
                 SidebarMap(
                     lines = data?.lines.orEmpty(),
-                    markers = rows.filter { it.lat != null && it.lon != null }.map { SidebarMarker(it.id, it.lat!!, it.lon!!) },
+                    markers = mapRows.mapNotNull { row ->
+                        val lat = row.lat ?: row.bounds?.centre?.latitude ?: return@mapNotNull null
+                        val lon = row.lon ?: row.bounds?.centre?.longitude ?: return@mapNotNull null
+                        SidebarMarker(row.id, lat, lon)
+                    },
                     focus = focus,
-                    onMarkerTapped = { id -> popupRow = rows.firstOrNull { it.id == id } },
+                    onMarkerTapped = { id ->
+                        val row = mapRows.firstOrNull { it.id == id }
+                        if (row?.itinerary != null) popupItinerary = row.itinerary else popupRow = row
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
                 IconButton(
@@ -253,64 +272,83 @@ private fun SidebarContent(
             }
         }
 
+        val textContent: @Composable () -> Unit = {
+            sidebar.description(lang)?.let {
+                MarkupText(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    onLinkClick = onLink,
+                    modifier = Modifier.padding(16.dp),
+                    allowsTitles = true,
+                )
+            }
+            if (sidebar.hasTable && rows.isNotEmpty()) {
+                Column(Modifier.padding(horizontal = 12.dp)) {
+                    sidebar.tableNames?.get(lang)?.let {
+                        Text(it, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                    }
+                    SidebarTableView(
+                        columnTitles = SidebarTable.columnTitles(sidebar, lang),
+                        rows = rows,
+                        onCellTap = { row, cell ->
+                            when (val link = cell.link) {
+                                CellLink.OwnEntity ->
+                                    if (row.itinerary != null) popupItinerary = row.itinerary else popupRow = row
+                                is CellLink.Itinerary ->
+                                    popupItinerary = data?.itineraries?.firstOrNull { it.documentId == link.documentId }
+                                null -> Unit
+                            }
+                        },
+                        onZoom = ::zoomTo,
+                    )
+                }
+            }
+        }
+        val extraPhotos: @Composable () -> Unit = {
+            // The extra photos, each with its caption.
+            photos.drop(if (hasTitlePhoto) 1 else 0).forEachIndexed { offset, photo ->
+                val index = offset + (if (hasTitlePhoto) 1 else 0)
+                Column(Modifier.padding(horizontal = 15.dp, vertical = 8.dp)) {
+                    AsyncImage(
+                        model = photo.placeholderUrl ?: photo.url,
+                        contentDescription = photo.caption,
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { openedPhoto = index },
+                    )
+                    photo.caption?.takeIf { it.isNotBlank() }?.let { caption ->
+                        Text(
+                            caption,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+        val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
         if (fullScreenMap && sidebar.hasMap) {
             map(Modifier.fillMaxSize())
+        } else if (landscape && (sidebar.hasMap || photos.isNotEmpty())) {
+            Row(Modifier.fillMaxSize()) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+                    if (sidebar.hasMap) map(Modifier.fillMaxWidth().height(mapHeight))
+                    if (hasTitlePhoto) TitlePhoto(sidebar, photos) { openedPhoto = 0 }
+                    extraPhotos()
+                }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+                    textContent()
+                }
+            }
         } else {
             Column(Modifier.fillMaxSize()) {
                 if (sidebar.hasMap) map(Modifier.fillMaxWidth().height(mapHeight))
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
                     if (!sidebar.hasMap && hasTitlePhoto) TitlePhoto(sidebar, photos) { openedPhoto = 0 }
-                    sidebar.description(lang)?.let {
-                        MarkupText(
-                            it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            onLinkClick = onLink,
-                            modifier = Modifier.padding(16.dp),
-                            allowsTitles = true,
-                        )
-                    }
-                    if (sidebar.hasTable && rows.isNotEmpty()) {
-                        Column(Modifier.padding(horizontal = 12.dp)) {
-                            sidebar.tableNames?.get(lang)?.let {
-                                Text(it, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                            SidebarTableView(
-                                columnTitles = SidebarTable.columnTitles(sidebar, lang),
-                                rows = rows,
-                                onCellTap = { row, cell ->
-                                    when (val link = cell.link) {
-                                        CellLink.OwnEntity ->
-                                            if (row.itinerary != null) popupItinerary = row.itinerary else popupRow = row
-                                        is CellLink.Itinerary ->
-                                            popupItinerary = data?.itineraries?.firstOrNull { it.documentId == link.documentId }
-                                        null -> Unit
-                                    }
-                                },
-                                onZoom = ::zoomTo,
-                            )
-                        }
-                    }
+                    textContent()
                     if (sidebar.hasMap && hasTitlePhoto) TitlePhoto(sidebar, photos) { openedPhoto = 0 }
-                    // The extra photos, each with its caption.
-                    photos.drop(if (hasTitlePhoto) 1 else 0).forEachIndexed { offset, photo ->
-                        val index = offset + (if (hasTitlePhoto) 1 else 0)
-                        Column(Modifier.padding(horizontal = 15.dp, vertical = 8.dp)) {
-                            AsyncImage(
-                                model = photo.placeholderUrl ?: photo.url,
-                                contentDescription = photo.caption,
-                                contentScale = ContentScale.FillWidth,
-                                modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable { openedPhoto = index },
-                            )
-                            photo.caption?.takeIf { it.isNotBlank() }?.let { caption ->
-                                Text(
-                                    caption,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                            }
-                        }
-                    }
+                    extraPhotos()
                 }
             }
         }
@@ -342,7 +380,7 @@ private fun SidebarContent(
             onDismiss = { popupItinerary = null },
             onZoom = {
                 popupItinerary = null
-                rows.firstOrNull { it.id == itinerary.documentId }?.let(::zoomTo)
+                (mapRows + rows).firstOrNull { it.id == itinerary.documentId }?.let(::zoomTo)
             },
             onOpen = { popupItinerary = null; onOpenItinerary(itinerary.documentId, null) },
         )

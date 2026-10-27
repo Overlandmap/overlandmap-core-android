@@ -469,7 +469,7 @@
     <string name="navigation_waiting_gps">Ожидание GPS…</string>
     <string name="reverse_navigation">Развернуть направление</string>
     <string name="navigation_location_denied">Навигация невозможна: приложению не разрешено использовать ваше местоположение. Разрешите доступ к местоположению в настройках системы, чтобы начать навигацию.</string>
-    <string name="bluetooth_gps">Удалённый GPS</string>
+    <string name="bluetooth_gps">Обмен GPS</string>
     <string name="bluetooth_gps_simulation">Имитация поездки по GPS</string>
     <string name="bluetooth_gps_hardware_yes">GPS-модуль доступен</string>
     <string name="bluetooth_gps_hardware_no">GPS-модуль отсутствует</string>
@@ -507,5 +507,9 @@
     <string name="search_extend_radius">Расширить до %1$s %2$s</string>
     <string name="bluetooth_gps_server_tab">Сервер</string>
     <string name="bluetooth_gps_client_tab">Клиент</string>
-    <string name="bluetooth_gps_client_description">Получайте данные GPS с другого устройства с GPS-приёмником. Откройте OverlandMap на этом устройстве, перейдите в Настройки → Удалённый GPS и на вкладке «Сервер» нажмите «Начать передачу данных GPS». Когда устройство появится здесь, нажмите «Подключиться».</string>
+    <string name="bluetooth_gps_client_description">Получайте данные GPS с другого устройства с GPS-приёмником. Откройте OverlandMap на этом устройстве, перейдите в Настройки → Обмен GPS и на вкладке «Сервер» нажмите «Начать передачу данных GPS». Когда устройство появится здесь, нажмите «Подключиться».</string>
+    <string name="crash_report_title">Предыдущий сбой приложения</string>
+    <string name="crash_report_message">Доступен локальный отчёт о сбое. Поделитесь им с разработчиком для диагностики. Ничего не отправляется автоматически.</string>
+    <string name="crash_report_share">Поделиться отчётом</string>
+    <string name="crash_report_discard">Удалить отчёт</string>
 </resources>

@@ -58,6 +58,21 @@ interface SidebarLabels {
  */
 object SidebarTable {
 
+    /** Map membership is independent of table columns and table flag filters. */
+    fun buildForMap(
+        sidebar: Sidebar, waypoints: List<Waypoint>, steps: List<ItineraryStep>, itineraries: List<Itinerary>,
+        units: UnitFormatter, lang: String, labels: SidebarLabels,
+    ): List<SidebarRow> {
+        fun belongs(packId: String, extra: Map<String, Any?>) =
+            packId == sidebar.trackPackId && FS.str(extra["sidebarDocId"]) == sidebar.documentId
+        return build(
+            sidebar.copy(extra = sidebar.extra - "tableFilter"),
+            waypoints.filter { belongs(it.trackPackId, it.extra) },
+            if (sidebar.tableEntity == "ItineraryStep") steps.filter { belongs(it.trackPackId, it.extra) } else emptyList(),
+            itineraries.filter { belongs(it.trackPackId, it.extra) }, units, lang, labels,
+        )
+    }
+
     /** An object flattened to the fields the columns can ask for. */
     private class Entry(
         val id: String,
@@ -279,7 +294,7 @@ object SidebarTable {
             "isBridge", "bridge" -> o.isBridge
             "isWaterCrossing", "waterCrossing", "water_crossing" -> o.isWaterCrossing
             "isWaterfall", "waterfall" -> o.isWaterfall
-            "swimming", "isSwimming" -> o.swimming
+            "isSwimming" -> o.isSwimming
             "isHistoricalSite", "historicalSite", "historic" -> o.isHistoricalSite
             "isReligiousSite", "religiousSite", "religious" -> o.isReligiousSite
             "isHotSpring", "hotSpring", "hot_spring" -> o.isHotSpring

@@ -95,6 +95,9 @@ fun rememberMarkupLinkHandler(
                     ) { onOpenShopPack?.invoke(packId) }
                 }
                 is MarkupDestination.ShowSidebar -> sidebarPreview = destination.sidebar
+                is MarkupDestination.ShowTrack -> {
+                    popup = LinkPopup(MapPopupKind.OfTrack(destination.track), tapPos) {}
+                }
                 is MarkupDestination.ShowWaypoint -> {
                     waypoint = destination.waypoint
                 }

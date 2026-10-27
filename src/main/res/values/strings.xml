@@ -548,7 +548,7 @@
     <string name="navigation_waiting_gps">Waiting for GPS…</string>
     <string name="reverse_navigation">Reverse direction</string>
     <string name="navigation_location_denied">Navigation is not possible: the app is not allowed to use your location. Allow location access in the system settings to navigate.</string>
-    <string name="bluetooth_gps">Remote GPS</string>
+    <string name="bluetooth_gps">GPS Sharing</string>
     <string name="bluetooth_gps_simulation">GPS drive simulation</string>
     <string name="bluetooth_gps_hardware_yes">GPS hardware available</string>
     <string name="bluetooth_gps_hardware_no">No GPS hardware</string>
@@ -586,5 +586,9 @@
     <string name="search_extend_radius">Extend to %1$s %2$s</string>
     <string name="bluetooth_gps_server_tab">Server</string>
     <string name="bluetooth_gps_client_tab">Client</string>
-    <string name="bluetooth_gps_client_description">Get GPS information from another device with GPS hardware. Open OverlandMap on that device, go to Settings → Remote GPS, and in the “Server” tab tap “Start broadcasting GPS data”. When the device appears here, tap “Connect”.</string>
+    <string name="bluetooth_gps_client_description">Get GPS information from another device with GPS hardware. Open OverlandMap on that device, go to Settings → GPS Sharing, and in the “Server” tab tap “Start broadcasting GPS data”. When the device appears here, tap “Connect”.</string>
+    <string name="crash_report_title">Previous app crash</string>
+    <string name="crash_report_message">A local crash report is available. Share it with the developer to help diagnose the problem. Nothing is sent automatically.</string>
+    <string name="crash_report_share">Share crash report</string>
+    <string name="crash_report_discard">Discard report</string>
 </resources>

@@ -18,6 +18,7 @@ data class SearchResult(
     val itinerarySlug: String? = null,
     val distanceKm: Double? = null,
     val contributedWaypoint: ch.overlandmap.map.model.ContributedWaypoint? = null,
+    val markerType: ch.overlandmap.map.model.WaypointType? = null,
 )
 
 /** Full-text search over the local library and world data. */
@@ -45,7 +46,13 @@ class SearchRepository(
                         itineraryDocumentId = step?.itineraryId,
                         stepId = step?.stepId,
                         itinerarySlug = slug,
+                        markerType = step,
                     )
+                }
+                FtsIndex.TYPE_WAYPOINT -> {
+                    val waypoint = library.waypointByDocumentId(hit.documentId)
+                    SearchResult(hit.type, hit.documentId, hit.name, hit.snippet,
+                        itineraryDocumentId = waypoint?.itineraryId, markerType = waypoint)
                 }
                 FtsIndex.TYPE_ITINERARY -> SearchResult(
                     type = hit.type,
@@ -57,13 +64,21 @@ class SearchRepository(
                 else -> SearchResult(hit.type, hit.documentId, hit.name, hit.snippet)
             }
         }
-        return rank(results, trimmed)
+        val unique = uniqueResults(results)
+        if (unique.size != results.size) ch.overlandmap.map.diagnostics.CrashReports.note(
+            "Search duplicate results removed: ${results.size - unique.size}",
+        )
+        return rank(unique, trimmed)
     }
 
     /** The waypoint behind a waypoint hit, to show its popup viewer. */
     suspend fun waypoint(documentId: String) = library.waypointByDocumentId(documentId)
 
     companion object {
+        /** A document can occur only once in a list, whose row keys must be unique. */
+        fun uniqueResults(results: List<SearchResult>): List<SearchResult> =
+            results.distinctBy { it.type to it.documentId }
+
         /** Minimum query length before a search runs. */
         const val MIN_QUERY_LENGTH = 3
 

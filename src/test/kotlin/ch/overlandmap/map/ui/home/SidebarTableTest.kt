@@ -185,4 +185,32 @@ class SidebarTableTest {
         // Nested arrays (the export's embedded steps) are not kept.
         assertFalse(itinBack.extra.containsKey("steps"))
     }
+
+    @Test fun mapOnlySidebarLoadsWaypointsByMembershipWithoutTableColumns() {
+        val sb = sidebar("hasMap" to true, "tableEntity" to "Waypoint", "tableFilter" to "hasFuel")
+        assertTrue(sb.hasMap)
+        assertFalse(sb.hasTable)
+        val mine = wp("mine", "Mine", 10, "sidebarDocId" to "sb1")
+        val otherPack = mine.copy(documentId = "wrong-pack", trackPackId = "p2")
+        val rows = SidebarTable.buildForMap(sb,
+            listOf(mine, otherPack, wp("other", "Other", 10, "sidebarDocId" to "sb2")),
+            listOf(ItineraryStep("step", "itin", "p1", 1, "Step", extra = mapOf("sidebarDocId" to "sb1"))),
+            emptyList(), units, "en", labels)
+        assertEquals(listOf("mine"), rows.map { it.id })
+        assertTrue(rows.single().cells.isEmpty())
+    }
+
+    @Test fun mapOnlySidebarLoadsMatchingItinerariesFromSamePack() {
+        val sb = sidebar("hasMap" to true, "tableEntity" to "Itinerary")
+        val mine = Itinerary("mine", "p1", name = "Mine", extra = mapOf("sidebarDocId" to "sb1"),
+            latMin = 10.0, latMax = 12.0, lonMin = 20.0, lonMax = 22.0)
+        val rows = SidebarTable.buildForMap(sb, emptyList(), emptyList(),
+            listOf(mine, mine.copy(documentId = "wrong-pack", trackPackId = "p2"),
+                mine.copy(documentId = "wrong-sidebar", extra = mapOf("sidebarDocId" to "sb2"))),
+            units, "en", labels)
+        assertEquals(listOf("mine"), rows.map { it.id })
+        assertEquals(mine, rows.single().itinerary)
+        assertEquals(10.0, rows.single().bounds!!.latMin, 0.0)
+        assertTrue(sb.toRow().toModel().hasMap)
+    }
 }

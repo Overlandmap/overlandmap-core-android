@@ -278,14 +278,14 @@ class ModelsTest {
     @Test
     fun contributedWaypointIsActiveWhenAbsent() {
         val w = ContributedWaypoint.fromFirestore(
-            "w", mapOf("name" to "Spring", "lat" to 46.0, "lon" to 7.0, "hasFuel" to true, "swimming" to 1L, "type" to "water"),
+            "w", mapOf("name" to "Spring", "lat" to 46.0, "lon" to 7.0, "hasFuel" to true, "isSwimming" to 1L, "type" to "water"),
             fallbackTrackPackId = "pack",
         )
         assertTrue(w.isActive)
         assertEquals("pack", w.trackPackId)
         assertNotNull(w.geohash)
         assertTrue(w.hasFuel)
-        assertTrue(w.swimming)
+        assertTrue(w.isSwimming)
         assertFalse(w.isWaterfall)
         assertEquals(46.0, w.lat!!, 0.0)
         assertFalse(ContributedWaypoint.fromFirestore("w", mapOf("active" to false)).isActive)
@@ -410,9 +410,9 @@ class ModelsTest {
         assertEquals(WaypointFlags(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true), flags)
         assertEquals(18, WaypointFlags.KEYS.size)
         val w = Waypoint.fromFirestore("w", data + ("name" to "n"))
-        assertTrue(w.isWaterfall && w.swimming && w.isFerry && w.isCafe && w.hasFuel)
+        assertTrue(w.isWaterfall && w.isSwimming && w.isFerry && w.isCafe && w.hasFuel)
         val s = ItineraryStep.fromFirestore("s", "i", data + ("id" to 1L))
-        assertTrue(s.isWaterfall && s.swimming && s.isFerry && s.isCafe && s.hasFuel)
+        assertTrue(s.isWaterfall && s.isSwimming && s.isFerry && s.isCafe && s.hasFuel)
     }
 
     @Test

@@ -31,6 +31,7 @@ class SearchViewModel(private val app: OverlandApp) : ViewModel() {
     private val repo = app.searchRepository
 
     val query = MutableStateFlow("")
+    val error = MutableStateFlow<String?>(null)
 
     val minQueryLength = repo.minQueryLength
 
@@ -39,9 +40,21 @@ class SearchViewModel(private val app: OverlandApp) : ViewModel() {
         .debounce(200)
         .distinctUntilChanged()
         .mapLatest { text ->
+            error.value = null
             if (text.length < repo.minQueryLength) emptyList()
-            else runCatching { repo.search(text, Locale.getDefault().language) }
-                .getOrDefault(emptyList())
+            else try {
+                ch.overlandmap.map.diagnostics.CrashReports.note("Text search start; length=${text.length}; language=${Locale.getDefault().language}")
+                val found = repo.search(text, Locale.getDefault().language)
+                ch.overlandmap.map.diagnostics.CrashReports.note("Text search complete; results=${found.size}")
+                found
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("Search", "Text search failed", e)
+                ch.overlandmap.map.diagnostics.CrashReports.note("Text search failure: ${e.javaClass.name}")
+                error.value = e.localizedMessage ?: e.javaClass.simpleName
+                emptyList()
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -57,7 +70,9 @@ class SearchViewModel(private val app: OverlandApp) : ViewModel() {
         val previous = lastNearby?.takeIf { it.first.type == request.type && it.first.radiusKm == request.radiusKm }?.second.orEmpty()
         emit(NearbyState(results = previous, loading = true))
         try {
+            ch.overlandmap.map.diagnostics.CrashReports.note("Nearby search start; type=${request.type}; radiusKm=${request.radiusKm}")
             val found = app.nearbySearchRepository.search(request.location, request.radiusKm, request.type, Locale.getDefault().language)
+            ch.overlandmap.map.diagnostics.CrashReports.note("Nearby search complete; results=${found.size}")
             lastNearby = request to found
             emit(NearbyState(results = found))
         } catch (e: CancellationException) {

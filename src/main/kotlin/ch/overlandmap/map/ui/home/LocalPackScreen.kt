@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
@@ -87,7 +88,11 @@ import ch.overlandmap.map.ui.PhotoGridTile
 import ch.overlandmap.map.ui.VerticalSplit
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.mapActionButtonColors
-import ch.overlandmap.map.ui.search.SearchTabContent
+import ch.overlandmap.map.ui.search.SearchContent
+import ch.overlandmap.map.ui.search.SearchViewModel
+import androidx.activity.compose.BackHandler
+import ch.overlandmap.map.ui.world.LocalOpenOverlanding
+import ch.overlandmap.map.ui.world.OverlandingSelection
 import ch.overlandmap.map.ui.zoomToPopupObject
 import kotlinx.coroutines.launch
 import ch.overlandmap.map.ui.markup.MarkupLink
@@ -116,6 +121,7 @@ fun LocalPackScreen(
     onOpenItinerary: (documentId: String, stepId: Int?) -> Unit,
     onOpenShopPack: (packId: String) -> Unit,
     onOpenSidebar: (sidebarId: String) -> Unit,
+    onOpenLocalPack: (packId: String) -> Unit = onOpenShopPack,
     // When set, a Settings action appears in the top bar. The tab-less
     // single-pack app uses it to reach Settings; the multi-pack app leaves it
     // null and reaches Settings through its bottom tab.
@@ -145,6 +151,8 @@ fun LocalPackScreen(
     val activity = context.findActivity()
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(tab) { if (tab !in 0..3) tab = 0 }
     var openBuyable by remember { mutableStateOf<Itinerary?>(null) }
     var popup by remember { mutableStateOf<MapPopupState?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -156,28 +164,25 @@ fun LocalPackScreen(
     val scope = rememberCoroutineScope()
     val app = context.applicationContext as OverlandApp
 
-    // A tapped search result: objects with a map position show their popup over
-    // the map on the top half (so its Zoom button works); a sidebar opens its
-    // screen.
+    val openOverlanding = LocalOpenOverlanding.current
+    // Search results navigate directly, without the map-tap confirmation popup.
     fun openSearchResult(result: SearchResult) {
-        scope.launch {
-            val library = app.libraryRepository
-            when (result.type) {
-                FtsIndex.TYPE_ITINERARY -> library.itinerary(result.documentId)?.let {
-                    popup = MapPopupState(position = null, kind = MapPopupKind.OfItinerary(it))
-                }
-                FtsIndex.TYPE_STEP -> library.stepByDocumentId(result.documentId)?.let { step ->
-                    popup = MapPopupState(
-                        position = null,
-                        kind = MapPopupKind.OfStep(result.itinerarySlug ?: "", step),
-                    )
-                }
-                FtsIndex.TYPE_WAYPOINT -> library.waypointByDocumentId(result.documentId)?.let {
-                    popup = MapPopupState(position = null, kind = MapPopupKind.OfWaypoint(it))
-                }
-                FtsIndex.TYPE_SIDEBAR -> onOpenSidebar(result.documentId)
-                else -> Unit
+        when (result.type) {
+            FtsIndex.TYPE_ITINERARY -> onOpenItinerary(result.documentId, null)
+            FtsIndex.TYPE_STEP -> result.itineraryDocumentId?.let { onOpenItinerary(it, result.stepId) }
+            FtsIndex.TYPE_TRACK_PACK -> {
+                if (result.documentId == packId) tab = 0 else onOpenLocalPack(result.documentId)
             }
+            FtsIndex.TYPE_SIDEBAR -> onOpenSidebar(result.documentId)
+            FtsIndex.TYPE_WAYPOINT -> scope.launch {
+                app.libraryRepository.waypointByDocumentId(result.documentId)?.itineraryId?.let {
+                    onOpenItinerary(it, null)
+                }
+            }
+            FtsIndex.TYPE_COUNTRY -> openOverlanding(OverlandingSelection.OfCountry(result.documentId))
+            FtsIndex.TYPE_BORDER -> openOverlanding(OverlandingSelection.OfBorder(result.documentId))
+            FtsIndex.TYPE_BORDER_POST -> openOverlanding(OverlandingSelection.OfBorderPost(result.documentId))
+            FtsIndex.TYPE_ZONE -> openOverlanding(OverlandingSelection.OfZone(result.documentId))
         }
     }
 
@@ -223,6 +228,26 @@ fun LocalPackScreen(
         onZoomToObject = { kind -> map?.let { zoomToPopupObject(it, kind) } },
     )
 
+    if (searchOpen) {
+        val searchViewModel: SearchViewModel = viewModel(key = "pack-search-$packId") {
+            SearchViewModel(app)
+        }
+        BackHandler { searchOpen = false }
+        SearchContent(
+            viewModel = searchViewModel,
+            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            leading = {
+                IconButton(onClick = { searchOpen = false }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.close))
+                }
+            },
+            onResultClick = { result -> searchOpen = false; openSearchResult(result) },
+        )
+        return
+    }
+
+    val packStyle by app.userPreferences.mapStyle.collectAsState(initial = app.userPreferences.mapStyleNow())
+
     // Same full-display layout as the shop's pack detail.
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -237,6 +262,9 @@ fun LocalPackScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { searchOpen = true }) {
+                            Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search))
+                        }
                         state.pack?.let { pack ->
                             IconButton(onClick = { menuOpen = true }) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = null)
@@ -293,6 +321,15 @@ fun LocalPackScreen(
                         onMapReady = { map = it },
                         modifier = Modifier.fillMaxSize(),
                     )
+                    MapStyleMenu(
+                        options = packStyle.copy(base = if (packStyle.base == ch.overlandmap.map.map.BaseMapStyle.OFFLINE_LIGHT)
+                            packStyle.base else ch.overlandmap.map.map.BaseMapStyle.OFFLINE_DETAILED),
+                        hasMapboxToken = false,
+                        onChange = { options -> scope.launch { app.userPreferences.setMapStyle(options) } },
+                        waypointFilter = emptySet(), onWaypointFilterChange = {},
+                        showWaypointFilter = false,
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 64.dp),
+                    )
                     popup?.let { current ->
                         MapObjectPopup(
                             state = current,
@@ -306,12 +343,13 @@ fun LocalPackScreen(
                                         onOpenItinerary(kind.step.itineraryId, kind.step.stepId)
                                     is MapPopupKind.OfWaypoint ->
                                         kind.waypoint.itineraryId?.let { onOpenItinerary(it, null) }
+                                    is MapPopupKind.OfTrack -> Unit
                                     is MapPopupKind.Buy -> onOpenShopPack(kind.packId)
                                 }
                             },
                         )
                     }
-                    onOpenSettings?.let { openSettings ->
+                    onOpenSettings?.takeIf { !landscape }?.let { openSettings ->
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -375,43 +413,48 @@ fun LocalPackScreen(
                         .fillMaxSize()
                         .then(if (landscape) Modifier.statusBarsPadding() else Modifier),
                 ) {
-                    ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
-                        Tab(
-                            selected = tab == 0,
-                            onClick = { tab = 0 },
-                            text = {
-                                Text(pack.name(lang), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            },
-                        )
-                        Tab(
-                            selected = tab == 1,
-                            onClick = { tab = 1 },
-                            text = { Text(stringResource(R.string.itineraries)) },
-                        )
-                        Tab(
-                            selected = tab == 2,
-                            onClick = { tab = 2 },
-                            text = { Text(stringResource(R.string.sidebars)) },
-                        )
-                        Tab(
-                            selected = tab == 3,
-                            onClick = { tab = 3 },
-                            text = { Text(stringResource(R.string.comments)) },
-                        )
-                        // Single-pack mode: a search tab (icon only) to the right
-                        // of Comments. Its content fills this bottom half, so the
-                        // map on the top half stays for the results' Zoom action.
-                        if (AppMode.singleTrackPack) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ScrollableTabRow(modifier = Modifier.weight(1f),selectedTabIndex = tab.coerceIn(0, 3), edgePadding = 0.dp) {
                             Tab(
-                                selected = tab == 4,
-                                onClick = { tab = 4 },
-                                icon = {
-                                    Icon(
-                                        Icons.Filled.Search,
-                                        contentDescription = stringResource(R.string.search),
-                                    )
+                                selected = tab == 0,
+                                onClick = { tab = 0 },
+                                text = {
+                                    Text(pack.name(lang), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 },
                             )
+                            Tab(
+                                selected = tab == 1,
+                                onClick = { tab = 1 },
+                                text = { Text(stringResource(R.string.itineraries)) },
+                            )
+                            Tab(
+                                selected = tab == 2,
+                                onClick = { tab = 2 },
+                                text = { Text(stringResource(R.string.sidebars)) },
+                            )
+                            Tab(
+                                selected = tab == 3,
+                                onClick = { tab = 3 },
+                                text = { Text(stringResource(R.string.comments)) },
+                            )
+
+                        }
+                        if (landscape) {
+                            Box {
+                                IconButton(onClick = { menuOpen = true }) {
+                                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.menu))
+                                }
+                                PackMenu(
+                                    pack = pack, expanded = menuOpen,
+                                    onDismiss = { menuOpen = false },
+                                    onDelete = { confirmDelete = true },
+                                    onCheckForUpdate = viewModel::checkForUpdate,
+                                    onUpdate = viewModel::update,
+                                    onShare = { shareTrackPackLink(context, pack.editor, pack.name) },
+                                    onSettings = onOpenSettings,
+                                    onSearch = { searchOpen = true },
+                                )
+                            }
                         }
                     }
                     when (tab) {
@@ -421,7 +464,6 @@ fun LocalPackScreen(
                         }
                         2 -> SidebarsTab(state.sidebars, lang) { onOpenSidebar(it.documentId) }
                         3 -> CommentsSection(CommentScope(pack.documentId, pack.documentId, null), comments, lang)
-                        4 -> SearchTabContent(onResultClick = { openSearchResult(it) })
                     }
                 }
             },
@@ -570,9 +612,16 @@ private fun PackMenu(
     // Single-pack app only: reaches Settings from here (the multi-pack app has a
     // Settings tab, so it leaves this null and shows no Settings entry).
     onSettings: (() -> Unit)? = null,
+    onSearch: (() -> Unit)? = null,
 ) {
     val dateFormat = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        onSearch?.let { search ->
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.search)) },
+                onClick = { onDismiss(); search() },
+            )
+        }
         // Version and generation date of the local copy; not actionable.
         DropdownMenuItem(
             text = {
@@ -650,6 +699,7 @@ private fun LocalDescriptionTab(
                 it,
                 style = MaterialTheme.typography.bodyMedium,
                 onLinkClick = onLink,
+                allowsTitles = true,
             )
         }
     }

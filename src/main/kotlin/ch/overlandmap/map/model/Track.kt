@@ -39,6 +39,12 @@ data class Track(
         return points
     }
 
+    /** Bounds of the complete track, with degenerate axes widened for camera fitting. */
+    fun extent(): ch.overlandmap.map.geo.GeoBounds? = ch.overlandmap.map.geo.GeoBounds.containing(
+        coordinates().filter { it.lat.isFinite() && it.lon.isFinite() && it.lat in -90.0..90.0 && it.lon in -180.0..180.0 }
+            .map { ch.overlandmap.map.geo.Coordinate(it.lat, it.lon) },
+    )
+
     companion object {
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = Track(
             documentId = documentId,

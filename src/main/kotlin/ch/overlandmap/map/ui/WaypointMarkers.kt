@@ -44,6 +44,8 @@ object WaypointMarkers {
         "viewpoint_" to R.drawable.viewpoint_,
         "warning" to R.drawable.warning,
         "water_crossing" to R.drawable.water_crossing,
+        "waterfall" to R.drawable.waterfall,
+        "swimming" to R.drawable.swimming,
     )
 
     /** Returns the drawable resource ID for a waypoint's maki icon. */
@@ -65,6 +67,8 @@ object WaypointMarkers {
         o.isReligiousSite -> "religious"
         o.isHistoricalSite -> "historic_"
         o.isHotSpring -> "hot_spring"
+        o.isWaterfall -> "waterfall"
+        o.isSwimming -> "swimming"
         o.hasFuel -> "fuel_"
         o.isBridge -> "bridge_"
         o.isWaterCrossing -> "water_crossing"

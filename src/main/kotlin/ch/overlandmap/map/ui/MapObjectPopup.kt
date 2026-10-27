@@ -92,6 +92,8 @@ sealed interface MapPopupKind {
     data class OfStep(val itinerarySlug: String, val step: ItineraryStep) : MapPopupKind
 
     /** A waypoint present in the local library. */
+    data class OfTrack(val track: ch.overlandmap.map.model.Track) : MapPopupKind
+
     data class OfWaypoint(val waypoint: Waypoint) : MapPopupKind
 
     /**
@@ -171,13 +173,15 @@ fun MapObjectPopup(
                                 onDismiss()
                                 onZoom(kind)
                             }
-                            VerticalDivider()
-                            ActionButton(
-                                Icons.AutoMirrored.Filled.ArrowForward,
-                                stringResource(R.string.open_viewer),
-                            ) {
-                                onDismiss()
-                                onOpen(kind)
+                            if (kind !is MapPopupKind.OfTrack) {
+                                VerticalDivider()
+                                ActionButton(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    stringResource(R.string.open_viewer),
+                                ) {
+                                    onDismiss()
+                                    onOpen(kind)
+                                }
                             }
                         }
                     }
@@ -270,6 +274,12 @@ private fun PopupHeader(kind: MapPopupKind) {
                 modifier = Modifier.padding(start = 10.dp),
             )
         }
+        is MapPopupKind.OfTrack -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(kind.track.name.orEmpty(), style = MaterialTheme.typography.titleMedium,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.Route, contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 10.dp))
+        }
         is MapPopupKind.Buy -> Unit // rendered as a single button, no header
     }
 }
@@ -333,6 +343,13 @@ fun zoomToPopupObject(map: MapLibreMap, kind: MapPopupKind) {
             val lat = kind.waypoint.lat ?: return
             val lon = kind.waypoint.lon ?: return
             zoomToPoint(map, lat, lon)
+        }
+        is MapPopupKind.OfTrack -> {
+            val bounds = kind.track.extent() ?: return
+            val cameraBounds = org.maplibre.android.geometry.LatLngBounds.Builder()
+                .include(org.maplibre.android.geometry.LatLng(bounds.latMin, bounds.lonMin))
+                .include(org.maplibre.android.geometry.LatLng(bounds.latMax, bounds.lonMax)).build()
+            map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(cameraBounds, 60))
         }
         is MapPopupKind.Buy -> Unit
     }

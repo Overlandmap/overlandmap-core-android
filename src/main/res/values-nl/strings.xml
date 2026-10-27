@@ -469,7 +469,7 @@
     <string name="navigation_waiting_gps">Wachten op GPS…</string>
     <string name="reverse_navigation">Richting omkeren</string>
     <string name="navigation_location_denied">Navigeren is niet mogelijk: de app mag je locatie niet gebruiken. Sta locatietoegang toe in de systeeminstellingen om te navigeren.</string>
-    <string name="bluetooth_gps">Externe GPS</string>
+    <string name="bluetooth_gps">GPS delen</string>
     <string name="bluetooth_gps_simulation">GPS-rijsimulatie</string>
     <string name="bluetooth_gps_hardware_yes">GPS-hardware beschikbaar</string>
     <string name="bluetooth_gps_hardware_no">Geen GPS-hardware</string>
@@ -507,5 +507,9 @@
     <string name="search_extend_radius">Uitbreiden tot %1$s %2$s</string>
     <string name="bluetooth_gps_server_tab">Server</string>
     <string name="bluetooth_gps_client_tab">Client</string>
-    <string name="bluetooth_gps_client_description">Ontvang GPS-gegevens van een ander apparaat met GPS-hardware. Open OverlandMap op dat apparaat, ga naar Instellingen → Externe GPS en tik op het tabblad “Server” op “GPS-gegevens uitzenden”. Zodra het apparaat hier verschijnt, tik je op “Verbinden”.</string>
+    <string name="bluetooth_gps_client_description">Ontvang GPS-gegevens van een ander apparaat met GPS-hardware. Open OverlandMap op dat apparaat, ga naar Instellingen → GPS delen en tik op het tabblad “Server” op “GPS-gegevens uitzenden”. Zodra het apparaat hier verschijnt, tik je op “Verbinden”.</string>
+    <string name="crash_report_title">Vorige app-crash</string>
+    <string name="crash_report_message">Er is een lokaal crashrapport beschikbaar. Deel het met de ontwikkelaar om het probleem te onderzoeken. Er wordt niets automatisch verzonden.</string>
+    <string name="crash_report_share">Crashrapport delen</string>
+    <string name="crash_report_discard">Rapport verwijderen</string>
 </resources>

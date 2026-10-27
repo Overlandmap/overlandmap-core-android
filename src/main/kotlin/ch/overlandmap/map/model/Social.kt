@@ -154,7 +154,7 @@ data class WaypointFlags(
     val isBridge: Boolean = false,
     val isWaterCrossing: Boolean = false,
     val isWaterfall: Boolean = false,
-    val swimming: Boolean = false,
+    val isSwimming: Boolean = false,
     val isHistoricalSite: Boolean = false,
     val isReligiousSite: Boolean = false,
     val isHotSpring: Boolean = false,
@@ -166,7 +166,7 @@ data class WaypointFlags(
         /** Keys of every flag, in the order above. */
         val KEYS = arrayOf(
             "hasFuel", "hasHotel", "isViewpoint", "isBivouac", "isPoliceCheckpoint", "isBorder",
-            "isEmbassy", "isMountainPass", "isBridge", "isWaterCrossing", "isWaterfall", "swimming",
+            "isEmbassy", "isMountainPass", "isBridge", "isWaterCrossing", "isWaterfall", "isSwimming",
             "isHistoricalSite", "isReligiousSite", "isHotSpring", "isIntersection", "isFerry", "isCafe",
         )
 
@@ -182,7 +182,7 @@ data class WaypointFlags(
             isBridge = FS.bool(data["isBridge"]),
             isWaterCrossing = FS.bool(data["isWaterCrossing"]),
             isWaterfall = FS.bool(data["isWaterfall"]),
-            swimming = FS.bool(data["swimming"]),
+            isSwimming = FS.bool(data["isSwimming"]),
             isHistoricalSite = FS.bool(data["isHistoricalSite"]),
             isReligiousSite = FS.bool(data["isReligiousSite"]),
             isHotSpring = FS.bool(data["isHotSpring"]),
@@ -245,7 +245,7 @@ data class ContributedWaypoint(
     override val isCafe get() = flags.isCafe
     override val isFerry get() = flags.isFerry
     override val isWaterfall get() = flags.isWaterfall
-    override val swimming get() = flags.swimming
+    override val isSwimming get() = flags.isSwimming
 
     /** The Firestore-shaped document (without `documentId`). */
     fun stored(): Map<String, Any?> = buildMap {
@@ -519,7 +519,7 @@ fun ContributedWaypoint.asWaypoint() = Waypoint(
     isCafe = isCafe,
     isFerry = isFerry,
     isWaterfall = isWaterfall,
-    swimming = swimming,
+    isSwimming = isSwimming,
     openKind = openKind,
     openDetails = openDetails,
 )

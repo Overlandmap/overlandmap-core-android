@@ -114,8 +114,8 @@ fun PackTracksMap(
     val mapLanguage by app.userPreferences.mapLanguage.collectAsState(
         initial = app.userPreferences.mapLanguageNow(),
     )
-    val styleUrl = remember(styleOptions.hillshade, styleOptions.contour, mapLanguage) {
-        MapStyles.packStyleUrl(context, styleOptions.hillshade, styleOptions.contour, mapLanguage)
+    val styleUrl = remember(styleOptions, mapLanguage) {
+        MapStyles.resolve(context, styleOptions, false, mapLanguage)
     }
 
     MapLibreMapView(
