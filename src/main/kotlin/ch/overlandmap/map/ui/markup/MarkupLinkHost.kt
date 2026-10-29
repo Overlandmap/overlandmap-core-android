@@ -60,6 +60,7 @@ fun rememberMarkupLinkHandler(
     val router = remember(trackPackId, sourceItineraryId) {
         MarkupRouter(app.libraryRepository, trackPackId, sourceItineraryId, app.worldRepository)
     }
+    var overlanding by remember { mutableStateOf<ch.overlandmap.map.ui.world.OverlandingSelection?>(null) }
     var waypoint by remember { mutableStateOf<Waypoint?>(null) }
     var sidebarPreview by remember { mutableStateOf<Sidebar?>(null) }
     var unavailable by remember { mutableStateOf<String?>(null) }
@@ -105,13 +106,20 @@ fun rememberMarkupLinkHandler(
                     context.startActivity(Intent(Intent.ACTION_VIEW, destination.url.toUri()))
                 } catch (_: ActivityNotFoundException) {
                 }
-                is MarkupDestination.OpenOverlanding -> openOverlanding(destination.selection)
+                is MarkupDestination.OpenOverlanding -> overlanding = destination.selection
                 MarkupDestination.OverlandNotDownloaded -> notDownloaded = shownText
                 MarkupDestination.Unavailable -> unavailable = shownText
             }
         }
     }
 
+    overlanding?.let { selection ->
+        ch.overlandmap.map.ui.world.OverlandingLinkSheet(
+            selection = selection,
+            onDismiss = { overlanding = null },
+            onOpen = { overlanding = null; openOverlanding(selection) },
+        )
+    }
     popup?.let { current ->
         MapObjectPopup(
             state = MapPopupState(

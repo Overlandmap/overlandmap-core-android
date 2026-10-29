@@ -243,6 +243,7 @@ object Markup {
 
     /** `country/CHE`, `border/x`, `border_post/x`, `zone/x`; null for anything else. */
     private fun entityRef(body: String): MarkupLink? {
+        if (body.isNotBlank() && '/' !in body) return MarkupLink.EntityRef(null, body)
         val parts = body.split('/', limit = 2)
         if (parts.size != 2 || parts[1].isEmpty()) return null
         val kind = when (parts[0]) {
@@ -285,7 +286,7 @@ sealed interface MarkupNode {
     ) : MarkupNode
 }
 
-/** The kinds of world entity a `@kind/id` link can name. */
+/** The kinds of world entity a typed `@kind/id` link can name. */
 enum class EntityKind { COUNTRY, BORDER, BORDER_POST, ZONE }
 
 /** What a `[shown](action)` link points at. */
@@ -302,7 +303,8 @@ sealed interface MarkupLink {
     data class SidebarRef(val name: String) : MarkupLink
     data class TrackRef(val name: String) : MarkupLink
     data class GeohashRef(val geohash: String) : MarkupLink
-    data class EntityRef(val kind: EntityKind, val id: String) : MarkupLink
+    /** A null kind resolves a bare `@documentId` across all world collections. */
+    data class EntityRef(val kind: EntityKind?, val id: String) : MarkupLink
 
     /** The step number when this is a bare step link like `(:::5)`. */
     val ownStepId: Int?

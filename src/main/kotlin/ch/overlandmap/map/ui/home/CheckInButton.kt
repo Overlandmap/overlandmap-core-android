@@ -1,5 +1,7 @@
 package ch.overlandmap.map.ui.home
 
+import androidx.compose.runtime.LaunchedEffect
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -72,7 +74,11 @@ fun CheckInButton(target: SocialTarget) {
     val app = LocalContext.current.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
     val gate = rememberAuthGate()
-    val checkIns by app.socialRepository.observeCheckInsForObject(target.objectId)
+    LaunchedEffect(target.geohash) {
+        target.geohash?.let { app.socialRepository.refreshCheckInsForGeohash(it) }
+    }
+    val checkIns by (target.geohash?.let { app.socialRepository.observeCheckInsForGeohash(it) }
+        ?: app.socialRepository.observeCheckInsForObject(target.objectId))
         .collectAsState(initial = emptyList())
 
     var showSheet by remember { mutableStateOf(false) }
@@ -100,6 +106,7 @@ fun CheckInButton(target: SocialTarget) {
                 itinDocumentId = target.itineraryId,
                 collection = target.collection,
                 objectId = target.objectId,
+                geohash = target.geohash,
                 content = message.ifBlank { null },
             )
             error = null

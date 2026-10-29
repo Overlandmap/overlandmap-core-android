@@ -94,6 +94,9 @@ class TrackRecorder(
 
     val isRecording: Boolean get() = _currentId.value != null
 
+    /** The downloaded library persists extents and both indexes before an import mutation returns. */
+    internal var onImportedContentChanged: ((List<RecordedTrack>) -> Unit)? = null
+
     private var lastSaveMs = 0L
 
     init {
@@ -108,7 +111,9 @@ class TrackRecorder(
 
     /** Loads the files; a track left open by a crash is closed at its last point. */
     fun load() {
-        _recordings.value = store.loadAll().map { t ->
+        _recordings.value = store.loadAll().map { stored ->
+            val t = stored.withImportGeohashes()
+            if (t !== stored) store.save(t)
             if (t.endDateMs == null && t.id != _currentId.value) {
                 t.copy(endDateMs = t.points.lastOrNull()?.timestampMs ?: t.startDateMs).also(store::save)
             } else t
@@ -185,9 +190,19 @@ class TrackRecorder(
             waypoints = parsed.waypoints,
             isImported = true,
         )
-        _recordings.update { listOf(track) + it }
-        store.save(track)
-        return track
+        val imported = track.withImportGeohashes()
+        _recordings.update { listOf(imported) + it }
+        store.save(imported)
+        onImportedContentChanged?.invoke(_recordings.value)
+        return imported
+    }
+
+    /** Publishes a parsed import only after the user has chosen its folder. */
+    fun addImported(tracks: List<RecordedTrack>) {
+        val imported = tracks.map { it.withImportGeohashes() }
+        imported.forEach(store::save)
+        _recordings.update { imported + it }
+        onImportedContentChanged?.invoke(_recordings.value)
     }
 
     fun toggleDisplayed(id: String) {
@@ -210,6 +225,14 @@ class TrackRecorder(
         update(id) { it.copy(name = name?.trim()?.takeIf { n -> n.isNotEmpty() }) }?.let(store::save)
     }
 
+    /** Find the owning imported track: a viewer may display waypoints from sibling tracks. */
+    fun deleteImportedWaypoint(waypointId: String) {
+        val owners = _recordings.value.filter { track -> track.isImported && track.waypoints.any { it.id == waypointId } }
+        owners.forEach { track ->
+            update(track.id) { it.copy(waypoints = it.waypoints.filterNot { waypoint -> waypoint.id == waypointId }) }?.let(store::save)
+        }
+    }
+
     fun delete(id: String) {
         val track = track(id) ?: return
         if (_currentId.value == id) {
@@ -219,13 +242,15 @@ class TrackRecorder(
         }
         _recordings.update { list -> list.filter { it.id != id } }
         store.delete(track)
+        if (track.isImported) onImportedContentChanged?.invoke(_recordings.value)
     }
 
     private fun update(id: String, change: (RecordedTrack) -> RecordedTrack): RecordedTrack? {
         var result: RecordedTrack? = null
         _recordings.update { list ->
-            list.map { t -> if (t.id == id) change(t).also { result = it } else t }
+            list.map { t -> if (t.id == id) change(t).withImportGeohashes().also { result = it } else t }
         }
+        if (result?.isImported == true) onImportedContentChanged?.invoke(_recordings.value)
         return result
     }
 

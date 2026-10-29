@@ -73,6 +73,7 @@ data class NavigationState(
     val recentlyReachedStepName: String? = null,
 
     // Road navigation to the start
+    val roadEntryPoint: Coordinate? = null,
     val roadRoute: RoadRoute? = null,
     val currentRoadStepIndex: Int = 0,
     val distanceToStartPointMeters: Double? = null,
@@ -112,7 +113,7 @@ data class NavigationState(
     /** The point [relativeBearingToTarget] aims at: the look-ahead point on the track while moving, else the target step. */
     val needleTargetPoint: Coordinate?
         get() = if (mode == NavigationMode.ITINERARY && isMoving && trackBearingDegrees != null && lookaheadPoint != null) lookaheadPoint
-        else currentTargetStep?.coordinate()
+        else roadEntryPoint ?: currentTargetStep?.coordinate()
 }
 
 /**
@@ -173,6 +174,7 @@ class NavigationCoordinator(
      */
     private var finalArrivalArmed = false
 
+    private var preferredStartIndex: Int? = null
     private var hasFoundInitialClosestStep = false
     private var mapboxToken: String? = null
     private var roadRouteJob: Job? = null
@@ -183,6 +185,8 @@ class NavigationCoordinator(
     }
 
     val isNavigating: Boolean get() = s.isNavigating
+
+    private var startChoice: NavigationStartChoice? = null
 
     /**
      * Starts navigating [steps] (with the itinerary's [trackCoordinates] for guidance). A given
@@ -199,6 +203,8 @@ class NavigationCoordinator(
         initialLocation: LocationFix? = null,
         language: String = "en",
         mapboxToken: String? = null,
+        preferredStartIndex: Int? = null,
+        startChoice: NavigationStartChoice? = null,
     ) {
         if (steps.isEmpty()) return
         roadRouteJob?.cancel()
@@ -208,6 +214,8 @@ class NavigationCoordinator(
         val wasNavigating = s.isNavigating
         resetMotionState()
         val restored = initialTargetIndex?.takeIf { it in steps.indices }
+        this.startChoice = startChoice
+        this.preferredStartIndex = preferredStartIndex
         hasFoundInitialClosestStep = restored != null
         s = NavigationState(
             isNavigating = true,
@@ -223,6 +231,14 @@ class NavigationCoordinator(
             heading = s.heading,
         )
         rebuildNavigationTrack()
+        val startPosition = initialLocation ?: location.lastFix ?: s.currentLocation
+        val entry = when (startChoice) {
+            NavigationStartChoice.FIRST -> s.steps.firstNotNullOfOrNull { it.coordinate() }
+            NavigationStartChoice.LAST -> s.steps.lastOrNull { it.coordinate() != null }?.coordinate()
+            NavigationStartChoice.NEAREST -> startPosition?.coordinate?.let { navTrack?.project(it)?.point }
+            else -> null
+        }
+        s = s.copy(roadEntryPoint = entry)
         debug(
             "start: itinerary=$itineraryId reverse=$reverse steps=${steps.size} (with position ${steps.count { it.coordinate() != null }}) " +
                 "trackPoints=${trackCoordinates.size} navTrack=${navTrack?.points?.size ?: "none"} " +
@@ -244,7 +260,7 @@ class NavigationCoordinator(
         // "Calculating" is also shown while the token is awaited, so look for an actual request.
         if (s.mode == NavigationMode.ROAD_TO_START && s.roadRoute == null && roadRouteJob?.isActive != true) {
             val here = s.currentLocation?.coordinate
-            val target = s.currentTargetStep?.coordinate()
+            val target = s.roadEntryPoint ?: s.currentTargetStep?.coordinate()
             if (here != null && target != null) {
                 requestRoadRoute(here, target, trimmed)
                 flush()
@@ -307,7 +323,7 @@ class NavigationCoordinator(
         lastDistanceToTarget = null
         trendAnchorDistance = null
         s = s.copy(
-            mode = NavigationMode.ITINERARY, roadRoute = null, currentRoadStepIndex = 0,
+            mode = NavigationMode.ITINERARY, roadEntryPoint = null, roadRoute = null, currentRoadStepIndex = 0,
             distanceToCurrentRoadStepMeters = null, distanceToStartPointMeters = null,
             isCalculatingRoadRoute = false, isOffTrack = false, isApproachingTarget = true,
             isMovingAwayFromTarget = false,
@@ -396,7 +412,16 @@ class NavigationCoordinator(
             val user = fix.coordinate
 
             // The target is the next step after the closest point on the track (the previous one in reverse).
-            val selected = initialTargetIndex(user)
+            if (startChoice == NavigationStartChoice.NEAREST && s.roadEntryPoint == null) {
+                s = s.copy(roadEntryPoint = navTrack?.project(user)?.point)
+            }
+            val selected = when (startChoice) {
+                NavigationStartChoice.FIRST -> s.steps.indexOfFirst { it.coordinate() != null }.coerceAtLeast(0)
+                NavigationStartChoice.LAST -> s.steps.indexOfLast { it.coordinate() != null }.coerceAtLeast(0)
+                NavigationStartChoice.NEAREST -> initialTargetIndex(s.roadEntryPoint ?: user)
+                NavigationStartChoice.FORWARD, NavigationStartChoice.REVERSE -> initialTargetIndex(user)
+                null -> preferredStartIndex?.takeIf { it in s.steps.indices } ?: initialTargetIndex(user)
+            }
             s = s.copy(currentTargetIndex = selected)
             persist()
             debug(
@@ -404,15 +429,17 @@ class NavigationCoordinator(
                     "distanceToStraight=${s.steps.getOrNull(selected)?.coordinate()?.let { user.distanceMeters(it).toInt() }} m mapboxToken=${mapboxToken?.let { if (it.isEmpty()) "none" else "yes" } ?: "unknown"}"
             )
 
-            // While the target is over 5 km away, follow Mapbox directions until it is under 1 km, then
-            // switch to the bearing overlay. Nearer than 5 km, show the bearing overlay at once.
-            val target = s.steps.getOrNull(selected)?.coordinate()
+            // Explicit entry choices request road directions from beyond 1 km.
+            // Legacy starts retain their 5 km threshold; on-track choices stay on the track.
+            val target = s.roadEntryPoint ?: s.steps.getOrNull(selected)?.coordinate()
             if (target == null) {
                 s = s.copy(mode = NavigationMode.ITINERARY)
                 return
             }
             val distance = user.distanceMeters(target)
-            if (distance > ROAD_NAVIGATION_FROM_M) {
+            val approach = s.roadEntryPoint != null
+            if ((approach && distance > ROAD_NAVIGATION_UNTIL_M) ||
+                (startChoice == null && distance > ROAD_NAVIGATION_FROM_M)) {
                 val token = mapboxToken
                 when {
                     !token.isNullOrEmpty() -> {
@@ -434,6 +461,7 @@ class NavigationCoordinator(
             }
         }
 
+        if (s.mode == NavigationMode.ITINERARY && s.roadEntryPoint != null) s = s.copy(roadEntryPoint = null)
         when (s.mode) {
             NavigationMode.ROAD_TO_START -> processRoadLocation(fix)
             NavigationMode.ITINERARY -> processItineraryLocation(fix)
@@ -443,7 +471,7 @@ class NavigationCoordinator(
 
     private fun processRoadLocation(fix: LocationFix) {
         val user = fix.coordinate
-        val target = s.currentTargetStep?.coordinate()
+        val target = s.roadEntryPoint ?: s.currentTargetStep?.coordinate()
         if (target == null) {
             leaveRoadMode()
             return

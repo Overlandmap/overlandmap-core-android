@@ -33,6 +33,18 @@ class DiscussionRepository(
     fun observe(objectId: String): Flow<List<Discussion>> =
         dao.observeDiscussions(objectId).map { list -> list.filter { !it.isDeleted } }
 
+    fun observeForGeohash(geohash: String): Flow<List<Discussion>> =
+        dao.observeDiscussionsForGeohash(geohash).map { list -> list.filter { !it.isDeleted } }
+
+    suspend fun refreshForGeohash(geohash: String): Boolean = try {
+        auth.awaitUser()
+        val remote = db.collection(COLLECTION).whereEqualTo("geohash", geohash).get().await()
+            .documents.map { Discussion.fromFirestore(it.id, it.data ?: emptyMap()) }
+        dao.replaceDiscussionsForGeohash(geohash, remote)
+        true
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+    catch (e: Exception) { Log.w(TAG, "Fetching waypoint discussions failed", e); false }
+
     /**
      * Fetches the object's discussions when the cache is older than a week or [force] is set,
      * replacing the cached ones. Returns false when the fetch failed (the cache is kept).
@@ -108,6 +120,7 @@ class DiscussionRepository(
         threadId: String? = null,
         location: Coordinate? = null,
         isOpen: Int? = null,
+        geohash: String? = null,
     ): Discussion {
         val user = auth.awaitUser()
         val new = DiscussionRules.NewDiscussion(
@@ -116,7 +129,7 @@ class DiscussionRepository(
             userId = user.uid, userName = userName(),
             topic = topic, reason = reason, content = content,
             lang = lang, threadId = threadId, location = location, isOpen = isOpen,
-            nowMs = now(),
+            nowMs = now(), geohash = geohash,
         )
         db.collection(COLLECTION).document(new.id).set(DiscussionRules.firestorePayload(new)).await()
         return DiscussionRules.localCopy(new).also { dao.insertDiscussions(listOf(it)) }

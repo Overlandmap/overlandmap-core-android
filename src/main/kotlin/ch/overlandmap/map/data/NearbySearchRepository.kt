@@ -7,7 +7,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Offline proximity search over downloaded library, world data and synced community waypoints. */
-class NearbySearchRepository(private val dao: NearbyDao, private val loadItinerary: suspend (String) -> Itinerary?) {
+class NearbySearchRepository(private val dao: NearbyDao,
+    private val imported: ((List<String>) -> List<SearchResult>)? = null,
+    private val loadItinerary: suspend (String) -> Itinerary?) {
     enum class Type { ALL, ITINERARY, WAYPOINT, BORDER_POST }
 
     suspend fun search(origin: Coordinate, radiusKm: Double, type: Type, lang: String): List<SearchResult> = withContext(Dispatchers.IO) {
@@ -69,6 +71,12 @@ class NearbySearchRepository(private val dao: NearbyDao, private val loadItinera
                 val p = row.toModel()
                 add(SearchResult(FtsIndex.TYPE_BORDER_POST, p.documentId, p.name, p.comment(lang).orEmpty()), p.lat, p.lon, p.geohash)
             }
+        }
+        if (type != Type.BORDER_POST) imported?.invoke(prefixes)?.forEach { result ->
+            val w = result.importedWaypoint
+            val t = result.importedTrack
+            if (w != null && (type == Type.ALL || type == Type.WAYPOINT)) add(result, w.latitude, w.longitude, w.geohash)
+            else if (w == null && t != null && (type == Type.ALL || type == Type.ITINERARY)) t.trackBounds?.centre?.let { add(result, it.latitude, it.longitude, t.geohash) }
         }
         // Geohash cell order is spatially useful but is NOT distance order. Filter circle false
         // positives and sort by the exact great-circle distance only once, after indexed lookup.

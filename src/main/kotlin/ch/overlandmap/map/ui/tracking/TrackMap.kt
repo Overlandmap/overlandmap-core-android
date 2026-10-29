@@ -1,6 +1,20 @@
 package ch.overlandmap.map.ui.tracking
 
 import android.graphics.RectF
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import ch.overlandmap.map.R
+import ch.overlandmap.map.ui.home.MapStyleMenu
+import ch.overlandmap.map.map.addUserLocationLayer
+import ch.overlandmap.map.map.updateUserLocation
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,35 +69,73 @@ fun TrackMap(
     focus: SidebarFocus?,
     onWaypointTapped: (trackId: String, waypointId: String) -> Unit,
     modifier: Modifier = Modifier,
+    onTrackTapped: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
     val styleOptions by app.userPreferences.mapStyle.collectAsState(initial = app.userPreferences.mapStyleNow())
     val mapLanguage by app.userPreferences.mapLanguage.collectAsState(initial = app.userPreferences.mapLanguageNow())
-    val styleUrl = remember(styleOptions.hillshade, styleOptions.contour, mapLanguage) {
-        MapStyles.packStyleUrl(context, styleOptions.hillshade, styleOptions.contour, mapLanguage)
+    val scope = rememberCoroutineScope()
+    val hasMapboxToken = !app.mapboxTokenManager.cachedTokenNow().isNullOrBlank()
+    val styleUrl = remember(styleOptions, mapLanguage, hasMapboxToken) {
+        MapStyles.resolve(context, styleOptions, hasMapboxToken, mapLanguage)
     }
+    val location by rememberUserLocation()
+    var zoomWhenLocated by remember { mutableStateOf(false) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     val onTapped by rememberUpdatedState(onWaypointTapped)
+    val onLineTapped by rememberUpdatedState(onTrackTapped)
 
-    MapLibreMapView(
-        modifier = modifier,
-        styleUrl = styleUrl,
-        onMapReady = { ready ->
-            map = ready
-            ready.addOnMapClickListener { latLng ->
-                val p = ready.projection.toScreenLocation(latLng)
-                val hit = ready.queryRenderedFeatures(RectF(p.x - 28f, p.y - 28f, p.x + 28f, p.y + 28f), WAYPOINTS_LAYER)
-                    .firstOrNull()
-                val trackId = hit?.getStringProperty("trackId")
-                val waypointId = hit?.getStringProperty("id")
-                if (trackId != null && waypointId != null) onTapped(trackId, waypointId)
-                trackId != null
+    Box(modifier) {
+        MapLibreMapView(
+            modifier = Modifier.fillMaxSize(),
+            styleUrl = styleUrl,
+            onMapReady = { ready ->
+                map = ready
+                ready.addOnMapClickListener { latLng ->
+                    val p = ready.projection.toScreenLocation(latLng)
+                    val hit = ready.queryRenderedFeatures(RectF(p.x - 28f, p.y - 28f, p.x + 28f, p.y + 28f), WAYPOINTS_LAYER)
+                        .firstOrNull()
+                    val trackId = hit?.getStringProperty("trackId")
+                    val waypointId = hit?.getStringProperty("id")
+                    if (trackId != null && waypointId != null) onTapped(trackId, waypointId)
+                    if (trackId != null) true else {
+                        val line = ready.queryRenderedFeatures(RectF(p.x - 12f, p.y - 12f, p.x + 12f, p.y + 12f), TRACKS_LAYER).firstOrNull()
+                        line?.getStringProperty("trackId")?.let(onLineTapped)
+                        line != null
+                    }
+                }
+            },
+            onStyleLoaded = { _, loaded -> style = loaded },
+        )
+
+        Column(Modifier.align(Alignment.TopStart).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MapStyleMenu(
+                options = styleOptions,
+                hasMapboxToken = hasMapboxToken,
+                onChange = { options -> scope.launch { app.userPreferences.setMapStyle(options) } },
+                waypointFilter = emptySet(),
+                onWaypointFilterChange = {},
+                showWaypointFilter = false,
+            )
+            SmallFloatingActionButton(onClick = { zoomWhenLocated = true }) {
+                Icon(Icons.Filled.MyLocation, stringResource(R.string.use_current_location))
             }
-        },
-        onStyleLoaded = { _, loaded -> style = loaded },
-    )
+        }
+    }
+
+    LaunchedEffect(style, location) {
+        style?.let { addUserLocationLayer(it); updateUserLocation(it, location) }
+    }
+    LaunchedEffect(map, style, location, zoomWhenLocated) {
+        val position = location ?: return@LaunchedEffect
+        val ready = map ?: return@LaunchedEffect
+        if (style != null && zoomWhenLocated) {
+            ready.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(position.latitude, position.longitude), 14.0), 400)
+            zoomWhenLocated = false
+        }
+    }
 
     LaunchedEffect(style, tracks) {
         val s = style ?: return@LaunchedEffect
@@ -91,13 +143,15 @@ fun TrackMap(
             tracks.filter { it.points.size > 1 }.map { t ->
                 Feature.fromGeometry(
                     LineString.fromLngLats(t.points.map { Point.fromLngLat(it.longitude, it.latitude) })
-                ).also { it.addStringProperty("color", t.colorHex.toMapColor()) }
+                ).also { it.addStringProperty("color", t.colorHex.toMapColor()); it.addStringProperty("trackId", t.id) }
             }
         )
         val pins = FeatureCollection.fromFeatures(
             tracks.flatMap { t ->
                 t.waypoints.map { w ->
                     Feature.fromGeometry(Point.fromLngLat(w.longitude, w.latitude)).also {
+                        it.addStringProperty("label", w.label)
+                        it.addStringProperty("icon", "imported-${w.symbol}")
                         it.addStringProperty("id", w.id)
                         it.addStringProperty("trackId", t.id)
                         it.addStringProperty("color", t.colorHex.toMapColor())
@@ -105,6 +159,10 @@ fun TrackMap(
                 }
             }
         )
+        // Render the same type icons in map pins and object sheets.
+        tracks.flatMap { it.waypoints }.map { it.symbol }.distinct().forEach { symbol ->
+            s.addImage("imported-$symbol", importedWaypointBitmap(context, symbol))
+        }
         s.getSourceAs<GeoJsonSource>(TRACKS_SOURCE)?.setGeoJson(lines) ?: run {
             s.addSource(GeoJsonSource(TRACKS_SOURCE, lines))
             s.addLayer(
@@ -118,10 +176,30 @@ fun TrackMap(
             s.addSource(GeoJsonSource(WAYPOINTS_SOURCE, pins))
             s.addLayer(
                 CircleLayer(WAYPOINTS_LAYER, WAYPOINTS_SOURCE).withProperties(
-                    circleColor(toColor(get("color"))), circleRadius(8f),
-                    circleStrokeColor("#FFFFFF"), circleStrokeWidth(2.5f),
-                )
+                    circleColor(toColor(get("color"))), circleRadius(6f),
+                    circleStrokeColor("#FFFFFF"), circleStrokeWidth(2f),
+                ).apply { minZoom = 6f }
             )
+        }
+    }
+
+    LaunchedEffect(style) {
+        val s = style ?: return@LaunchedEffect
+        // Layers are installed by the data effect above.
+        if (s.getSource(WAYPOINTS_SOURCE) != null && s.getLayer("recorded-waypoint-icons") == null) {
+            s.addLayer(org.maplibre.android.style.layers.SymbolLayer("recorded-waypoint-icons", WAYPOINTS_SOURCE).withProperties(
+                org.maplibre.android.style.layers.PropertyFactory.iconImage(get("icon")),
+                org.maplibre.android.style.layers.PropertyFactory.iconSize(0.5f),
+                org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap(true),
+            ).apply { minZoom = 6f })
+            s.addLayer(org.maplibre.android.style.layers.SymbolLayer("recorded-waypoint-labels", WAYPOINTS_SOURCE).withProperties(
+                org.maplibre.android.style.layers.PropertyFactory.textField(get("label")),
+                org.maplibre.android.style.layers.PropertyFactory.textSize(12f),
+                org.maplibre.android.style.layers.PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+                org.maplibre.android.style.layers.PropertyFactory.textOffset(arrayOf(0f, 1.6f)),
+                org.maplibre.android.style.layers.PropertyFactory.textHaloColor("#FFFFFF"),
+                org.maplibre.android.style.layers.PropertyFactory.textHaloWidth(1.5f),
+            ).apply { minZoom = 6f })
         }
     }
 

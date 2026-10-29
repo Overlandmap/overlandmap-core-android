@@ -154,6 +154,21 @@ class UserPreferences(private val context: Context) {
     }
 
     /** The route of the screen last shown, restored after the app is killed. */
+    /** Website and folder last viewed in the imported-track library, saved together. */
+    fun importLocationNow(): Pair<String?, String?> = runBlocking {
+        val values = context.dataStore.data.first()
+        values[stringPreferencesKey("import_website_id")] to values[stringPreferencesKey("import_folder_id")]
+    }
+
+    suspend fun setImportLocation(websiteId: String?, folderId: String?) {
+        context.dataStore.edit { values ->
+            val websiteKey = stringPreferencesKey("import_website_id")
+            val folderKey = stringPreferencesKey("import_folder_id")
+            if (websiteId == null) values.remove(websiteKey) else values[websiteKey] = websiteId
+            if (folderId == null) values.remove(folderKey) else values[folderKey] = folderId
+        }
+    }
+
     fun lastRouteNow(): String? = runBlocking { context.dataStore.data.first()[lastRouteKey] }
 
     suspend fun setLastRoute(route: String) {

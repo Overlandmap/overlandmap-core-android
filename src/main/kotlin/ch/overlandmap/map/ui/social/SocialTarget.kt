@@ -13,6 +13,7 @@ data class SocialTarget(
     val itineraryId: String,
     /** `itinerary/<id>/steps` for a step, `waypoint` for a pack waypoint. */
     val collection: String,
+    val geohash: String? = null,
 )
 
 fun ItineraryStep.socialTarget() = SocialTarget(

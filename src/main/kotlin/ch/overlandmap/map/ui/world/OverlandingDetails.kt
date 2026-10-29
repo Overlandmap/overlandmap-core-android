@@ -52,7 +52,6 @@ import ch.overlandmap.map.model.CountryInsurance
 import ch.overlandmap.map.model.CountryVisa
 import ch.overlandmap.map.model.TravelAdvisoryLinks
 import ch.overlandmap.map.model.Zone
-import ch.overlandmap.map.ui.markup.EntityKind
 import ch.overlandmap.map.ui.markup.Markup
 import ch.overlandmap.map.ui.markup.MarkupLink
 import ch.overlandmap.map.ui.markup.MarkupText
@@ -72,25 +71,13 @@ private val BoxText = Color(0xFF1B1B1B)
 /** Shows an Overlanding object in the Overlanding tab; provided by the navigation. */
 val LocalOpenOverlanding = androidx.compose.runtime.staticCompositionLocalOf<(OverlandingSelection) -> Unit> { {} }
 
-/** Opens web links of the prose in the browser and Overlanding links in the shared map. */
+/** Uses the shared object previews for links in Overlanding prose. */
 @Composable
 fun rememberOverlandLinkHandler(): (MarkupLink, String) -> Unit {
-    val context = LocalContext.current
-    val app = context.applicationContext as OverlandApp
-    return remember {
-        { link, _ ->
-            when (link) {
-                is MarkupLink.Url -> openUrl(context, link.url)
-                is MarkupLink.EntityRef -> app.overlandingLink.value = when (link.kind) {
-                    EntityKind.COUNTRY -> OverlandingSelection.OfCountry(link.id)
-                    EntityKind.BORDER -> OverlandingSelection.OfBorder(link.id)
-                    EntityKind.BORDER_POST -> OverlandingSelection.OfBorderPost(link.id)
-                    EntityKind.ZONE -> OverlandingSelection.OfZone(link.id)
-                }
-                else -> Unit // pack-bound links have no meaning here
-            }
-        }
-    }
+    return ch.overlandmap.map.ui.markup.rememberMarkupLinkHandler(
+        trackPackId = "", sourceItineraryId = null,
+        onOpenItinerary = { _, _ -> }, onOpenSidebar = {},
+    )
 }
 
 internal fun openUrl(context: android.content.Context, url: String) {

@@ -34,6 +34,11 @@ data class RecordedWaypoint(
     val elevation: Double? = null,
     val timestampMs: Long,
     val label: String = "",
+    val description: String = "",
+    val symbol: String = "",
+    val downloadWebsiteId: String? = null,
+    val trackFolderId: String? = null,
+    val geohash: String? = null,
 ) {
     val coordinate: Coordinate get() = Coordinate(latitude, longitude)
 }
@@ -49,6 +54,10 @@ data class RecordedTrack(
     val colorHex: String = DEFAULT_COLOR,
     val waypoints: List<RecordedWaypoint> = emptyList(),
     val isImported: Boolean = false,
+    val description: String = "",
+    val downloadWebsiteId: String? = null,
+    val trackFolderId: String? = null,
+    val geohash: String? = null,
 ) {
     /** Total length in kilometres. */
     val lengthKm: Double
@@ -74,7 +83,10 @@ data class RecordedTrack(
     val coordinates: List<Coordinate> get() = points.map { it.coordinate }
 
     /** The box enclosing the track and its waypoints. */
-    val bounds: GeoBounds? get() = GeoBounds.containing(coordinates + waypoints.map { it.coordinate })
+    val bounds: GeoBounds? by lazy { GeoBounds.containing(coordinates + waypoints.map { it.coordinate }) }
+
+    /** Geometry-only extent, so a distant folder waypoint never changes track zoom or centre. */
+    val trackBounds: GeoBounds? by lazy { GeoBounds.containing(coordinates) }
 
     /**
      * Points thinned so consecutive ones are at least [minDistanceMeters] apart; the first and last
@@ -123,9 +135,10 @@ data class RecordedTrack(
                 w.elevation?.let { append("    <ele>$it</ele>\n") }
                 append("    <time>${iso(w.timestampMs)}</time>\n")
                 append("    <name>${w.label.xmlEscaped()}</name>\n")
+                append("    <desc>${w.description.xmlEscaped()}</desc>\n    <sym>${w.symbol.xmlEscaped()}</sym>\n")
                 append("  </wpt>\n")
             }
-            append("  <trk>\n    <name>$title</name>\n    <trkseg>\n")
+            append("  <trk>\n    <name>$title</name>\n    <desc>${description.xmlEscaped()}</desc>\n    <trkseg>\n")
             for (p in points) {
                 append("        <trkpt lat=\"${p.latitude}\" lon=\"${p.longitude}\">\n")
                 p.elevation?.let { append("          <ele>$it</ele>\n") }
@@ -155,7 +168,11 @@ data class RecordedTrack(
             JSONObject().put("id", w.id).put("latitude", w.latitude).put("longitude", w.longitude)
                 .also { o -> w.elevation?.let { o.put("elevation", it) } }
                 .put("timestamp", iso(w.timestampMs)).put("label", w.label)
+                .put("description", w.description).put("symbol", w.symbol)
+                .put("downloadWebsiteId", w.downloadWebsiteId).put("trackFolderId", w.trackFolderId).put("geohash", w.geohash)
         }))
+        .put("description", description)
+        .put("downloadWebsiteId", downloadWebsiteId).put("trackFolderId", trackFolderId).put("geohash", geohash)
         .put("isImported", isImported)
         .toString()
 
@@ -195,10 +212,18 @@ data class RecordedTrack(
                         RecordedWaypoint(
                             w.getString("id"), w.getDouble("latitude"), w.getDouble("longitude"), w.dbl("elevation"),
                             parseIso(w.optString("timestamp")) ?: return@mapNotNull null, w.optString("label", ""),
+                            w.optString("description", ""), w.optString("symbol", ""),
+                            w.optString("downloadWebsiteId").takeIf { it.isNotEmpty() && it != "null" },
+                            w.optString("trackFolderId").takeIf { it.isNotEmpty() && it != "null" },
+                            w.optString("geohash").takeIf { it.isNotEmpty() && it != "null" },
                         )
                     }
                 }.orEmpty(),
                 isImported = o.optBoolean("isImported", false),
+                description = o.optString("description", ""),
+                downloadWebsiteId = o.optString("downloadWebsiteId").takeIf { it.isNotEmpty() && it != "null" },
+                trackFolderId = o.optString("trackFolderId").takeIf { it.isNotEmpty() && it != "null" },
+                geohash = o.optString("geohash").takeIf { it.isNotEmpty() && it != "null" },
             )
         }.getOrNull()
     }
@@ -206,3 +231,14 @@ data class RecordedTrack(
 
 internal fun String.xmlEscaped(): String =
     replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
+
+/** Derive persisted spatial metadata from geometry, including legacy imports. */
+internal fun RecordedTrack.withImportGeohashes(): RecordedTrack {
+    if (!isImported) return this
+    val hash = trackBounds?.centre?.let { ch.overlandmap.map.geo.Geohash.encode(it.latitude, it.longitude) }
+    val pins = waypoints.map { waypoint ->
+        val pinHash = ch.overlandmap.map.geo.Geohash.encode(waypoint.latitude, waypoint.longitude)
+        if (waypoint.geohash == pinHash) waypoint else waypoint.copy(geohash = pinHash)
+    }
+    return if (hash == geohash && pins == waypoints) this else copy(geohash = hash, waypoints = pins)
+}

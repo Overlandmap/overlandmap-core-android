@@ -172,6 +172,37 @@ class NavigationTest {
     ) = c.startNavigation("i1", "Trip", steps, track, reverse, index, initial, "en", token)
 
     @Test
+    fun importedTrackCanForceRoadDirectionsToItsStartInsteadOfNearestStep() {
+        val h = Harness()
+        var destination: Coordinate? = null
+        h.routing = DirectionsRouting { _, target, _, _ ->
+            destination = target
+            RoadRoute(10000.0, 1000.0, emptyList(), emptyList())
+        }
+        val c = coordinator(h)
+        c.startNavigation("recording:test", "Track", listOf(steps.first(), steps.last()), track,
+            reverse = false, mapboxToken = "token", preferredStartIndex = 0)
+        c.processLocation(fix(0.1, 0.025))
+        assertEquals(steps.first().coordinate(), destination)
+        assertEquals(NavigationMode.ROAD_TO_START, c.state.value.mode)
+    }
+
+    @Test
+    fun directTrackNavigationTargetsTheEndWithoutRequestingRoadDirections() {
+        val h = Harness()
+        var calls = 0
+        h.routing = DirectionsRouting { _, _, _, _ -> calls++; error("Unexpected road route") }
+        val c = coordinator(h)
+        c.startNavigation("recording:test", "Track", listOf(steps.first(), steps.last()), track,
+            reverse = false, initialTargetIndex = 1, mapboxToken = "")
+        c.processLocation(fix(0.001, 0.015))
+        assertEquals(0, calls)
+        assertEquals(1, c.state.value.currentTargetIndex)
+        assertEquals(NavigationMode.ITINERARY, c.state.value.mode)
+        assertNotNull(c.state.value.referenceTrackPoint)
+    }
+
+    @Test
     fun startingWithoutAFixWaitsForTheFirstOne() {
         val h = Harness()
         val c = coordinator(h)

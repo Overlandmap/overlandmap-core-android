@@ -32,6 +32,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -68,7 +70,8 @@ fun VerticalSplit(
 
     // Load the persisted fraction (or use the default).
     val persistedFraction = remember(splitKey) {
-        splitKey?.let { app.userPreferences.splitFractionNow(it) } ?: initialTopFraction
+        (splitKey?.let { app.userPreferences.splitFractionNow(it) } ?: initialTopFraction)
+            .let { if (it.isFinite()) it.coerceIn(MIN_FRACTION, MAX_FRACTION) else 0.45f }
     }
 
     var fraction by rememberSaveable { mutableFloatStateOf(persistedFraction) }
@@ -79,22 +82,28 @@ fun VerticalSplit(
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // Saved instance state can also contain an old or invalid fraction.
+    val visibleFraction = if (fraction.isFinite()) {
+        fraction.coerceIn(MAXIMIZED_BOTTOM, MAXIMIZED_TOP)
+    } else persistedFraction
+
     // Persist fraction changes.
     LaunchedEffect(fraction) {
         if (!maximized && splitKey != null) {
-            app.userPreferences.setSplitFraction(splitKey, fraction)
+            app.userPreferences.setSplitFraction(splitKey, visibleFraction.coerceIn(MIN_FRACTION, MAX_FRACTION))
         }
     }
 
     fun onDrag(deltaPx: Float, totalPx: Float) {
+        if (totalPx <= 0f) return
         maximized = false
-        fraction = (fraction + deltaPx / totalPx).coerceIn(MIN_FRACTION, MAX_FRACTION)
+        fraction = (visibleFraction + deltaPx / totalPx).coerceIn(MIN_FRACTION, MAX_FRACTION)
     }
 
     fun onTap() {
         if (maximized) {
             // Restore
-            fraction = savedFraction
+            fraction = if (savedFraction.isFinite()) savedFraction.coerceIn(MIN_FRACTION, MAX_FRACTION) else persistedFraction
             maximized = false
             splitKey?.let { key -> scope.launch { app.userPreferences.setSplitFraction(key, fraction) } }
         } else {
@@ -122,24 +131,24 @@ fun VerticalSplit(
         } else if (landscape) {
             val totalWidthPx = constraints.maxWidth.toFloat()
             Row(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxHeight().weight(fraction)) { topPane() }
+                Box(modifier = Modifier.fillMaxHeight().weight(visibleFraction).clipToBounds()) { topPane() }
                 SplitHandle(
                     orientation = Orientation.Horizontal,
                     onDrag = { deltaPx -> onDrag(deltaPx, totalWidthPx) },
                     onTap = ::onTap,
                 )
-                Box(modifier = Modifier.fillMaxHeight().weight(1f - fraction)) { bottomPane() }
+                Box(modifier = Modifier.fillMaxHeight().weight(1f - visibleFraction).clipToBounds()) { bottomPane() }
             }
         } else {
             val totalHeightPx = constraints.maxHeight.toFloat()
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(fraction)) { topPane() }
+                Box(modifier = Modifier.fillMaxWidth().weight(visibleFraction).clipToBounds()) { topPane() }
                 SplitHandle(
                     orientation = Orientation.Vertical,
                     onDrag = { deltaPx -> onDrag(deltaPx, totalHeightPx) },
                     onTap = ::onTap,
                 )
-                Box(modifier = Modifier.fillMaxWidth().weight(1f - fraction)) { bottomPane() }
+                Box(modifier = Modifier.fillMaxWidth().weight(1f - visibleFraction).clipToBounds()) { bottomPane() }
             }
         }
     }
@@ -155,9 +164,10 @@ private fun SplitHandle(orientation: Orientation, onDrag: (Float) -> Unit, onTap
     val vertical = orientation == Orientation.Vertical
     Box(
         modifier = Modifier
+            .zIndex(1f)
             .then(
-                if (vertical) Modifier.fillMaxWidth().height(32.dp)
-                else Modifier.fillMaxHeight().width(32.dp)
+                if (vertical) Modifier.fillMaxWidth().height(48.dp)
+                else Modifier.fillMaxHeight().width(48.dp)
             )
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(

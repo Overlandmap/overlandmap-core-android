@@ -268,6 +268,70 @@ class TrackingTest {
     }
 
     @Test
+    fun importedChangesNotifyIndexesBeforeReturningAndPersistGeohashes() {
+        val rec = recorder(FakeLocation())
+        val snapshots = mutableListOf<List<RecordedTrack>>()
+        rec.onImportedContentChanged = { snapshots += it }
+        val track = RecordedTrack(fileName = "import.json", name = "Alpine trail", startDateMs = t0, endDateMs = t0,
+            points = listOf(pt(45.0, 6.0), pt(46.0, 8.0)), isImported = true, trackFolderId = "folder",
+            waypoints = listOf(RecordedWaypoint(latitude = 50.0, longitude = 10.0, timestampMs = t0, label = "Camp")))
+        rec.addImported(listOf(track))
+        val imported = snapshots.single().single()
+        // Track centre uses only the line, while folder extents also include its waypoints.
+        assertEquals(ch.overlandmap.map.geo.Geohash.encode(45.5, 7.0), imported.geohash)
+        assertEquals(ch.overlandmap.map.geo.Geohash.encode(50.0, 10.0), imported.waypoints.single().geohash)
+        assertEquals(50.0, imported.bounds!!.latMax, 0.0)
+        assertEquals(imported.geohash, recorder(FakeLocation()).track(track.id)!!.geohash)
+        rec.rename(track.id, "New trail")
+        assertEquals("New trail", snapshots.last().single().name)
+        rec.delete(track.id)
+        assertTrue(snapshots.last().isEmpty())
+    }
+
+    @Test
+    fun loadingLegacyImportsBackfillsAndStoresSpatialMetadata() {
+        val store = TrackStore(File(tmp.root, "rec"))
+        val legacy = RecordedTrack(fileName = "legacy.json", startDateMs = t0, endDateMs = t0, isImported = true,
+            points = listOf(pt(1.0, 2.0), pt(3.0, 4.0)),
+            waypoints = listOf(RecordedWaypoint(latitude = 5.0, longitude = 6.0, timestampMs = t0)))
+        store.save(legacy)
+        val loaded = recorder(FakeLocation()).track(legacy.id)!!
+        assertEquals(ch.overlandmap.map.geo.Geohash.encode(2.0, 3.0), loaded.geohash)
+        assertEquals(ch.overlandmap.map.geo.Geohash.encode(5.0, 6.0), loaded.waypoints.single().geohash)
+        assertEquals(loaded, store.loadAll().single())
+    }
+
+    @Test
+    fun deletingAnImportedWaypointFindsItsOwnerAndPersistsTheRemainingContent() {
+        val rec = recorder(FakeLocation())
+        val a = RecordedWaypoint(latitude = 45.0, longitude = 6.0, timestampMs = t0, label = "Keep")
+        val b = RecordedWaypoint(latitude = 50.0, longitude = 10.0, timestampMs = t0, label = "Delete")
+        val imported = RecordedTrack(fileName = "waypoints.json", startDateMs = t0, endDateMs = t0,
+            isImported = true, trackFolderId = "folder", points = listOf(pt(44.0, 5.0)), waypoints = listOf(a, b))
+        rec.addImported(listOf(imported))
+        var updated: List<RecordedTrack>? = null
+        rec.onImportedContentChanged = { updated = it }
+        rec.deleteImportedWaypoint(b.id)
+        val remaining = rec.track(imported.id)!!
+        assertEquals(listOf(a.id), remaining.waypoints.map { it.id })
+        assertEquals(imported.points, remaining.points)
+        assertEquals("folder", remaining.trackFolderId)
+        assertEquals(45.0, remaining.bounds!!.latMax, 0.0)
+        assertEquals(remaining, updated!!.single())
+        assertEquals(remaining, recorder(FakeLocation()).track(imported.id))
+    }
+
+    @Test
+    fun waypointDeletionDoesNotChangeRecordedTracks() {
+        val rec = recorder(FakeLocation())
+        rec.startRecording()
+        rec.addWaypoint("Recorded waypoint", ch.overlandmap.map.geo.Coordinate(45.0, 6.0))
+        val track = rec.currentTrack!!
+        rec.deleteImportedWaypoint(track.waypoints.single().id)
+        assertEquals(track, rec.currentTrack)
+    }
+
+    @Test
     fun importingGpxAddsADisplayedImportedTrack() {
         val rec = recorder(FakeLocation())
         val track = rec.importGpx(gpx.toByteArray())

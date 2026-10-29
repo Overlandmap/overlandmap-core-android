@@ -22,7 +22,13 @@ suspend fun OverlandApp.beginNavigation(
     reverse: Boolean,
     language: String,
     initialTargetIndex: Int? = null,
+    startChoice: NavigationStartChoice? = null,
+    initialLocation: ch.overlandmap.map.tracking.LocationFix? = null,
 ): Boolean {
+    if (itineraryId.startsWith("recording:")) {
+        val track = trackRecorder.track(itineraryId.removePrefix("recording:")) ?: return false
+        return beginTrackNavigation(track, reverse, initialTargetIndex != null, language, initialTargetIndex, startChoice, initialLocation)
+    }
     Log.d(TAG, "beginNavigation: itinerary=$itineraryId reverse=$reverse initialTarget=$initialTargetIndex")
     val itinerary = libraryRepository.itinerary(itineraryId) ?: run {
         Log.d(TAG, "beginNavigation: itinerary not found")
@@ -50,9 +56,28 @@ suspend fun OverlandApp.beginNavigation(
         trackCoordinates = trackCoordinates,
         reverse = reverse,
         initialTargetIndex = initialTargetIndex,
+        startChoice = startChoice,
+        initialLocation = initialLocation,
         language = language,
         mapboxToken = token,
     )
     Log.d(TAG, "beginNavigation: started, navigating=${navigationCoordinator.isNavigating}")
+    return true
+}
+
+/** Two implicit steps let imported and recorded tracks use the same road-to-start and track HUD. */
+suspend fun OverlandApp.beginTrackNavigation(track: ch.overlandmap.map.tracking.RecordedTrack, reverse: Boolean, direct: Boolean, language: String, resumeTarget: Int? = null, startChoice: NavigationStartChoice? = null, initialLocation: ch.overlandmap.map.tracking.LocationFix? = null): Boolean {
+    if (track.points.size < 2) return false
+    val coords = track.coordinates
+    val start = coords.first(); val end = coords.last()
+    val id = "recording:${track.id}"
+    val steps = listOf(
+        ch.overlandmap.map.model.ItineraryStep("$id:start", id, "", 1, getString(ch.overlandmap.map.R.string.track_start), lat = start.latitude, lon = start.longitude),
+        ch.overlandmap.map.model.ItineraryStep("$id:end", id, "", 2, getString(ch.overlandmap.map.R.string.track_end), lat = end.latitude, lon = end.longitude, distanceKm = track.lengthKm),
+    )
+    val token = mapboxTokenManager.cachedTokenNow() ?: withTimeoutOrNull(TOKEN_TIMEOUT_MS) { runCatching { mapboxTokenManager.validToken() }.getOrNull() }.orEmpty()
+    navigationCoordinator.startNavigation(id, track.displayName, steps, coords, reverse,
+        initialTargetIndex = resumeTarget ?: if (direct) { if (reverse) 0 else 1 } else null, language = language, mapboxToken = if (direct) "" else token,
+        preferredStartIndex = if (reverse) 1 else 0, startChoice = startChoice, initialLocation = initialLocation)
     return true
 }

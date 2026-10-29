@@ -36,6 +36,35 @@ interface SocialDao {
     @Query("DELETE FROM sync_state WHERE trackPackId = :trackPackId")
     suspend fun deleteSyncStates(trackPackId: String): Unit
 
+    @Query("SELECT * FROM check_in WHERE objectId IS NULL OR objectId = '' ORDER BY createdAt DESC")
+    fun _observeGeographicCheckIns(): Flow<List<CheckInRow>>
+    fun observeCheckInsForGeohash(geohash: String): Flow<List<CheckIn>> =
+        _observeGeographicCheckIns().map { rows -> rows.mapNotNull { it.toModel() }.filter { it.geohash == geohash } }
+
+    @Query("SELECT * FROM check_in WHERE objectId IS NULL OR objectId = ''")
+    suspend fun _geographicCheckIns(): List<CheckInRow>
+
+    @Transaction
+    suspend fun replaceCheckInsForGeohash(geohash: String, checkIns: List<CheckIn>) {
+        _geographicCheckIns().mapNotNull { it.toModel() }.filter { it.geohash == geohash }
+            .forEach { deleteCheckIn(it.documentId) }
+        insertCheckIns(checkIns)
+    }
+
+    @Query("SELECT * FROM discussion WHERE geohash = :geohash ORDER BY createdAt DESC")
+    fun _observeDiscussionsForGeohash(geohash: String): Flow<List<DiscussionRow>>
+    fun observeDiscussionsForGeohash(geohash: String): Flow<List<Discussion>> =
+        _observeDiscussionsForGeohash(geohash).map { rows -> rows.map { it.toModel() } }
+
+    @Query("DELETE FROM discussion WHERE geohash = :geohash")
+    suspend fun deleteDiscussionsForGeohash(geohash: String)
+
+    @Transaction
+    suspend fun replaceDiscussionsForGeohash(geohash: String, discussions: List<Discussion>) {
+        deleteDiscussionsForGeohash(geohash)
+        insertDiscussions(discussions)
+    }
+
     // ── Check-ins ───────────────────────────────────────────────────────────
 
     @Query("SELECT * FROM check_in WHERE trackPackId = :trackPackId ORDER BY createdAt DESC")
@@ -53,6 +82,15 @@ interface SocialDao {
     suspend fun _checkInsForObject(objectId: String): List<CheckInRow>
     suspend fun checkInsForObject(objectId: String): List<CheckIn> =
         _checkInsForObject(objectId).mapNotNull { it.toModel() }
+
+    @Query(
+        "SELECT * FROM check_in WHERE objectId = :objectId AND reason IN " +
+            "('doesNotExist','closed','repaired','wrongDescription','wrongLocation') " +
+            "ORDER BY createdAt DESC"
+    )
+    fun _observeCorrectionsForObject(objectId: String): Flow<List<CheckInRow>>
+    fun observeCorrectionsForObject(objectId: String): Flow<List<CheckIn>> =
+        _observeCorrectionsForObject(objectId).map { rows -> rows.mapNotNull { it.toModel() } }
 
     /** The newest correction (a check-in with a problem reason) of an object, live. */
     @Query(

@@ -13,7 +13,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -86,17 +92,23 @@ private fun reasonLabel(reason: CheckInReason): Int = when (reason) {
 fun CorrectionButton(target: SocialTarget) {
     val app = LocalContext.current.applicationContext as OverlandApp
     val gate = rememberAuthGate()
-    val correction by app.socialRepository.observeActiveCorrection(target.objectId).collectAsState(initial = null)
+    val corrections by (target.geohash?.let { app.socialRepository.observeCorrectionsForGeohash(it) }
+        ?: app.socialRepository.observeCorrectionsForObject(target.objectId)).collectAsState(initial = emptyList())
+    val correction = corrections.firstOrNull()
     var showSheet by remember { mutableStateOf(false) }
 
     IconButton(onClick = {
         if (correction == null) gate.require(R.string.sign_in_to_discuss) { showSheet = true } else showSheet = true
     }) {
-        Icon(
-            if (correction == null) Icons.Outlined.ErrorOutline else Icons.Filled.ErrorOutline,
-            contentDescription = stringResource(R.string.corrections),
-            tint = CorrectionRed,
-        )
+        if (corrections.isEmpty()) {
+            Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.corrections), tint = CorrectionRed)
+        } else {
+            BadgedBox(badge = { Badge(containerColor = Color.White, contentColor = CorrectionRed) { Text("${corrections.size}") } }) {
+                Box(Modifier.size(24.dp).background(Color.White, CircleShape)) {
+                    Icon(Icons.Filled.Error, stringResource(R.string.corrections), tint = CorrectionRed, modifier = Modifier.size(24.dp))
+                }
+            }
+        }
     }
 
     if (showSheet) CorrectionSheet(target, correction, onDismiss = { showSheet = false })
@@ -160,6 +172,7 @@ private fun CorrectionSheet(target: SocialTarget, existing: CheckIn?, onDismiss:
                         itinDocumentId = target.itineraryId,
                         collection = target.collection,
                         objectId = target.objectId,
+                        geohash = target.geohash,
                         reason = chosen,
                         content = content.trim(),
                         location = position,

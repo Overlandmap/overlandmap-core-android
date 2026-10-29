@@ -74,11 +74,12 @@ object DiscussionRules {
         val location: Coordinate?,
         val isOpen: Int?,
         val nowMs: Long,
+        val geohash: String? = null,
     )
 
     /** The document sent to Firestore (timestamps and a GeoPoint, as iOS writes them). */
     fun firestorePayload(d: NewDiscussion): Map<String, Any> = buildMap {
-        put("objectId", d.objectId)
+        if (d.geohash == null) put("objectId", d.objectId)
         put("collection", d.collection)
         put("userId", d.userId)
         put("userName", d.userName)
@@ -91,15 +92,16 @@ object DiscussionRules {
         if (!d.threadId.isNullOrEmpty()) put("threadId", d.threadId)
         d.location?.let {
             put("location", GeoPoint(it.latitude, it.longitude))
-            put("geohash", Geohash.encode(it.latitude, it.longitude))
+            put("geohash", d.geohash ?: Geohash.encode(it.latitude, it.longitude))
         }
+        d.geohash?.let { put("geohash", it) }
         d.isOpen?.let { put("is_open", it) }
     }
 
     /** The cached copy of the document: the same fields in the plain shape the local table stores. */
     fun localCopy(d: NewDiscussion): Discussion {
         val data = buildMap<String, Any?> {
-            put("objectId", d.objectId)
+            if (d.geohash == null) put("objectId", d.objectId)
             put("collection", d.collection)
             put("userId", d.userId)
             put("userName", d.userName)
@@ -111,9 +113,10 @@ object DiscussionRules {
             if (!d.lang.isNullOrEmpty()) put("lang", d.lang)
             if (!d.threadId.isNullOrEmpty()) put("threadId", d.threadId)
             d.location?.let {
-                put("geohash", Geohash.encode(it.latitude, it.longitude))
+                put("geohash", d.geohash ?: Geohash.encode(it.latitude, it.longitude))
                 put("location", mapOf("latitude" to it.latitude, "longitude" to it.longitude))
             }
+            d.geohash?.let { put("geohash", it) }
             d.isOpen?.let { put("is_open", it) }
         }
         return Discussion.fromFirestore(d.id, data)

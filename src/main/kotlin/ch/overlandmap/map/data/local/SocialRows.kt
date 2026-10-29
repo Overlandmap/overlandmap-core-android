@@ -86,7 +86,7 @@ private val CHECK_IN_COLUMNS = arrayOf(
 
 fun CheckIn.toRow() = CheckInRow(
     documentId = documentId,
-    objectId = objectId,
+    objectId = objectId.takeIf { it.isNotEmpty() },
     trackPackId = trackPackId,
     itinDocumentId = itinDocumentId,
     reason = reason.raw,
@@ -95,7 +95,7 @@ fun CheckIn.toRow() = CheckInRow(
     json = Extra.toJson(stored().without(*CHECK_IN_COLUMNS)),
 )
 
-/** Null for a row without an `objectId`, which can't be attached to anything. */
+/** Geohash-linked check-ins retain their association in the JSON fields. */
 fun CheckInRow.toModel(): CheckIn? = CheckIn.fromFirestore(
     documentId,
     Extra.fromJson(json) + columns(

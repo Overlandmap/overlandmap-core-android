@@ -97,6 +97,7 @@ class OverlandApp : Application() {
             onRecordingChanged = { active -> if (active) ch.overlandmap.map.tracking.TrackingService.start(this) },
         )
     }
+    val downloadLibrary by lazy { ch.overlandmap.map.tracking.DownloadLibrary(this, trackRecorder, appScope) }
     val savedNavigationStore by lazy { ch.overlandmap.map.navigation.SavedNavigationStore(userPreferences, appScope) }
     val bluetoothGPS by lazy { ch.overlandmap.map.bluetooth.BluetoothGPS(this) }
     private val navigationLocation by lazy { ch.overlandmap.map.bluetooth.SelectedLocationSource(this) { navigationCoordinator.locationUnavailable() } }
@@ -155,6 +156,7 @@ class OverlandApp : Application() {
      */
     val overlandingLink = MutableStateFlow<ch.overlandmap.map.ui.world.OverlandingSelection?>(null)
     /** A universal link received from outside (a tapped overlandmap.ch URL), consumed by the navigation. */
+    val pendingGpxShare = MutableStateFlow<Pair<String, android.net.Uri>?>(null)
     val pendingLink = MutableStateFlow<ch.overlandmap.map.model.UniversalLink?>(null)
     val universalLinkResolver by lazy {
         ch.overlandmap.map.data.UniversalLinkResolver(
@@ -166,8 +168,15 @@ class OverlandApp : Application() {
     val overlandDataManager by lazy {
         OverlandDataManager(this, appScope, shopRepository, database.worldDao(), ftsIndex)
     }
-    val nearbySearchRepository by lazy { ch.overlandmap.map.data.NearbySearchRepository(database.nearbyDao(), libraryRepository::itinerary) }
-    val searchRepository by lazy { SearchRepository(ftsIndex, libraryRepository) }
+    val nearbySearchRepository by lazy { ch.overlandmap.map.data.NearbySearchRepository(database.nearbyDao(), imported = { prefixes ->
+        downloadLibrary.nearby(prefixes).mapNotNull { point ->
+            val track = trackRecorder.track(point.trackId) ?: return@mapNotNull null
+            val waypoint = if (point.waypoint) track.waypoints.firstOrNull { it.id == point.id } ?: return@mapNotNull null else null
+            ch.overlandmap.map.data.SearchResult(if (waypoint == null) "imported_track" else "imported_waypoint", point.id,
+                waypoint?.label ?: track.displayName, waypoint?.description ?: track.description, importedTrack = track, importedWaypoint = waypoint)
+        }
+    }, loadItinerary = libraryRepository::itinerary) }
+    val searchRepository by lazy { SearchRepository(ftsIndex, libraryRepository) { query -> downloadLibrary.textSearch(query) } }
     val satelliteTileManager by lazy { SatelliteTileManager(this, appScope) }
     val userPreferences by lazy { UserPreferences(this) }
     val mapboxTokenManager by lazy { MapboxTokenManager(userPreferences) }

@@ -35,6 +35,12 @@ import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.tracking.RecordedTrack
 import java.io.File
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import ch.overlandmap.map.navigation.beginTrackNavigation
+import ch.overlandmap.map.ui.currentLanguage
+
+val LocalOpenTrackNavigation = androidx.compose.runtime.staticCompositionLocalOf<() -> Unit> { {} }
 
 /** Writes the track to a GPX file in the cache and shares it through the system sheet (iOS `exportGPX`). */
 fun shareRecordedTrackGpx(context: Context, track: RecordedTrack) {
@@ -100,13 +106,27 @@ fun TrackMenu(
     onDismiss: () -> Unit,
     onShowOnMap: (() -> Unit)? = null,
     onDeleted: () -> Unit = {},
+    onNavigate: ((ch.overlandmap.map.navigation.NavigationStartChoice, ch.overlandmap.map.tracking.LocationFix) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val recorder = (context.applicationContext as OverlandApp).trackRecorder
     var dialog by remember { mutableStateOf<TrackDialog?>(null) }
     val isRecording = recorder.currentTrackId.value == track.id
+    val scope = rememberCoroutineScope()
+    val language = currentLanguage()
+    val openNavigation = LocalOpenTrackNavigation.current
+    val requestNavigation = rememberNavigationStart { choice, fix ->
+        if (onNavigate != null) onNavigate(choice, fix)
+        else scope.launch {
+            if ((context.applicationContext as OverlandApp).beginTrackNavigation(track, choice.reverse, false, language,
+                    startChoice = choice, initialLocation = fix)) openNavigation()
+        }
+    }
 
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        if (track.points.size >= 2) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.navigate)) }, onClick = { onDismiss(); requestNavigation(track.coordinates, track.points.first().coordinate, track.points.last().coordinate) })
+        }
         if (onShowOnMap != null) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.show_on_map)) },

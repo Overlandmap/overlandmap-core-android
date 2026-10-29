@@ -77,11 +77,18 @@ class MarkupRouter(
     /** Overlanding objects live in the world database; a miss means the dataset isn't downloaded. */
     private suspend fun resolveEntity(link: MarkupLink.EntityRef): MarkupDestination {
         val world = world ?: return MarkupDestination.Unavailable
-        val selection = when (link.kind) {
-            EntityKind.COUNTRY -> world.country(link.id)?.let { OverlandingSelection.OfCountry(it.adm0A3 ?: it.documentId) }
-            EntityKind.BORDER -> world.border(link.id)?.let { OverlandingSelection.OfBorder(it.documentId) }
-            EntityKind.BORDER_POST -> world.borderPost(link.id)?.let { OverlandingSelection.OfBorderPost(it.documentId) }
-            EntityKind.ZONE -> world.zone(link.id)?.let { OverlandingSelection.OfZone(it.documentId) }
+        val selection = when {
+            link.kind == null -> world.country(link.id)?.let {
+                OverlandingSelection.OfCountry(it.adm0A3 ?: it.documentId)
+            } ?: world.border(link.id)?.let { OverlandingSelection.OfBorder(it.documentId) }
+                ?: world.borderPost(link.id)?.let { OverlandingSelection.OfBorderPost(it.documentId) }
+                ?: world.zone(link.id)?.let { OverlandingSelection.OfZone(it.documentId) }
+            else -> when (link.kind) {
+                EntityKind.COUNTRY -> world.country(link.id)?.let { OverlandingSelection.OfCountry(it.adm0A3 ?: it.documentId) }
+                EntityKind.BORDER -> world.border(link.id)?.let { OverlandingSelection.OfBorder(it.documentId) }
+                EntityKind.BORDER_POST -> world.borderPost(link.id)?.let { OverlandingSelection.OfBorderPost(it.documentId) }
+                EntityKind.ZONE -> world.zone(link.id)?.let { OverlandingSelection.OfZone(it.documentId) }
+            }
         }
         return when {
             selection != null -> MarkupDestination.OpenOverlanding(selection)

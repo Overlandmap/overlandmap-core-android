@@ -19,6 +19,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.Source
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
@@ -174,6 +175,28 @@ class SocialRepository(
         return user
     }
 
+    fun observeCheckInsForGeohash(geohash: String): Flow<List<CheckIn>> =
+        socialDao.observeCheckInsForGeohash(geohash).map { list -> list.filter { it.reason == CheckInReason.CHECK } }
+
+    fun observeCorrectionsForGeohash(geohash: String): Flow<List<CheckIn>> =
+        socialDao.observeCheckInsForGeohash(geohash).map { list -> list.filter { it.reason.indicatesProblem } }
+
+    fun observeCorrectionsForObject(objectId: String): Flow<List<CheckIn>> =
+        socialDao.observeCorrectionsForObject(objectId)
+
+    fun observeActiveCorrectionForGeohash(geohash: String): Flow<CheckIn?> =
+        socialDao.observeCheckInsForGeohash(geohash).map { list -> list.firstOrNull { it.reason.indicatesProblem } }
+
+    suspend fun refreshCheckInsForGeohash(geohash: String) {
+        try {
+            auth.awaitUser()
+            val remote = db.collection(CHECK_IN).whereEqualTo("geohash", geohash).get().await()
+                .documents.mapNotNull { CheckIn.fromFirestore(it.id, it.data ?: emptyMap()) }
+            socialDao.replaceCheckInsForGeohash(geohash, remote)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { Log.w("SocialRepository", "Fetching waypoint check-ins failed", e) }
+    }
+
     fun observeCheckInsForObject(objectId: String): Flow<List<CheckIn>> =
         socialDao.observeCheckInsForObject(objectId)
 
@@ -195,9 +218,10 @@ class SocialRepository(
         collection: String,
         objectId: String,
         content: String?,
+        geohash: String? = null,
     ): String = postCheckIn(
         trackPackId, itinDocumentId, collection, objectId, CheckInReason.CHECK,
-        content?.takeIf { it.isNotBlank() }, null,
+        content?.takeIf { it.isNotBlank() }, null, geohash,
     ).documentId
 
     /**
@@ -212,9 +236,10 @@ class SocialRepository(
         reason: CheckInReason,
         content: String,
         location: Coordinate?,
+        geohash: String? = null,
     ): CheckIn = postCheckIn(
         trackPackId, itinDocumentId, collection, objectId, reason, content,
-        location.takeIf { reason == CheckInReason.WRONG_LOCATION },
+        location.takeIf { reason == CheckInReason.WRONG_LOCATION }, geohash,
     )
 
     private suspend fun postCheckIn(
@@ -225,16 +250,18 @@ class SocialRepository(
         reason: CheckInReason,
         content: String?,
         location: Coordinate?,
+        geohash: String?,
     ): CheckIn {
         val user = requireUser()
         val documentId = UUID.randomUUID().toString()
         val now = Timestamp.now()
         val name = userName()
         val data = buildMap<String, Any?> {
-            put("objectId", objectId)
+            if (geohash == null) put("objectId", objectId)
+            geohash?.let { put("geohash", it) }
             put("collection", collection)
-            put("trackPackId", trackPackId)
-            put("itinDocumentId", itinDocumentId)
+            if (geohash == null) put("trackPackId", trackPackId)
+            if (geohash == null) put("itinDocumentId", itinDocumentId)
             put("userId", user.uid)
             put("userName", name)
             put("createdAt", mapOf("_seconds" to now.seconds, "_nanoseconds" to now.nanoseconds))
@@ -246,13 +273,14 @@ class SocialRepository(
         db.collection(CHECK_IN).document(documentId).set(data).await()
         val checkIn = CheckIn(
             documentId = documentId,
-            objectId = objectId,
-            trackPackId = trackPackId,
-            itinDocumentId = itinDocumentId,
+            objectId = if (geohash == null) objectId else "",
+            trackPackId = trackPackId.takeIf { geohash == null },
+            itinDocumentId = itinDocumentId.takeIf { geohash == null },
             reason = reason,
             createdAt = now.toDate().time,
             userId = user.uid,
             extra = buildMap {
+                geohash?.let { put("geohash", it) }
                 put("userName", name)
                 put("collection", collection)
                 if (!content.isNullOrBlank()) put("content", content)

@@ -18,6 +18,8 @@ data class SearchResult(
     val itinerarySlug: String? = null,
     val distanceKm: Double? = null,
     val contributedWaypoint: ch.overlandmap.map.model.ContributedWaypoint? = null,
+    val importedTrack: ch.overlandmap.map.tracking.RecordedTrack? = null,
+    val importedWaypoint: ch.overlandmap.map.tracking.RecordedWaypoint? = null,
     val markerType: ch.overlandmap.map.model.WaypointType? = null,
 )
 
@@ -25,6 +27,7 @@ data class SearchResult(
 class SearchRepository(
     private val fts: FtsIndex,
     private val library: LibraryRepository,
+    private val importedSearch: suspend (String) -> List<SearchResult> = { emptyList() },
 ) {
 
     /** Minimum query length before a search runs (per the spec: after 3 chars). */
@@ -64,9 +67,10 @@ class SearchRepository(
                 else -> SearchResult(hit.type, hit.documentId, hit.name, hit.snippet)
             }
         }
-        val unique = uniqueResults(results)
-        if (unique.size != results.size) ch.overlandmap.map.diagnostics.CrashReports.note(
-            "Search duplicate results removed: ${results.size - unique.size}",
+        val allResults = results + kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { importedSearch(trimmed) }
+        val unique = uniqueResults(allResults)
+        if (unique.size != allResults.size) ch.overlandmap.map.diagnostics.CrashReports.note(
+            "Search duplicate results removed: ${allResults.size - unique.size}",
         )
         return rank(unique, trimmed)
     }

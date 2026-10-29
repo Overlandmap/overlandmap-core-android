@@ -449,7 +449,7 @@ fun NavigationScreen(onStopped: () -> Unit) {
         }
     }
 
-    val targetCoordinate: Coordinate? = state.currentTargetStep?.coordinate() ?: state.currentRoadStep?.maneuver?.location
+    val targetCoordinate: Coordinate? = state.roadEntryPoint ?: state.currentTargetStep?.coordinate() ?: state.currentRoadStep?.maneuver?.location
 
     // ── Layout ──────────────────────────────────────────────────────────────
 

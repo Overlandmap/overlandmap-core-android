@@ -240,7 +240,11 @@ fun ItineraryScreen(
     val context = LocalContext.current
     val app = context.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
-    val withLocationPermission = ch.overlandmap.map.ui.tracking.rememberWithNavigationLocation()
+    val requestNavigation = ch.overlandmap.map.ui.tracking.rememberNavigationStart { choice, fix ->
+        scope.launch {
+            if (app.beginNavigation(itineraryId, choice.reverse, lang, startChoice = choice, initialLocation = fix)) onOpenNavigation()
+        }
+    }
     var restoreCam by remember {
         mutableStateOf(restore?.takeIf { it.zoom != null && it.lat != null && it.lon != null })
     }
@@ -324,13 +328,13 @@ fun ItineraryScreen(
         ItineraryMenu(
             satelliteSelected = satelliteSelected,
             onSearch = onOpenSearch,
-            onNavigate = { reverse ->
-                withLocationPermission {
-                    scope.launch {
-                        val started = app.beginNavigation(itineraryId, reverse, lang)
-                        if (started) onOpenNavigation()
-                    }
+            onNavigate = {
+                val steps = state.steps.sortedBy { it.stepId }
+                val points = steps.mapNotNull { step ->
+                    if (step.lat != null && step.lon != null) ch.overlandmap.map.geo.Coordinate(step.lat, step.lon) else null
                 }
+                val track = state.tracks.flatMap { it.coordinates().map { point -> ch.overlandmap.map.geo.Coordinate(point.lat, point.lon) } }
+                if (points.isNotEmpty()) requestNavigation(track.ifEmpty { points }, points.first(), points.last())
             },
             onShowOnMap = {
                 mapView?.mapboxMap?.let { m ->
@@ -903,7 +907,7 @@ private fun BulletedMarkup(
 private fun ItineraryMenu(
     satelliteSelected: Boolean,
     onSearch: () -> Unit,
-    onNavigate: (reverse: Boolean) -> Unit,
+    onNavigate: () -> Unit,
     onShowOnMap: () -> Unit,
     onFullScreen: () -> Unit,
     onShareLink: () -> Unit,
@@ -930,11 +934,7 @@ private fun ItineraryMenu(
         )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.navigate)) },
-            onClick = { open = false; onNavigate(false) },
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.navigation_reverse)) },
-            onClick = { open = false; onNavigate(true) },
+            onClick = { open = false; onNavigate() },
         )
         DropdownMenuItem(
             text = { Text(stringResource(R.string.full_screen_map)) },

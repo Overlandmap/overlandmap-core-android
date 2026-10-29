@@ -32,6 +32,12 @@ private fun Track.points(): List<TrackSample> = coordinates().map { TrackSample(
 
 /** The itinerary, its tracks and its steps from the database; null when the itinerary is no longer there. */
 suspend fun OverlandApp.loadNavigationContent(itineraryId: String): NavigationMapContent? = withContext(Dispatchers.IO) {
+    if (itineraryId.startsWith("recording:")) {
+        val track = trackRecorder.track(itineraryId.removePrefix("recording:")) ?: return@withContext null
+        val itinerary = Itinerary(documentId = itineraryId, trackPackId = "", name = track.displayName, lengthKM = track.lengthKm)
+        return@withContext NavigationMapContent(itinerary, listOf(track.coordinates), emptyList(),
+            listOfNotNull(track.coordinates.firstOrNull()?.let { NavigationMarker(1, it) }, track.coordinates.lastOrNull()?.let { NavigationMarker(2, it) }), track.bounds)
+    }
     val itinerary = libraryRepository.itinerary(itineraryId) ?: return@withContext null
     val own = libraryRepository.tracks(itineraryId)
         .map { track -> track.points().map { it.coordinate } }

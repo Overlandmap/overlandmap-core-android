@@ -43,9 +43,16 @@ internal fun SearchContent(
     var selectedType by rememberSaveable { mutableStateOf(NearbySearchRepository.Type.ALL) }
     val openOverlanding = LocalOpenOverlanding.current
     var contributed by remember { mutableStateOf<ContributedWaypoint?>(null) }
+    var imported by remember { mutableStateOf<SearchResult?>(null) }
+    var viewingTrack by remember { mutableStateOf<String?>(null) }
+    viewingTrack?.let { id ->
+        ch.overlandmap.map.ui.tracking.RecordingViewerScreen(id, { viewingTrack = null })
+        return
+    }
     val open: (SearchResult) -> Unit = { result ->
         val communityWaypoint = result.contributedWaypoint
         when {
+            result.importedTrack != null -> imported = result
             communityWaypoint != null -> contributed = communityWaypoint
             result.type == FtsIndex.TYPE_BORDER_POST -> openOverlanding(OverlandingSelection.OfBorderPost(result.documentId))
             else -> onResultClick(result)
@@ -82,6 +89,12 @@ internal fun SearchContent(
         }
     }
 
+    imported?.let { result ->
+        val track = result.importedTrack!!
+        val waypoint = result.importedWaypoint
+        if (waypoint != null) ch.overlandmap.map.ui.tracking.RecordedWaypointSheet(track, waypoint, { imported = null }, { imported = null; viewingTrack = track.id })
+        else ch.overlandmap.map.ui.tracking.RecordedTrackSheet(track, { imported = null }, { imported = null; viewingTrack = track.id }, { imported = null; viewingTrack = track.id })
+    }
     contributed?.let { waypoint ->
         ContributedWaypointViewer(waypoint, waypoint.trackPackId,
             onZoom = waypoint.itinDocumentId?.let { id -> {

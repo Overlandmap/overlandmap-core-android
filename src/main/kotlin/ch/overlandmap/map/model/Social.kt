@@ -46,6 +46,7 @@ data class CheckIn(
     val extra: Map<String, Any?> = emptyMap(),
 ) {
     /** Firestore path of the collection the object lives in, e.g. `itinerary/<id>/steps`. */
+    val geohash: String? get() = FS.str(extra["geohash"])
     val collection: String? get() = FS.str(extra["collection"])
     val userName: String? get() = FS.str(extra["userName"])
     val content: String? get() = FS.str(extra["content"])
@@ -60,7 +61,7 @@ data class CheckIn(
     /** The Firestore-shaped document (without `documentId`). */
     fun stored(): Map<String, Any?> = buildMap {
         putAll(extra)
-        put("objectId", objectId)
+        if (objectId.isNotEmpty()) put("objectId", objectId)
         trackPackId?.let { put("trackPackId", it) }
         itinDocumentId?.let { put("itinDocumentId", it) }
         put("reason", reason.raw)
@@ -73,9 +74,10 @@ data class CheckIn(
             "objectId", "trackPackId", "itinDocumentId", "reason", "userId", "createdAt", "created",
         )
 
-        /** Null when the document has no `objectId`: such a check-in can't be attached to anything. */
+        /** Imported waypoints are attached by geohash instead of object ID. */
         fun fromFirestore(documentId: String, data: Map<String, Any?>): CheckIn? {
-            val objectId = FS.str(data["objectId"]) ?: return null
+            val objectId = FS.str(data["objectId"]).orEmpty()
+            if (objectId.isEmpty() && FS.str(data["geohash"]).isNullOrEmpty()) return null
             return CheckIn(
                 documentId = documentId,
                 objectId = objectId,

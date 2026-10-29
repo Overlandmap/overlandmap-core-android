@@ -80,6 +80,7 @@ class MarkupParserTest {
     @Test
     fun parsesEntityLinks() {
         val cases = listOf(
+            "@document-id" to MarkupLink.EntityRef(null, "document-id"),
             "@country/CHE" to MarkupLink.EntityRef(EntityKind.COUNTRY, "CHE"),
             "@border/che-ita" to MarkupLink.EntityRef(EntityKind.BORDER, "che-ita"),
             "@border_post/bp-12" to MarkupLink.EntityRef(EntityKind.BORDER_POST, "bp-12"),
@@ -95,7 +96,8 @@ class MarkupParserTest {
         assertTrue(routes("See [it](@planet/mars).").isEmpty())
         assertEquals("See it.", plain("See [it](@planet/mars)."))
         assertTrue(routes("See [it](@country/).").isEmpty())
-        assertTrue(routes("See [it](@country).").isEmpty())
+        assertEquals(listOf<MarkupLink>(MarkupLink.EntityRef(null, "country")), routes("See [it](@country)."))
+        assertTrue(routes("See [it](@).").isEmpty())
     }
 
     @Test
