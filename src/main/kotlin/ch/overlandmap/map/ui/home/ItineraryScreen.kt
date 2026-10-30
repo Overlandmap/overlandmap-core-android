@@ -818,6 +818,12 @@ private fun DescriptionTab(
                 }
             }
         }
+        Text(
+            itinerary.name(lang),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        )
         itinerary.description(lang)?.let {
             MarkupText(
                 it,

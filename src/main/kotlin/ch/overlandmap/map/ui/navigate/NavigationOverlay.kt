@@ -134,30 +134,26 @@ private fun BearingInstructions(state: NavigationState, cameraBearing: Double) {
             val side = min(maxHeight, maxWidth * 0.6f)
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StepHeader(state, units)
-                    ShrinkingText(text = units.navigationDistance(state.distanceToTargetMeters).ifEmpty { "--" }, modifier = Modifier.fillMaxWidth())
+                    StepHeader(state)
+                    DistanceAndAltitude(state, units)
                 }
                 FillingCompass(state, units, cameraBearing, Modifier.size(side))
             }
         } else {
             // A tall panel (landscape): step and distance on top, the dial filling the rest.
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                StepHeader(state, units)
-                ShrinkingText(
-                    text = units.navigationDistance(state.distanceToTargetMeters).ifEmpty { "--" },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                StepHeader(state)
+                DistanceAndAltitude(state, units)
                 FillingCompass(state, units, cameraBearing, Modifier.weight(1f).fillMaxWidth())
             }
         }
     }
 }
 
-/** The target step's number, name and elevation. */
+/** The target step's number and name. */
 @Composable
-private fun StepHeader(state: NavigationState, units: UnitFormatter) {
+private fun StepHeader(state: NavigationState) {
     val step = state.currentTargetStep ?: return
-    val elevation = step.ele?.let { units.meters(it.toDouble()) }?.takeIf { it.isNotEmpty() }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "${state.currentTargetIndex + 1}.",
@@ -173,25 +169,31 @@ private fun StepHeader(state: NavigationState, units: UnitFormatter) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (elevation != null) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                modifier = Modifier.background(Color.White.copy(alpha = 0.15f), CircleShape).padding(horizontal = 8.dp, vertical = 3.dp),
-            ) {
-                Icon(Icons.Filled.Terrain, contentDescription = null, modifier = Modifier.size(14.dp))
-                Text(elevation, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            }
+    }
+}
+
+@Composable
+private fun DistanceAndAltitude(state: NavigationState, units: UnitFormatter) {
+    val altitude = state.currentLocation?.altitude?.let { units.meters(it) }?.takeIf { it.isNotEmpty() }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        ShrinkingText(
+            text = units.navigationDistance(state.distanceToTargetMeters).ifEmpty { "--" },
+            modifier = if (altitude == null) Modifier.fillMaxWidth() else Modifier.weight(1f),
+            minScale = 0.5f,
+        )
+        if (altitude != null) {
+            Icon(Icons.Filled.Terrain, contentDescription = null, modifier = Modifier.size(18.dp))
+            ShrinkingText(text = altitude, modifier = Modifier.weight(1f), minScale = 0.5f)
         }
     }
 }
 
 /**
- * Very large, heavy digits on one line; the text shrinks to 70% rather than wrapping or being
+ * Very large, heavy digits on one line; the text shrinks rather than wrapping or being
  * cut. (No rounded design on Android: the default family stands in.)
  */
 @Composable
-private fun ShrinkingText(text: String, modifier: Modifier = Modifier, size: Int = 34, align: TextAlign = TextAlign.Start) {
+private fun ShrinkingText(text: String, modifier: Modifier = Modifier, size: Int = 34, align: TextAlign = TextAlign.Start, minScale: Float = 0.7f) {
     var scale by remember(text) { mutableFloatStateOf(1f) }
     Text(
         text,
@@ -202,7 +204,7 @@ private fun ShrinkingText(text: String, modifier: Modifier = Modifier, size: Int
         textAlign = align,
         maxLines = 1,
         softWrap = false,
-        onTextLayout = { if (it.didOverflowWidth && scale > 0.7f) scale = max(0.7f, scale - 0.05f) },
+        onTextLayout = { if (it.didOverflowWidth && scale > minScale) scale = max(minScale, scale - 0.05f) },
     )
 }
 

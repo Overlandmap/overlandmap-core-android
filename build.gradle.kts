@@ -37,6 +37,9 @@ ksp {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20180813")
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.0")
     // Compose — exposed (api) so the thin app shells (MainActivity, navigation)
     // can build against it without re-declaring.
     api(platform("androidx.compose:compose-bom:2024.12.01"))
@@ -59,6 +62,8 @@ dependencies {
     // Local library database
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
+    implementation("androidx.room:room-sqlite-wrapper:2.8.4")
+    implementation("androidx.sqlite:sqlite-bundled:2.6.2")
     ksp("androidx.room:room-compiler:2.8.4")
 
     // Firebase (config resources come from each app's google-services.json)

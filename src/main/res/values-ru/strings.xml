@@ -513,4 +513,13 @@
     <string name="crash_report_share">Поделиться отчётом</string>
     <string name="crash_report_discard">Удалить отчёт</string>
     <string name="itinerary_permit_sidebar">Подробнее см. %1$s</string>
+    <string name="bluetooth_gps_no_track">Трек не выбран</string>
+    <string name="bluetooth_gps_points">%1$d точек</string>
+    <string name="bluetooth_gps_visible_as">Отображается как: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Передавать выбранный трек как GPS-координаты подключённым устройствам.</string>
+    <string name="bluetooth_gps_pause">Пауза</string>
+    <string name="bluetooth_gps_resume">Продолжить</string>
+    <string name="bluetooth_gps_skip_step">Перейти к этапу</string>
+    <string name="bluetooth_gps_finished">Воспроизведение завершено</string>
+    <string name="bluetooth_gps_connected_devices">Подключённые устройства: %1$d</string>
 </resources>

@@ -558,7 +558,10 @@
     <string name="bluetooth_gps_scanning">Searching…</string>
     <string name="bluetooth_gps_no_servers">No GPS servers found. Search again to refresh.</string>
     <string name="bluetooth_gps_connect">Connect to %1$s</string>
+    <string name="bluetooth_gps_connected_disconnect">Connected to %1$s. Disconnect</string>
+    <string name="bluetooth_gps_reconnecting">Trying to reconnect…</string>
     <string name="bluetooth_gps_connected">GPS server connected</string>
+    <string name="bluetooth_gps_waiting_for_fix">Bluetooth connected; waiting for a GPS position from the server.</string>
     <string name="bluetooth_gps_unavailable">GPS not available</string>
     <string name="bluetooth_gps_disconnect">Disable Bluetooth GPS</string>
     <string name="bluetooth_gps_server">Share GPS</string>
@@ -568,6 +571,15 @@
     <string name="bluetooth_gps_import">Load GPX file</string>
     <string name="bluetooth_gps_backward">Play backward</string>
     <string name="bluetooth_gps_play">Start playback</string>
+    <string name="bluetooth_gps_no_track">No track selected</string>
+    <string name="bluetooth_gps_points">%1$d points</string>
+    <string name="bluetooth_gps_visible_as">Visible as: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Broadcast the selected track as GPS positions to connected devices.</string>
+    <string name="bluetooth_gps_pause">Pause</string>
+    <string name="bluetooth_gps_resume">Resume</string>
+    <string name="bluetooth_gps_skip_step">Skip to step</string>
+    <string name="bluetooth_gps_finished">Playback finished</string>
+    <string name="bluetooth_gps_connected_devices">Connected devices: %1$d</string>
     <string name="bluetooth_gps_permission">Bluetooth and location permissions are required.</string>
     <string name="bluetooth_gps_invalid_track">Select a GPX track with at least two points.</string>
     <string name="debug_show_zoom_buttons">Show map zoom in/out buttons</string>

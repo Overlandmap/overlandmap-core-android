@@ -513,4 +513,13 @@
     <string name="crash_report_share">Crashrapport delen</string>
     <string name="crash_report_discard">Rapport verwijderen</string>
     <string name="itinerary_permit_sidebar">Zie %1$s voor meer informatie</string>
+    <string name="bluetooth_gps_no_track">Geen route geselecteerd</string>
+    <string name="bluetooth_gps_points">%1$d punten</string>
+    <string name="bluetooth_gps_visible_as">Zichtbaar als: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Zend de geselecteerde route als GPS-posities naar verbonden apparaten.</string>
+    <string name="bluetooth_gps_pause">Pauzeren</string>
+    <string name="bluetooth_gps_resume">Hervatten</string>
+    <string name="bluetooth_gps_skip_step">Ga naar stap</string>
+    <string name="bluetooth_gps_finished">Afspelen voltooid</string>
+    <string name="bluetooth_gps_connected_devices">Verbonden apparaten: %1$d</string>
 </resources>

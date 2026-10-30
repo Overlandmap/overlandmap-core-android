@@ -511,4 +511,13 @@
     <string name="crash_report_share">Condividi rapporto</string>
     <string name="crash_report_discard">Elimina rapporto</string>
     <string name="itinerary_permit_sidebar">Vedi %1$s per maggiori informazioni</string>
+    <string name="bluetooth_gps_no_track">Nessun percorso selezionato</string>
+    <string name="bluetooth_gps_points">%1$d punti</string>
+    <string name="bluetooth_gps_visible_as">Visibile come: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Trasmette il percorso selezionato come posizioni GPS ai dispositivi connessi.</string>
+    <string name="bluetooth_gps_pause">Pausa</string>
+    <string name="bluetooth_gps_resume">Riprendi</string>
+    <string name="bluetooth_gps_skip_step">Vai a una tappa</string>
+    <string name="bluetooth_gps_finished">Riproduzione terminata</string>
+    <string name="bluetooth_gps_connected_devices">Dispositivi connessi: %1$d</string>
 </resources>
