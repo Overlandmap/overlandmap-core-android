@@ -78,7 +78,8 @@ dependencies {
     implementation("com.android.billingclient:billing-ktx:8.0.0")
 
     // Background downloads that survive the app being suspended or killed
-    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    // 2.10.5 fixes a foreground-service start/stop race that crashes on Android 12.
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
 
     // Map rendering (Mapbox GL fork; reads the MBTiles served by LocalTileServer)
     implementation("org.maplibre.gl:android-sdk:11.7.1")
