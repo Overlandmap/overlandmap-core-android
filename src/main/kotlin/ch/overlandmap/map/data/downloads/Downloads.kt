@@ -21,17 +21,19 @@ class DownloadRefusedException(message: String) : IOException(message)
 object Downloads {
 
     private const val BUFFER_SIZE = 64 * 1024
-    private const val REPORT_EVERY_BYTES = 256L * 1024
+    private const val REPORT_EVERY_BYTES = 64L * 1024
 
     /**
      * Downloads [url] into [file]. [onProgress] receives the total bytes
-     * transferred so far (including a resumed prefix). When [expectedSha256]
+     * transferred so far (including a resumed prefix). [onLength] receives the
+     * full response length when the server provides it. When [expectedSha256]
      * is given the finished file is verified and deleted on mismatch.
      */
     fun download(
         url: String,
         file: File,
         expectedSha256: String? = null,
+        onLength: (Long?) -> Unit = {},
         onProgress: (Long) -> Unit = {},
     ) {
         file.parentFile?.mkdirs()
@@ -50,6 +52,9 @@ object Downloads {
                 else -> throw IOException("HTTP $code for ${file.name}")
             }
             var transferred = if (append) resumeFrom else 0L
+            val responseLength = connection.getHeaderField("Content-Length")?.toLongOrNull()?.takeIf { it >= 0 }
+            onLength(responseLength?.let { it + transferred })
+            onProgress(transferred)
             var sinceReport = 0L
             connection.inputStream.use { input ->
                 java.io.FileOutputStream(part, append).buffered().use { output ->
@@ -67,6 +72,7 @@ object Downloads {
                     }
                 }
             }
+            onProgress(transferred)
         } finally {
             connection.disconnect()
         }

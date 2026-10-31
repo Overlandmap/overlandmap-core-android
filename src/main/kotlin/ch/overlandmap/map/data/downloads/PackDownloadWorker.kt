@@ -15,8 +15,10 @@ import ch.overlandmap.map.map.LocalTileServer
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,46 +43,16 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         val urls = inputData.getStringArray(KEY_URLS) ?: return@withContext Result.failure()
         val destinations = inputData.getStringArray(KEY_DESTS) ?: return@withContext Result.failure()
         val names = inputData.getStringArray(KEY_NAMES) ?: return@withContext Result.failure()
-        val sizes = inputData.getLongArray(KEY_SIZES) ?: return@withContext Result.failure()
         val hashes = inputData.getStringArray(KEY_HASHES) ?: emptyArray()
         val zipIndex = inputData.getInt(KEY_ZIP_INDEX, -1)
 
-        runCatching { setForeground(foregroundInfo(packName, 0)) }
+        runCatching { setForeground(foregroundInfo(packName, -1)) }
 
         try {
-            val totalBytes = sizes.sum().coerceAtLeast(1)
-            // The download callback is not suspendable: it feeds counters
-            // that a side coroutine turns into progress and notifications.
-            val transferredTotal = AtomicLong(0)
-            val currentName = AtomicReference("")
-            val reporter = launch {
-                while (true) {
-                    delay(1_000)
-                    val fraction = transferredTotal.get().toFloat() / totalBytes
-                    setProgress(
-                        workDataOf(
-                            PROGRESS_FRACTION to fraction,
-                            PROGRESS_MESSAGE to currentName.get(),
-                        )
-                    )
-                    runCatching {
-                        setForeground(foregroundInfo(packName, (fraction * 100).toInt()))
-                    }
-                }
-            }
-            try {
-                var doneBytes = 0L
-                urls.indices.forEach { index ->
+            urls.indices.forEach { index ->
                     val target = File(destinations[index])
-                    currentName.set(names[index])
-                    val base = doneBytes
-                    Downloads.download(urls[index], target, hashes.hashAt(index)) { transferred ->
-                        transferredTotal.set(base + transferred)
-                    }
-                    doneBytes += sizes[index]
-                    transferredTotal.set(doneBytes)
+                    downloadAsset(urls[index], target, hashes.hashAt(index), packName, names[index], index + 1, urls.size)
                     if (index == zipIndex) {
-                        reporter.cancel() // installing shows as indeterminate
                         val assetVersion = inputData.getInt(KEY_ASSET_VERSION, 0)
                             .takeIf { it > 0 }
                         val assetVersionDate = inputData.getLong(KEY_ASSET_VERSION_DATE, 0L)
@@ -95,12 +67,11 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
                             target.delete()
                         }
                     }
-                }
-            } finally {
-                reporter.cancel()
             }
             LocalTileServer.reloadArchives()
             Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (runAttemptCount < MAX_ATTEMPTS) {
                 Result.retry()
@@ -117,7 +88,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
      * retry, re-resolving the URL since it may have expired meanwhile.
      */
     private suspend fun downloadFullPack(packId: String, packName: String): Result {
-        runCatching { setForeground(foregroundInfo(packName, 0)) }
+        runCatching { setForeground(foregroundInfo(packName, -1)) }
         setProgress(workDataOf(PROGRESS_FRACTION to -1f, PROGRESS_MESSAGE to packName))
         val app = applicationContext as OverlandApp
         val target = File(applicationContext.cacheDir, "pack_full_$packId.zip")
@@ -129,7 +100,9 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
             }
             val url = app.shopRepository.downloadPackUrl(packId)
             // Verified like every other asset, zip included (iOS checks the archive's SHA-256).
-            Downloads.download(url, target, asset?.hash?.takeIf { it.isNotBlank() })
+            val extrasCount = inputData.getStringArray(KEY_URLS)?.size ?: 0
+            downloadAsset(url, target, asset?.hash?.takeIf { it.isNotBlank() }, packName,
+                asset?.name?.takeIf { it.isNotBlank() } ?: packName, 1, extrasCount + 1)
             try {
                 installZip(
                     target,
@@ -143,6 +116,8 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
             downloadExtraAssets(packName)
             LocalTileServer.reloadArchives()
             Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: DownloadRefusedException) {
             Result.failure(workDataOf(KEY_ERROR to (e.message ?: "Download refused")))
         } catch (e: Exception) {
@@ -164,24 +139,36 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         if (urls.isEmpty()) return
         val destinations = inputData.getStringArray(KEY_DESTS) ?: return
         val names = inputData.getStringArray(KEY_NAMES) ?: emptyArray()
-        val sizes = inputData.getLongArray(KEY_SIZES) ?: LongArray(urls.size)
         val hashes = inputData.getStringArray(KEY_HASHES) ?: emptyArray()
-        val totalBytes = sizes.sum().coerceAtLeast(1)
-        var doneBytes = 0L
         urls.indices.forEach { index ->
             val name = names.getOrElse(index) { "" }
-            setProgress(
-                workDataOf(
-                    PROGRESS_FRACTION to doneBytes.toFloat() / totalBytes,
-                    PROGRESS_MESSAGE to name,
-                )
-            )
-            runCatching {
-                setForeground(foregroundInfo(packName, (doneBytes * 100 / totalBytes).toInt()))
-            }
-            Downloads.download(urls[index], File(destinations[index]), hashes.hashAt(index))
-            doneBytes += sizes.getOrElse(index) { 0L }
+            downloadAsset(urls[index], File(destinations[index]), hashes.hashAt(index), packName, name, index + 2, urls.size + 1)
         }
+    }
+
+    /** Reports the current file's actual transfer progress, including a resumed prefix. */
+    private suspend fun downloadAsset(
+        url: String, target: File, hash: String?, packName: String, assetName: String, index: Int, count: Int,
+    ) = coroutineScope {
+        val transferred = AtomicLong(0)
+        val length = AtomicLong(-1)
+        suspend fun report() {
+            val total = length.get()
+            val fraction = if (total > 0) (transferred.get().toDouble() / total).toFloat().coerceIn(0f, 1f) else -1f
+            setProgress(workDataOf(PROGRESS_FRACTION to fraction, PROGRESS_MESSAGE to assetName,
+                PROGRESS_ASSET_INDEX to index, PROGRESS_ASSET_COUNT to count))
+            runCatching { setForeground(foregroundInfo(packName, if (fraction < 0) -1 else (fraction * 100).toInt())) }
+        }
+        report()
+        val reporter = launch {
+            while (true) { delay(500); report() }
+        }
+        try {
+            Downloads.download(url, target, hash, onLength = { length.set(it ?: -1) }) { transferred.set(it) }
+        } finally {
+            reporter.cancelAndJoin()
+        }
+        report()
     }
 
     /** Unzips the pack: `images/` into `files/photo`, `json/db.json` into Room. */
@@ -191,7 +178,8 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         assetVersion: Int? = null,
         assetVersionDate: Long? = null,
     ) {
-        setProgress(workDataOf(PROGRESS_FRACTION to -1f, PROGRESS_MESSAGE to ""))
+        setProgress(workDataOf(PROGRESS_FRACTION to -1f, PROGRESS_INSTALLING to true))
+        runCatching { setForeground(foregroundInfo(inputData.getString(KEY_PACK_NAME).orEmpty(), -1)) }
         val app = applicationContext as OverlandApp
         val photoDir = File(applicationContext.filesDir, "photo")
         val unzipDir = File(applicationContext.cacheDir, "unzip_${id}")
@@ -219,7 +207,7 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
                 .setContentTitle(title)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
-                .setProgress(100, percent.coerceIn(0, 100), percent <= 0)
+                .setProgress(100, percent.coerceIn(0, 100), percent < 0)
                 .build()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(id.hashCode(), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -244,6 +232,9 @@ class PackDownloadWorker(context: Context, params: WorkerParameters) :
         const val KEY_ERROR = "error"
         const val PROGRESS_FRACTION = "fraction"
         const val PROGRESS_MESSAGE = "message"
+        const val PROGRESS_INSTALLING = "installing"
+        const val PROGRESS_ASSET_INDEX = "assetIndex"
+        const val PROGRESS_ASSET_COUNT = "assetCount"
 
         /** Tag on every pack download; the pack ID rides in `PACK_TAG_PREFIX`. */
         const val TAG = "pack-download"

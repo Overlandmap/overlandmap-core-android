@@ -23,10 +23,13 @@ enum class PackAssetKind { FREE_ITINERARY, OFFLINE_MAP, HILLSHADE, DEM, CONTOUR 
 
 /** Progress of one pack's download, keyed by pack ID in [PackDownloadManager.progress]. */
 data class PackDownloadProgress(
-    /** Overall 0..1 fraction across all files; null while installing (indeterminate). */
-    val fraction: Float? = 0f,
+    /** Current asset's 0..1 transfer fraction, or null when its length is unknown. */
+    val fraction: Float? = null,
     /** Name of the item currently transferring or the current phase. */
     val message: String = "",
+    val assetIndex: Int = 0,
+    val assetCount: Int = 0,
+    val installing: Boolean = false,
     val error: String? = null,
     val done: Boolean = false,
 )
@@ -225,12 +228,15 @@ class PackDownloadManager(
             WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED ->
                 setProgress(packId, PackDownloadProgress())
             WorkInfo.State.RUNNING -> {
-                val fraction = info.progress.getFloat(PackDownloadWorker.PROGRESS_FRACTION, 0f)
+                val fraction = info.progress.getFloat(PackDownloadWorker.PROGRESS_FRACTION, -1f)
                 setProgress(
                     packId,
                     PackDownloadProgress(
                         fraction = fraction.takeIf { it >= 0f },
                         message = info.progress.getString(PackDownloadWorker.PROGRESS_MESSAGE) ?: "",
+                        assetIndex = info.progress.getInt(PackDownloadWorker.PROGRESS_ASSET_INDEX, 0),
+                        assetCount = info.progress.getInt(PackDownloadWorker.PROGRESS_ASSET_COUNT, 0),
+                        installing = info.progress.getBoolean(PackDownloadWorker.PROGRESS_INSTALLING, false),
                     ),
                 )
             }

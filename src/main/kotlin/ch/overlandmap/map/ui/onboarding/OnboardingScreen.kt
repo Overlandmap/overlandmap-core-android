@@ -57,6 +57,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.math.RoundingMode
 
 /**
  * First-launch gate: the user must accept the Privacy Policy and Terms of
@@ -221,7 +223,7 @@ private fun SampleDownloadDialog(progress: PackDownloadProgress?) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    stringResource(R.string.onboarding_downloading_sample),
+                    stringResource(if (progress?.installing == true) R.string.installing else R.string.onboarding_downloading_sample),
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                 )
@@ -232,6 +234,8 @@ private fun SampleDownloadDialog(progress: PackDownloadProgress?) {
                 if (p != null && p.fraction != null && !p.done) {
                     val f = p.fraction
                     LinearProgressIndicator(progress = { f }, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    Text(NumberFormat.getPercentInstance().apply { roundingMode = RoundingMode.FLOOR }.format(f.toDouble()), style = MaterialTheme.typography.bodySmall)
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }

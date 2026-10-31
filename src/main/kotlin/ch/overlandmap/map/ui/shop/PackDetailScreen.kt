@@ -83,6 +83,8 @@ import ch.overlandmap.map.ui.theme.contentTextStyle
 import ch.overlandmap.map.ui.overlandApp
 import coil.compose.AsyncImage
 import org.maplibre.android.maps.MapLibreMap
+import java.text.NumberFormat
+import java.math.RoundingMode
 import java.text.DateFormat
 import java.util.Date
 
@@ -334,17 +336,26 @@ internal fun DownloadOverlay(progress: PackDownloadProgress, modifier: Modifier 
             val label = when {
                 progress.error != null -> progress.error
                 progress.done -> stringResource(R.string.downloaded)
-                progress.fraction == null -> stringResource(R.string.installing)
-                else -> stringResource(R.string.downloading) + " " + progress.message
+                progress.installing -> stringResource(R.string.installing)
+                else -> listOf(
+                    stringResource(R.string.downloading),
+                    if (progress.assetCount > 1) "${progress.assetIndex}/${progress.assetCount}" else "",
+                    progress.message,
+                ).filter { it.isNotBlank() }.joinToString(" ")
             }
-            Text(
-                label,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (progress.error != null) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    label,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (progress.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (!progress.done && progress.error == null && progress.fraction != null) {
+                    Text(NumberFormat.getPercentInstance().apply { roundingMode = RoundingMode.FLOOR }.format(progress.fraction.toDouble()), style = MaterialTheme.typography.bodySmall)
+                }
+            }
             if (progress.error == null) {
                 val fraction = progress.fraction
                 if (fraction == null) {
