@@ -71,6 +71,7 @@ import ch.overlandmap.map.ui.BetaBadge
 import ch.overlandmap.map.ui.PurchaseStatus
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PackDownloadProgress
+import ch.overlandmap.map.data.labelRes
 import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.Itinerary
 import ch.overlandmap.map.model.TrackPack
@@ -340,7 +341,7 @@ internal fun DownloadOverlay(progress: PackDownloadProgress, modifier: Modifier 
                 else -> listOf(
                     stringResource(R.string.downloading),
                     if (progress.assetCount > 1) "${progress.assetIndex}/${progress.assetCount}" else "",
-                    progress.message,
+                    progress.assetKind?.let { stringResource(it.labelRes()) }.orEmpty(),
                 ).filter { it.isNotBlank() }.joinToString(" ")
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

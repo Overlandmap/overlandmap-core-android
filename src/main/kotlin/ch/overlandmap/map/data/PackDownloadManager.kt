@@ -1,6 +1,7 @@
 package ch.overlandmap.map.data
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -10,6 +11,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import ch.overlandmap.map.data.downloads.PackDownloadWorker
+import ch.overlandmap.map.R
 import ch.overlandmap.map.model.Asset
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -21,12 +23,23 @@ import kotlinx.coroutines.launch
 /** What one pack download can contain, mirroring the Flutter asset types. */
 enum class PackAssetKind { FREE_ITINERARY, OFFLINE_MAP, HILLSHADE, DEM, CONTOUR }
 
+/** The same user-facing labels used by the Downloads screen. */
+@StringRes
+fun PackAssetKind.labelRes(): Int = when (this) {
+    PackAssetKind.FREE_ITINERARY -> R.string.itineraries
+    PackAssetKind.OFFLINE_MAP -> R.string.offline_map
+    PackAssetKind.HILLSHADE -> R.string.hillshade_map
+    PackAssetKind.DEM -> R.string.relief_map
+    PackAssetKind.CONTOUR -> R.string.contour_map
+}
+
 /** Progress of one pack's download, keyed by pack ID in [PackDownloadManager.progress]. */
 data class PackDownloadProgress(
     /** Current asset's 0..1 transfer fraction, or null when its length is unknown. */
     val fraction: Float? = null,
     /** Name of the item currently transferring or the current phase. */
     val message: String = "",
+    val assetKind: PackAssetKind? = null,
     val assetIndex: Int = 0,
     val assetCount: Int = 0,
     val installing: Boolean = false,
@@ -125,6 +138,7 @@ class PackDownloadManager(
         val urls = mutableListOf<String>()
         val destinations = mutableListOf<String>()
         val names = mutableListOf<String>()
+        val kinds = mutableListOf<String>()
         val sizes = mutableListOf<Long>()
         val hashes = mutableListOf<String>()
         mapSelection.forEach { (kind, asset) ->
@@ -132,6 +146,7 @@ class PackDownloadManager(
             urls += url
             destinations += mapFile(packId, kind, asset).path
             names += asset.name
+            kinds += kind.name
             sizes += asset.fileSizeBytes
             hashes += asset.hash.orEmpty()
         }
@@ -144,6 +159,7 @@ class PackDownloadManager(
                     PackDownloadWorker.KEY_URLS to urls.toTypedArray(),
                     PackDownloadWorker.KEY_DESTS to destinations.toTypedArray(),
                     PackDownloadWorker.KEY_NAMES to names.toTypedArray(),
+                    PackDownloadWorker.KEY_KINDS to kinds.toTypedArray(),
                     PackDownloadWorker.KEY_SIZES to sizes.toLongArray(),
                     PackDownloadWorker.KEY_HASHES to hashes.toTypedArray(),
                 )
@@ -169,6 +185,7 @@ class PackDownloadManager(
         val urls = mutableListOf<String>()
         val destinations = mutableListOf<String>()
         val names = mutableListOf<String>()
+        val kinds = mutableListOf<String>()
         val sizes = mutableListOf<Long>()
         val hashes = mutableListOf<String>()
         var zipIndex = -1
@@ -181,6 +198,7 @@ class PackDownloadManager(
             }
             urls += url
             names += asset.name
+            kinds += kind.name
             sizes += asset.fileSizeBytes
             hashes += asset.hash.orEmpty()
             destinations += when (kind) {
@@ -202,6 +220,7 @@ class PackDownloadManager(
                     PackDownloadWorker.KEY_URLS to urls.toTypedArray(),
                     PackDownloadWorker.KEY_DESTS to destinations.toTypedArray(),
                     PackDownloadWorker.KEY_NAMES to names.toTypedArray(),
+                    PackDownloadWorker.KEY_KINDS to kinds.toTypedArray(),
                     PackDownloadWorker.KEY_SIZES to sizes.toLongArray(),
                     PackDownloadWorker.KEY_HASHES to hashes.toTypedArray(),
                     PackDownloadWorker.KEY_ZIP_INDEX to zipIndex,
@@ -234,6 +253,9 @@ class PackDownloadManager(
                     PackDownloadProgress(
                         fraction = fraction.takeIf { it >= 0f },
                         message = info.progress.getString(PackDownloadWorker.PROGRESS_MESSAGE) ?: "",
+                        assetKind = info.progress.getString(PackDownloadWorker.PROGRESS_KIND)?.let { name ->
+                            PackAssetKind.entries.firstOrNull { it.name == name }
+                        },
                         assetIndex = info.progress.getInt(PackDownloadWorker.PROGRESS_ASSET_INDEX, 0),
                         assetCount = info.progress.getInt(PackDownloadWorker.PROGRESS_ASSET_COUNT, 0),
                         installing = info.progress.getBoolean(PackDownloadWorker.PROGRESS_INSTALLING, false),

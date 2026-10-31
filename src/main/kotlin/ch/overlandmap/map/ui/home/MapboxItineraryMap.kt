@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -195,6 +196,7 @@ fun MapboxItineraryMap(
         }
     }
     val userLocation by rememberUserLocation()
+    val currentOnTapped by rememberUpdatedState(onTapped)
     val controlsOffset = with(LocalDensity.current) { 100.toDp() }
     var fitted by remember { mutableStateOf(false) }
     var mapZoom by remember { mutableStateOf<Double?>(null) }
@@ -221,7 +223,7 @@ fun MapboxItineraryMap(
                 }
                 localMapView = mapView
                 onMapReady(mapView)
-                installTapHandler(mapView, onTapped)
+                installTapHandler(mapView) { currentOnTapped(it) }
                 mapZoom = mapView.mapboxMap.cameraState.zoom
                 mapView.mapboxMap.subscribeCameraChanged {
                     val camera = mapView.mapboxMap.cameraState

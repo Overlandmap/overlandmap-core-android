@@ -50,6 +50,7 @@ import ch.overlandmap.map.AppMode
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PackDownloadProgress
+import ch.overlandmap.map.data.labelRes
 import ch.overlandmap.map.data.PlanetMapState
 import ch.overlandmap.map.model.Asset
 import ch.overlandmap.map.R
@@ -239,9 +240,9 @@ private fun SampleDownloadDialog(progress: PackDownloadProgress?) {
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
-                progress?.message?.takeIf { it.isNotEmpty() }?.let {
+                progress?.assetKind?.let {
                     Spacer(Modifier.height(8.dp))
-                    Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                    Text(stringResource(it.labelRes()), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
                 }
             }
         }

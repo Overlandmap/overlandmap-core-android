@@ -118,6 +118,8 @@ import ch.overlandmap.map.map.MapStyleOptions
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.ui.social.rememberAuthGate
+import ch.overlandmap.map.ui.social.SocialTarget
+import ch.overlandmap.map.ui.social.socialTarget
 import ch.overlandmap.map.ui.social.ContributedWaypointSheet
 import ch.overlandmap.map.social.SocialRules
 import ch.overlandmap.map.model.asWaypoint
@@ -279,10 +281,20 @@ fun ItineraryScreen(
     // The geographic point under the elevation-profile drag, shown as a map dot.
     var profileCursor by remember { mutableStateOf<ElevationCursor?>(null) }
     var openWaypoint by remember { mutableStateOf<Waypoint?>(null) }
+    var waypointSocialTarget by remember { mutableStateOf<SocialTarget?>(null) }
     var showAddWaypoint by remember { mutableStateOf(false) }
     // Waypoints shared by the community, drawn on the map with the itinerary's own.
     val contributed by app.socialRepository.observeContributedWaypoints(itineraryId)
         .collectAsState(initial = emptyList())
+    fun openWaypointById(documentId: String) {
+        val shared = contributed.firstOrNull { it.documentId == documentId }
+        waypointSocialTarget = shared?.let {
+            SocialTarget(it.documentId, it.trackPackId, it.itinDocumentId.orEmpty(), "contributed_waypoint", it.geohash)
+        }
+        openWaypoint = shared?.asWaypoint() ?: (state.waypoints + state.otherWaypoints)
+            .firstOrNull { it.documentId == documentId }
+        popup = null
+    }
     val authGate = rememberAuthGate()
     // Opening the viewer refreshes whatever social data has gone stale (iOS `syncTrackPackSocialData`).
     LaunchedEffect(state.itinerary?.trackPackId) {
@@ -450,15 +462,7 @@ fun ItineraryScreen(
                                 // A step tap selects it in the viewer directly,
                                 // no popup.
                                 is ItineraryMapTap.OnStep -> jumpToStep(tap.stepId)
-                                is ItineraryMapTap.OnWaypoint ->
-                                    (state.waypoints + state.otherWaypoints)
-                                        .firstOrNull { it.documentId == tap.documentId }
-                                        ?.let {
-                                            popup = MapPopupState(
-                                                tap.position,
-                                                MapPopupKind.OfWaypoint(it),
-                                            )
-                                        }
+                                is ItineraryMapTap.OnWaypoint -> openWaypointById(tap.documentId)
                                 // A blue line: another itinerary of the pack. Taps
                                 // on the itinerary already on screen are ignored.
                                 is ItineraryMapTap.OnItinerary ->
@@ -521,7 +525,7 @@ fun ItineraryScreen(
                             onOpen = { kind ->
                                 when (kind) {
                                     is MapPopupKind.OfStep -> jumpToStep(kind.step.stepId)
-                                    is MapPopupKind.OfWaypoint -> openWaypoint = kind.waypoint
+                                    is MapPopupKind.OfWaypoint -> { waypointSocialTarget = null; openWaypoint = kind.waypoint }
                                     is MapPopupKind.OfItinerary ->
                                         onOpenItinerary(kind.itinerary.documentId, null)
                                     is MapPopupKind.OfTrack -> Unit
@@ -703,7 +707,8 @@ fun ItineraryScreen(
                         waypoints = state.waypoints + contributed.map { it.asWaypoint() },
                         otherWaypoints = state.otherWaypoints,
                         selectedStepId = state.steps.getOrNull(selectedStepIndex)?.stepId,
-                        onTapped = {},
+                        onTapped = { tap -> if (tap is ItineraryMapTap.OnWaypoint) openWaypointById(tap.documentId) },
+                        onMapReady = { mapView = it },
                         is3D = is3D,
                         onSet3D = { is3D = it },
                         modifier = Modifier.fillMaxSize(),
@@ -732,7 +737,8 @@ fun ItineraryScreen(
         openWaypoint?.let { waypoint ->
             WaypointBottomSheet(
                 waypoint = waypoint,
-                onDismiss = { openWaypoint = null },
+                socialTarget = waypointSocialTarget ?: waypoint.socialTarget(),
+                onDismiss = { openWaypoint = null; waypointSocialTarget = null },
                 onZoom = {
                     val lat = waypoint.lat ?: return@WaypointBottomSheet
                     val lon = waypoint.lon ?: return@WaypointBottomSheet
