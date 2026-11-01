@@ -76,7 +76,7 @@ class OverlandApp : Application() {
     }
     val socialRepository by lazy {
         SocialRepository(
-            database.socialDao(), database.libraryDao(), authRepository, ftsIndex,
+            database.socialDao(), database.libraryDao(), authRepository, this, ftsIndex,
             policy = SyncPolicy.forBuild(isDebugBuild(this)),
             userName = { accountRepository.postedName() },
         )

@@ -1,5 +1,16 @@
 package ch.overlandmap.map.geo
 
+import ch.overlandmap.map.model.WaypointType
+
+/** Uses the object's stored geohash, or derives one from its coordinates. */
+fun WaypointType.checkInGeohash(): String? {
+    geohash?.takeIf { Geohash.boundingBox(it) != null }?.let { return it.lowercase() }
+    val latitude = lat ?: return null
+    val longitude = lon ?: return null
+    if (!latitude.isFinite() || !longitude.isFinite() || latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
+    return Geohash.encode(latitude, longitude)
+}
+
 /**
  * Geohash encode/decode. Port of iOS `Geohash`. Geohashes are an indexed column on
  * several tables (steps, waypoints, border posts, contributed waypoints) and let a

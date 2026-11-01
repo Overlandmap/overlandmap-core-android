@@ -30,23 +30,40 @@ interface SocialDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSyncState(row: SyncStateRow): Unit
 
+    @Query("UPDATE sync_state SET lastSync = :time WHERE kind = :kind")
+    suspend fun backdateSyncStates(kind: String, time: Long)
+
+    @Query("INSERT OR IGNORE INTO sync_state (trackPackId, kind, lastSync) SELECT documentId, :kind, :time FROM track_pack")
+    suspend fun insertMissingPackSyncStates(kind: String, time: Long)
+
+    @Transaction
+    suspend fun backdateAllPackSyncStates(kind: String, time: Long) {
+        backdateSyncStates(kind, time)
+        insertMissingPackSyncStates(kind, time)
+    }
+
     @Query("DELETE FROM sync_state WHERE trackPackId = :trackPackId AND kind = :kind")
     suspend fun deleteSyncState(trackPackId: String, kind: String): Unit
 
     @Query("DELETE FROM sync_state WHERE trackPackId = :trackPackId")
     suspend fun deleteSyncStates(trackPackId: String): Unit
 
-    @Query("SELECT * FROM check_in WHERE objectId IS NULL OR objectId = '' ORDER BY createdAt DESC")
+    @Query("SELECT * FROM check_in ORDER BY createdAt DESC")
     fun _observeGeographicCheckIns(): Flow<List<CheckInRow>>
     fun observeCheckInsForGeohash(geohash: String): Flow<List<CheckIn>> =
         _observeGeographicCheckIns().map { rows -> rows.mapNotNull { it.toModel() }.filter { it.geohash == geohash } }
 
-    @Query("SELECT * FROM check_in WHERE objectId IS NULL OR objectId = ''")
+    @Query("SELECT * FROM check_in")
     suspend fun _geographicCheckIns(): List<CheckInRow>
 
     @Transaction
     suspend fun replaceCheckInsForGeohash(geohash: String, checkIns: List<CheckIn>) {
-        _geographicCheckIns().mapNotNull { it.toModel() }.filter { it.geohash == geohash }
+        replaceCheckInsForGeohashes(setOf(geohash), checkIns)
+    }
+
+    @Transaction
+    suspend fun replaceCheckInsForGeohashes(geohashes: Set<String>, checkIns: List<CheckIn>) {
+        _geographicCheckIns().mapNotNull { it.toModel() }.filter { it.geohash in geohashes }
             .forEach { deleteCheckIn(it.documentId) }
         insertCheckIns(checkIns)
     }

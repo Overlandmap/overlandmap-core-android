@@ -21,7 +21,7 @@ import ch.overlandmap.map.ui.home.CorrectionButton
 import ch.overlandmap.map.ui.social.SocialTarget
 import kotlinx.coroutines.flow.first
 
-private data class LinkObject(val name: String, val collection: String, val id: String, val url: String?)
+private data class LinkObject(val name: String, val collection: String, val id: String, val url: String?, val geohash: String? = null)
 
 /** Object preview shared by markup in packs and in the Overlanding detail panes. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,7 +40,7 @@ fun OverlandingLinkSheet(selection: OverlandingSelection, onDismiss: () -> Unit,
                 LinkObject(data.borderTitle(it, lang, it.name), "border", it.documentId, UniversalLink.Border(it.documentId).url())
             }
             is OverlandingSelection.OfBorderPost -> world.borderPost(selection.id)?.let {
-                LinkObject(it.name, "border_post", it.documentId, UniversalLink.BorderPost(it.documentId).url())
+                LinkObject(it.name, "border_post", it.documentId, UniversalLink.BorderPost(it.documentId).url(), it.geohash)
             }
             is OverlandingSelection.OfZone -> world.zone(selection.id)?.let {
                 LinkObject(it.name, "zone", it.documentId, UniversalLink.Zone(it.documentId).url())
@@ -60,12 +60,14 @@ fun OverlandingLinkSheet(selection: OverlandingSelection, onDismiss: () -> Unit,
                     }, contentDescription = stringResource(R.string.open_viewer), modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                 }
                 Spacer(Modifier.height(20.dp))
-                val target = SocialTarget(obj.id, "", "", obj.collection)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                     // Opening an Overlanding selection also frames its bounds or point.
                     IconButton(onClick = onOpen) { Icon(Icons.Filled.ZoomIn, stringResource(R.string.zoom_in)) }
-                    CheckInButton(target)
-                    CorrectionButton(target)
+                    if (selection is OverlandingSelection.OfBorderPost) {
+                        val target = SocialTarget(obj.id, "", "", obj.collection, obj.geohash)
+                        CheckInButton(target)
+                        CorrectionButton(target)
+                    }
                     IconButton(onClick = {
                         obj.url?.let { url ->
                             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {

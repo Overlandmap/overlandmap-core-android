@@ -1,5 +1,6 @@
 package ch.overlandmap.map.data
 
+import android.content.Context
 import android.util.Log
 import ch.overlandmap.map.data.local.FtsDoc
 import ch.overlandmap.map.data.local.FtsIndex
@@ -12,6 +13,8 @@ import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.ContributedWaypoint
 import ch.overlandmap.map.geo.Coordinate
 import ch.overlandmap.map.geo.Geohash
+import ch.overlandmap.map.geo.checkInGeohash
+import ch.overlandmap.map.model.WaypointType
 import ch.overlandmap.map.model.Vote
 import ch.overlandmap.map.social.SocialRules
 import com.google.firebase.Timestamp
@@ -22,7 +25,24 @@ import com.google.firebase.firestore.Source
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
+
+/** Firestore fields linking a check-in to a location and, when applicable, its pack. */
+internal fun checkInLinkFields(
+    trackPackId: String, itineraryId: String, collection: String, geohash: String?,
+): Map<String, String> {
+    val hash = geohash?.takeIf { Geohash.boundingBox(it) != null }?.lowercase()
+    require(collection !in setOf("country", "border", "zone")) { "Check-ins are not supported for this object." }
+    require(hash != null) { "This object has no valid location." }
+    return buildMap {
+        put("geohash", hash)
+        put("collection", collection)
+        if (trackPackId.isNotBlank()) put("trackPackId", trackPackId)
+        if (itineraryId.isNotBlank()) put("itinDocumentId", itineraryId)
+    }
+}
 
 /**
  * Firestore implementation of [SocialDataSource]. Every query is forced to the server
@@ -32,13 +52,22 @@ import java.util.UUID
 class FirestoreSocialDataSource(
     private val db: FirebaseFirestore,
     private val auth: AuthRepository,
+    private val packGeohashes: suspend (String) -> Set<String>,
 ) : SocialDataSource {
 
     override suspend fun fetchComments(trackPackId: String): List<Comment> =
         fetch("comment", trackPackId).map { Comment.fromFirestore(it.first, it.second) }
 
-    override suspend fun fetchCheckIns(trackPackId: String): List<CheckIn> =
-        fetch("check_in", trackPackId).mapNotNull { CheckIn.fromFirestore(it.first, it.second) }
+    override suspend fun fetchCheckIns(trackPackId: String): CheckInBatch {
+        val geohashes = packGeohashes(trackPackId)
+        if (geohashes.isEmpty()) return CheckInBatch(emptySet(), emptyList())
+        auth.awaitUser()
+        val checkIns = geohashes.toList().chunked(10).flatMap { batch ->
+            db.collection("check_in").whereIn("geohash", batch).get(Source.SERVER).await().documents
+                .mapNotNull { CheckIn.fromFirestore(it.id, it.data ?: emptyMap()) }
+        }.distinctBy { it.documentId }
+        return CheckInBatch(geohashes, checkIns)
+    }
 
     override suspend fun fetchVotes(trackPackId: String): List<Vote> =
         fetch("vote", trackPackId).map { Vote.fromFirestore(it.first, it.second) }
@@ -69,12 +98,15 @@ class SocialRepository(
     private val socialDao: SocialDao,
     private val libraryDao: LibraryDao,
     private val auth: AuthRepository,
+    context: Context,
     private val fts: FtsIndex? = null,
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
     policy: SyncPolicy = SyncPolicy.RELEASE,
     /** The name put on posts (the profile's display name, else "Anonymous"). */
     private val userName: suspend () -> String = { ANONYMOUS },
 ) {
+    private val checkInMigrationPreferences = context.getSharedPreferences("checkin_sync_migrations", Context.MODE_PRIVATE)
+    private val checkInMigrationLock = Mutex()
 
     private val cache = object : SocialCache {
         override suspend fun lastSync(trackPackId: String, kind: SyncKind): Long? =
@@ -86,11 +118,14 @@ class SocialRepository(
         override suspend fun clearLastSync(trackPackId: String, kind: SyncKind) =
             socialDao.deleteSyncState(trackPackId, kind.raw)
 
+        override suspend fun backdateAllCheckIns(time: Long) =
+            socialDao.backdateAllPackSyncStates(SyncKind.CHECK_INS.raw, time)
+
         override suspend fun replaceComments(trackPackId: String, comments: List<Comment>) =
             libraryDao.replaceCommentsOfPack(trackPackId, comments)
 
-        override suspend fun replaceCheckIns(trackPackId: String, checkIns: List<CheckIn>) =
-            socialDao.replaceCheckInsForPack(trackPackId, checkIns)
+        override suspend fun replaceCheckIns(trackPackId: String, batch: CheckInBatch) =
+            socialDao.replaceCheckInsForGeohashes(batch.geohashes, batch.checkIns)
 
         override suspend fun replaceVotes(trackPackId: String, votes: List<Vote>) =
             socialDao.replaceVotesForPack(trackPackId, votes)
@@ -119,7 +154,13 @@ class SocialRepository(
 
     private val coordinator = SyncCoordinator(
         cache = cache,
-        source = FirestoreSocialDataSource(db, auth),
+        source = FirestoreSocialDataSource(db, auth) { packId ->
+            buildList<WaypointType> {
+                addAll(libraryDao.stepsOfPack(packId))
+                addAll(libraryDao.waypointsOfPack(packId))
+                addAll(socialDao.activeContributedWaypoints(packId))
+            }.mapNotNull { it.checkInGeohash() }.toSet()
+        },
         policy = policy,
         onError = { kind, packId, e -> Log.w(TAG, "Sync of ${kind.raw} failed for $packId", e) },
     )
@@ -130,12 +171,26 @@ class SocialRepository(
      * Refreshes the kinds of social data of [trackPackId] whose cache is missing or past its
      * TTL; [force] refreshes all of them. One failing kind doesn't stop the others.
      */
-    suspend fun syncTrackPackSocialData(trackPackId: String, force: Boolean = false) =
+    suspend fun syncTrackPackSocialData(trackPackId: String, force: Boolean = false) {
+        ensureGeohashSyncMigration()
         coordinator.syncTrackPackSocialData(trackPackId, force)
+    }
+
+    /** Old pack-based sync timestamps must not suppress the first geohash-based fetch. */
+    private suspend fun ensureGeohashSyncMigration() {
+        if (checkInMigrationPreferences.getBoolean("geohash_v1", false)) return
+        checkInMigrationLock.withLock {
+            if (!checkInMigrationPreferences.getBoolean("geohash_v1", false)) {
+                coordinator.backdateAllCheckIns(System.currentTimeMillis() - java.util.concurrent.TimeUnit.DAYS.toMillis(2))
+                checkInMigrationPreferences.edit().putBoolean("geohash_v1", true).apply()
+            }
+        }
+    }
 
     /** Refreshes one [kind] when its cache is stale (the comments tab does this on entry); failures are ignored. */
     suspend fun syncIfNeeded(trackPackId: String, kind: SyncKind) {
         try {
+            if (kind == SyncKind.CHECK_INS) ensureGeohashSyncMigration()
             coordinator.syncIfNeeded(trackPackId, kind)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -161,6 +216,10 @@ class SocialRepository(
 
     /** Forces the next sync of [kind] to refetch. */
     suspend fun invalidate(trackPackId: String, kind: SyncKind) = coordinator.invalidate(trackPackId, kind)
+
+    /** Debug action: make check-ins stale for all packs without deleting cached data. */
+    suspend fun backdateAllCheckInSyncs() =
+        coordinator.backdateAllCheckIns(System.currentTimeMillis() - java.util.concurrent.TimeUnit.DAYS.toMillis(2))
 
     // ── Check-ins and corrections ───────────────────────────────────────────
     //
@@ -190,7 +249,7 @@ class SocialRepository(
     suspend fun refreshCheckInsForGeohash(geohash: String) {
         try {
             auth.awaitUser()
-            val remote = db.collection(CHECK_IN).whereEqualTo("geohash", geohash).get().await()
+            val remote = db.collection(CHECK_IN).whereEqualTo("geohash", geohash).get(Source.SERVER).await()
                 .documents.mapNotNull { CheckIn.fromFirestore(it.id, it.data ?: emptyMap()) }
             socialDao.replaceCheckInsForGeohash(geohash, remote)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
@@ -216,11 +275,10 @@ class SocialRepository(
         trackPackId: String,
         itinDocumentId: String,
         collection: String,
-        objectId: String,
         content: String?,
         geohash: String? = null,
     ): String = postCheckIn(
-        trackPackId, itinDocumentId, collection, objectId, CheckInReason.CHECK,
+        trackPackId, itinDocumentId, collection, CheckInReason.CHECK,
         content?.takeIf { it.isNotBlank() }, null, geohash,
     ).documentId
 
@@ -232,13 +290,12 @@ class SocialRepository(
         trackPackId: String,
         itinDocumentId: String,
         collection: String,
-        objectId: String,
         reason: CheckInReason,
         content: String,
         location: Coordinate?,
         geohash: String? = null,
     ): CheckIn = postCheckIn(
-        trackPackId, itinDocumentId, collection, objectId, reason, content,
+        trackPackId, itinDocumentId, collection, reason, content,
         location.takeIf { reason == CheckInReason.WRONG_LOCATION }, geohash,
     )
 
@@ -246,22 +303,18 @@ class SocialRepository(
         trackPackId: String,
         itinDocumentId: String,
         collection: String,
-        objectId: String,
         reason: CheckInReason,
         content: String?,
         location: Coordinate?,
         geohash: String?,
     ): CheckIn {
+        val link = checkInLinkFields(trackPackId, itinDocumentId, collection, geohash)
         val user = requireUser()
         val documentId = UUID.randomUUID().toString()
         val now = Timestamp.now()
         val name = userName()
         val data = buildMap<String, Any?> {
-            if (geohash == null) put("objectId", objectId)
-            geohash?.let { put("geohash", it) }
-            put("collection", collection)
-            if (geohash == null) put("trackPackId", trackPackId)
-            if (geohash == null) put("itinDocumentId", itinDocumentId)
+            putAll(link)
             put("userId", user.uid)
             put("userName", name)
             put("createdAt", mapOf("_seconds" to now.seconds, "_nanoseconds" to now.nanoseconds))
@@ -273,14 +326,14 @@ class SocialRepository(
         db.collection(CHECK_IN).document(documentId).set(data).await()
         val checkIn = CheckIn(
             documentId = documentId,
-            objectId = if (geohash == null) objectId else "",
-            trackPackId = trackPackId.takeIf { geohash == null },
-            itinDocumentId = itinDocumentId.takeIf { geohash == null },
+            objectId = "",
+            trackPackId = trackPackId.takeIf { it.isNotBlank() },
+            itinDocumentId = itinDocumentId.takeIf { it.isNotBlank() },
             reason = reason,
             createdAt = now.toDate().time,
             userId = user.uid,
             extra = buildMap {
-                geohash?.let { put("geohash", it) }
+                link["geohash"]?.let { put("geohash", it) }
                 put("userName", name)
                 put("collection", collection)
                 if (!content.isNullOrBlank()) put("content", content)

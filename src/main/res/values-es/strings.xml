@@ -520,4 +520,7 @@
     <string name="bluetooth_gps_skip_step">Ir a una etapa</string>
     <string name="bluetooth_gps_finished">Reproducción finalizada</string>
     <string name="bluetooth_gps_connected_devices">Dispositivos conectados: %1$d</string>
+    <string name="debug_checkin_sync_reset">Restablecer las fechas de sincronización de registros de todos los trackpacks</string>
+    <string name="debug_checkin_sync_reset_done">Fechas de sincronización de registros establecidas hace dos días.</string>
+    <string name="debug_checkin_sync_reset_failed">No se pudieron restablecer las fechas de sincronización de registros.</string>
 </resources>

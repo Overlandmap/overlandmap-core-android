@@ -31,9 +31,11 @@ import ch.overlandmap.map.ui.social.SocialTarget
 @Composable
 fun RecordedWaypointSheet(track: RecordedTrack, waypoint: RecordedWaypoint, onDismiss: () -> Unit, onZoom: () -> Unit) {
     val context = LocalContext.current
-    val target = if (track.isImported) SocialTarget("", "", "", "imported_waypoint",
-        geohash = waypoint.geohash ?: ch.overlandmap.map.geo.Geohash.encode(waypoint.latitude, waypoint.longitude))
-    else SocialTarget(waypoint.id, "", "", "waypoint")
+    val target = SocialTarget(
+        if (track.isImported) "" else waypoint.id, "", "",
+        if (track.isImported) "imported_waypoint" else "waypoint",
+        geohash = waypoint.geohash ?: ch.overlandmap.map.geo.Geohash.encode(waypoint.latitude, waypoint.longitude),
+    )
     var confirmDelete by remember(waypoint.id) { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {

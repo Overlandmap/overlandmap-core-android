@@ -1,7 +1,9 @@
 package ch.overlandmap.map.ui.social
 
 import ch.overlandmap.map.model.ItineraryStep
+import ch.overlandmap.map.model.ContributedWaypoint
 import ch.overlandmap.map.model.Waypoint
+import ch.overlandmap.map.geo.checkInGeohash
 
 /**
  * What a check-in or correction is about: the document, and where it lives in Firestore
@@ -21,6 +23,7 @@ fun ItineraryStep.socialTarget() = SocialTarget(
     trackPackId = trackPackId,
     itineraryId = itineraryId,
     collection = "itinerary/$itineraryId/steps",
+    geohash = checkInGeohash(),
 )
 
 fun Waypoint.socialTarget() = SocialTarget(
@@ -28,4 +31,14 @@ fun Waypoint.socialTarget() = SocialTarget(
     trackPackId = trackPackId,
     itineraryId = itineraryId.orEmpty(),
     collection = "waypoint",
+    geohash = checkInGeohash(),
+)
+
+/** The geohash identifies the location even when a waypoint is shared across packs. */
+fun ContributedWaypoint.socialTarget() = SocialTarget(
+    objectId = documentId,
+    trackPackId = trackPackId,
+    itineraryId = itinDocumentId.orEmpty(),
+    collection = "contributed_waypoint",
+    geohash = checkInGeohash(),
 )

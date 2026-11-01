@@ -522,4 +522,7 @@
     <string name="bluetooth_gps_skip_step">Перейти к этапу</string>
     <string name="bluetooth_gps_finished">Воспроизведение завершено</string>
     <string name="bluetooth_gps_connected_devices">Подключённые устройства: %1$d</string>
+    <string name="debug_checkin_sync_reset">Сбросить даты синхронизации отметок для всех трекпаков</string>
+    <string name="debug_checkin_sync_reset_done">Даты синхронизации отметок установлены на два дня назад.</string>
+    <string name="debug_checkin_sync_reset_failed">Не удалось сбросить даты синхронизации отметок.</string>
 </resources>

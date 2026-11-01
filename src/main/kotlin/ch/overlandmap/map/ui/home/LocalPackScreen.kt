@@ -26,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -364,8 +363,8 @@ fun LocalPackScreen(
                                 modifier = Modifier.size(44.dp),
                             ) {
                                 Icon(
-                                    Icons.Filled.Menu,
-                                    contentDescription = null,
+                                    Icons.Filled.MoreVert,
+                                    contentDescription = stringResource(R.string.menu),
                                     modifier = Modifier.padding(10.dp),
                                 )
                             }

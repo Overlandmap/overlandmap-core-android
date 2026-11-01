@@ -288,9 +288,7 @@ fun ItineraryScreen(
         .collectAsState(initial = emptyList())
     fun openWaypointById(documentId: String) {
         val shared = contributed.firstOrNull { it.documentId == documentId }
-        waypointSocialTarget = shared?.let {
-            SocialTarget(it.documentId, it.trackPackId, it.itinDocumentId.orEmpty(), "contributed_waypoint", it.geohash)
-        }
+        waypointSocialTarget = shared?.socialTarget()
         openWaypoint = shared?.asWaypoint() ?: (state.waypoints + state.otherWaypoints)
             .firstOrNull { it.documentId == documentId }
         popup = null

@@ -520,4 +520,7 @@
     <string name="bluetooth_gps_skip_step">Zu Schritt springen</string>
     <string name="bluetooth_gps_finished">Wiedergabe beendet</string>
     <string name="bluetooth_gps_connected_devices">Verbundene Geräte: %1$d</string>
+    <string name="debug_checkin_sync_reset">Check-in-Synchronisierung für alle Trackpacks zurücksetzen</string>
+    <string name="debug_checkin_sync_reset_done">Check-in-Synchronisierungsdaten auf vor zwei Tagen gesetzt.</string>
+    <string name="debug_checkin_sync_reset_failed">Check-in-Synchronisierungsdaten konnten nicht zurückgesetzt werden.</string>
 </resources>

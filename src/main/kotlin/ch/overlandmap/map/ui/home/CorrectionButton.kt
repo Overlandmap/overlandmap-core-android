@@ -66,6 +66,7 @@ import ch.overlandmap.map.ui.social.rememberAuthGate
 import ch.overlandmap.map.ui.theme.contentTextStyle
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
 import java.text.DateFormat
 import java.util.Date
 
@@ -92,12 +93,16 @@ private fun reasonLabel(reason: CheckInReason): Int = when (reason) {
 fun CorrectionButton(target: SocialTarget) {
     val app = LocalContext.current.applicationContext as OverlandApp
     val gate = rememberAuthGate()
-    val corrections by (target.geohash?.let { app.socialRepository.observeCorrectionsForGeohash(it) }
-        ?: app.socialRepository.observeCorrectionsForObject(target.objectId)).collectAsState(initial = emptyList())
+    val corrections by (target.geohash?.let { hash ->
+        val geographic = app.socialRepository.observeCorrectionsForGeohash(hash)
+        if (target.objectId.isEmpty()) geographic else combine(
+            geographic, app.socialRepository.observeCorrectionsForObject(target.objectId),
+        ) { current, legacy -> (current + legacy).distinctBy { it.documentId }.sortedByDescending { it.createdAt ?: 0L } }
+    } ?: app.socialRepository.observeCorrectionsForObject(target.objectId)).collectAsState(initial = emptyList())
     val correction = corrections.firstOrNull()
     var showSheet by remember { mutableStateOf(false) }
 
-    IconButton(onClick = {
+    IconButton(enabled = target.geohash != null, onClick = {
         if (correction == null) gate.require(R.string.sign_in_to_discuss) { showSheet = true } else showSheet = true
     }) {
         if (corrections.isEmpty()) {
@@ -171,7 +176,6 @@ private fun CorrectionSheet(target: SocialTarget, existing: CheckIn?, onDismiss:
                         trackPackId = target.trackPackId,
                         itinDocumentId = target.itineraryId,
                         collection = target.collection,
-                        objectId = target.objectId,
                         geohash = target.geohash,
                         reason = chosen,
                         content = content.trim(),

@@ -55,6 +55,7 @@ import ch.overlandmap.map.ui.social.rememberAuthGate
 import ch.overlandmap.map.ui.theme.contentTextStyle
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
 import java.text.DateFormat
 import java.util.Date
 
@@ -77,8 +78,12 @@ fun CheckInButton(target: SocialTarget) {
     LaunchedEffect(target.geohash) {
         target.geohash?.let { app.socialRepository.refreshCheckInsForGeohash(it) }
     }
-    val checkIns by (target.geohash?.let { app.socialRepository.observeCheckInsForGeohash(it) }
-        ?: app.socialRepository.observeCheckInsForObject(target.objectId))
+    val checkIns by (target.geohash?.let { hash ->
+        val geographic = app.socialRepository.observeCheckInsForGeohash(hash)
+        if (target.objectId.isEmpty()) geographic else combine(
+            geographic, app.socialRepository.observeCheckInsForObject(target.objectId),
+        ) { current, legacy -> (current + legacy).distinctBy { it.documentId }.sortedByDescending { it.createdAt ?: 0L } }
+    } ?: app.socialRepository.observeCheckInsForObject(target.objectId))
         .collectAsState(initial = emptyList())
 
     var showSheet by remember { mutableStateOf(false) }
@@ -87,7 +92,7 @@ fun CheckInButton(target: SocialTarget) {
 
     val count = checkIns.size
 
-    IconButton(onClick = {
+    IconButton(enabled = target.geohash != null, onClick = {
         if (count == 0) gate.require(R.string.sign_in_to_check_in) { showDialog = true } else showSheet = true
     }) {
         if (count == 0) {
@@ -105,7 +110,6 @@ fun CheckInButton(target: SocialTarget) {
                 trackPackId = target.trackPackId,
                 itinDocumentId = target.itineraryId,
                 collection = target.collection,
-                objectId = target.objectId,
                 geohash = target.geohash,
                 content = message.ifBlank { null },
             )
