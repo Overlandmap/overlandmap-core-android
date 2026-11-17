@@ -75,7 +75,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.AppConfig
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
-import ch.overlandmap.map.isDebugBuild
 import ch.overlandmap.map.data.AccountRules
 import ch.overlandmap.map.data.FontSize
 import ch.overlandmap.map.units.GpsFormat
@@ -127,8 +126,8 @@ fun SettingsScreen(
     val isAdmin = entitlements?.hasAdmin == true
     var showSignOutDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    // The tools stay in debuggable builds, and appear for admins in release builds (as on iOS).
-    val showDebug = isDebugBuild(context) || isAdmin
+    // The Debug menu is for users with the "debug" entitlement only, in any kind of build.
+    val showDebug = entitlements?.hasDebug == true
     LaunchedEffect(Unit) { viewModel.refreshAccount() }
 
     Column(
@@ -284,7 +283,7 @@ fun SettingsScreen(
             onClick = { openStoreListing(context) },
         )
         HorizontalDivider()
-        // Debug tools: debuggable builds, and admins.
+        // Debug tools: users with the "debug" entitlement.
         if (showDebug) {
             SubmenuRow(
                 icon = Icons.Filled.BugReport,
@@ -737,7 +736,7 @@ fun TextSizeScreen(
 }
 
 /**
- * Debug tools submenu (only reachable from a debuggable build).
+ * Debug tools submenu (only reachable with the "debug" entitlement).
  */
 @Composable
 fun DebugScreen(

@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,11 +48,21 @@ fun MapLibreMapView(
     styleUrl: String? = null,
     onMapReady: (MapLibreMap) -> Unit = {},
     onStyleLoaded: (MapLibreMap, Style) -> Unit = { _, _ -> },
+    /**
+     * Sees every touch event before the map does; returning true keeps the map from handling it.
+     * A caller that takes over a gesture midway cancels the map's own handling first.
+     */
+    onTouch: ((android.view.View, android.view.MotionEvent) -> Boolean)? = null,
 ) {
     val context = LocalContext.current
     val preferences = (context.applicationContext as OverlandApp).userPreferences
     val showZoomButtons by preferences.debugShowZoomButtons.collectAsState(initial = false)
     val mapView = remember { createMapView(context) }
+    val currentOnTouch by rememberUpdatedState(onTouch)
+    DisposableEffect(mapView) {
+        mapView.setOnTouchListener { view, event -> currentOnTouch?.invoke(view, event) ?: false }
+        onDispose { mapView.setOnTouchListener(null) }
+    }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
 
     DisposableEffect(Unit) {

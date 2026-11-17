@@ -89,6 +89,12 @@ object LocalTileServer : Runnable {
     /** True when the Overlanding vector tiles (country-borders.pmtiles) are installed. */
     fun hasCountryBorders(): Boolean = registry?.hasCountryBorders() == true
 
+    /** True when the route network tiles (routes.pmtiles) are installed. */
+    fun hasRoutes(): Boolean = registry?.hasRoutes() == true
+
+    /** Highest zoom of the routes archive, or null. */
+    fun routesMaxZoom(): Int? = registry?.routesMaxZoom()
+
     /** Highest zoom of the country-borders archive, or null. */
     fun countryBordersMaxZoom(): Int? = registry?.countryBordersMaxZoom()
 

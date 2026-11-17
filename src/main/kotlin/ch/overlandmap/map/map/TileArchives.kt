@@ -111,6 +111,8 @@ private class PmtilesArchive(override val file: File) : TileArchive {
  * The local tile archives, laid out like the Flutter app's:
  *
  *  - `files/osm_pmtiles/planet.pmtiles` — the world base map (`planet`)
+ *  - `files/osm_pmtiles/country-borders.pmtiles`, `routes.pmtiles` — the Overlanding map's
+ *    countries / borders and route network (`country-borders`, `routes`)
  *  - pmtiles in `files/osm_pmtiles/detail/` — per-pack detail maps (`detail`)
  *  - mbtiles in `files/osm/` — legacy detail maps (`detail`, `planet.mbtiles`)
  *  - mbtiles in `files/contour/` and `files/hillshade/`
@@ -127,10 +129,12 @@ class TileArchiveRegistry(private val filesDir: File) {
     private var hillshade: List<TileArchive> = emptyList()
     private var dem: List<TileArchive> = emptyList()
     private var countryBorders: TileArchive? = null
+    private var routes: TileArchive? = null
 
     val planetFile: File get() = File(filesDir, "$PMTILES_DIR/planet.pmtiles")
     val planetDemFile: File get() = File(filesDir, "$PMTILES_DIR/planet-dem.pmtiles")
     val countryBordersFile: File get() = File(filesDir, "$PMTILES_DIR/country-borders.pmtiles")
+    val routesFile: File get() = File(filesDir, "$PMTILES_DIR/routes.pmtiles")
 
     @Synchronized
     fun reload() {
@@ -151,6 +155,8 @@ class TileArchiveRegistry(private val filesDir: File) {
             listOfNotNull(TileArchive.open(planetDemFile))
         // The Overlanding map's vector tiles (layers country / zones / border / border_post).
         countryBorders = TileArchive.open(countryBordersFile)
+        // The route network of the Overlanding map (layers segments / nodes).
+        routes = TileArchive.open(routesFile)
     }
 
     @Synchronized
@@ -170,6 +176,13 @@ class TileArchiveRegistry(private val filesDir: File) {
 
     @Synchronized
     fun hasCountryBorders(): Boolean = countryBorders != null
+
+    @Synchronized
+    fun hasRoutes(): Boolean = routes != null
+
+    /** The highest zoom in the routes archive, or null. */
+    @Synchronized
+    fun routesMaxZoom(): Int? = routes?.let { maxZoomOf(it.file) }
 
     /** The highest zoom in the country-borders archive (the map keeps rendering it beyond), or null. */
     @Synchronized
@@ -196,6 +209,7 @@ class TileArchiveRegistry(private val filesDir: File) {
             "hillshade" -> hillshade
             "dem" -> dem
             "country-borders" -> listOfNotNull(countryBorders)
+            "routes" -> listOfNotNull(routes)
             else -> (detail + contour + hillshade + dem).filter { it.file.nameWithoutExtension == source }
         }
         for (archive in archives) {
@@ -210,11 +224,12 @@ class TileArchiveRegistry(private val filesDir: File) {
 
     @Synchronized
     fun closeAll() {
-        (listOfNotNull(planet, countryBorders) + detail + contour + hillshade + dem).forEach {
+        (listOfNotNull(planet, countryBorders, routes) + detail + contour + hillshade + dem).forEach {
             runCatching { it.close() }
         }
         planet = null
         countryBorders = null
+        routes = null
         detail = emptyList()
         contour = emptyList()
         hillshade = emptyList()

@@ -445,6 +445,8 @@ private fun generalLabel(kind: GeneralAssetKind): Int = when (kind) {
     GeneralAssetKind.WORLD_RELIEF -> R.string.world_relief
     GeneralAssetKind.FONTS -> R.string.map_fonts
     GeneralAssetKind.SPRITES -> R.string.map_icons
+    GeneralAssetKind.ROUTES -> R.string.overlanding_routes_asset
+    GeneralAssetKind.ROUTING_DATA -> R.string.routing_data_asset
 }
 
 /** Human-readable byte size, base-1000 to match the assets' declared MB. */

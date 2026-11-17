@@ -19,8 +19,6 @@ import ch.overlandmap.map.model.ContributedWaypoint
 import ch.overlandmap.map.ui.rememberUnitFormatter
 import ch.overlandmap.map.ui.social.ContributedWaypointViewer
 import ch.overlandmap.map.ui.tracking.rememberUserLocation
-import ch.overlandmap.map.ui.world.LocalOpenOverlanding
-import ch.overlandmap.map.ui.world.OverlandingSelection
 import ch.overlandmap.map.data.local.FtsIndex
 
 /** The same two search modes in Home search and the local-pack search tab. */
@@ -41,7 +39,6 @@ internal fun SearchContent(
     val metric = units.format.distanceMetric
     var radius by rememberSaveable(metric) { mutableStateOf(if (metric) 50.0 else 30.0) }
     var selectedType by rememberSaveable { mutableStateOf(NearbySearchRepository.Type.ALL) }
-    val openOverlanding = LocalOpenOverlanding.current
     var contributed by remember { mutableStateOf<ContributedWaypoint?>(null) }
     var imported by remember { mutableStateOf<SearchResult?>(null) }
     var viewingTrack by remember { mutableStateOf<String?>(null) }
@@ -54,7 +51,6 @@ internal fun SearchContent(
         when {
             result.importedTrack != null -> imported = result
             communityWaypoint != null -> contributed = communityWaypoint
-            result.type == FtsIndex.TYPE_BORDER_POST -> openOverlanding(OverlandingSelection.OfBorderPost(result.documentId))
             else -> onResultClick(result)
         }
     }

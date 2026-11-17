@@ -3,21 +3,29 @@ package ch.overlandmap.map.ui.world
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import ch.overlandmap.map.data.routes.TripPlannerState
 import ch.overlandmap.map.geo.Coordinate
 import ch.overlandmap.map.geo.GeoBounds
 import ch.overlandmap.map.map.LocalTileServer
 import ch.overlandmap.map.map.MapLibreMapView
 import ch.overlandmap.map.map.MapStyles
+import ch.overlandmap.map.planning.RoutePoint
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -102,6 +110,10 @@ internal object OverlandLayers {
  * plus a highlight for the selection. Taps resolve to an [OverlandingSelection]. The camera is
  * restored from [initialCamera] and reported through [onCameraChanged] (debounced by the map's idle event).
  *
+ * The route network (online vector tiles) and the planned trips are drawn on top of the borders,
+ * driven by [routes] and [planner]; what is tapped or edited on them is reported through
+ * [routeActions]. The flags of the highlighted trip are views laid over the map.
+ *
  * [dataRevision] changes when the tile archive is (re)installed, which rebuilds the source so tiles
  * cached as empty while the file was missing are requested again.
  */
@@ -120,51 +132,116 @@ fun OverlandingMap(
     onPointZoomHandled: () -> Unit,
     onCameraChanged: (OverlandingCamera) -> Unit,
     onSelect: (OverlandingSelection?) -> Unit,
+    routes: OverlandingRoutes,
+    planner: TripPlannerState,
+    routeActions: OverlandingRouteActions,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current.density
     val styleUrl = remember { MapStyles.globalStyleUrl(context) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    val mapRef = remember { object { var value: MapLibreMap? = null } }
     var style by remember { mutableStateOf<Style?>(null) }
     var layersRevision by remember { mutableStateOf(-1 to -1) }
+    // Read only by the flags overlay, so a camera move redraws the flags and nothing else.
+    val cameraTick = remember { mutableIntStateOf(0) }
 
     val currentOnSelect by rememberUpdatedState(onSelect)
     val currentOnCamera by rememberUpdatedState(onCameraChanged)
+    val currentRoutes by rememberUpdatedState(routes)
+    val currentPlanner by rememberUpdatedState(planner)
+    val currentActions by rememberUpdatedState(routeActions)
+    val currentShowPosts by rememberUpdatedState(showBorderPosts)
     val hasPendingFocus = zoomRequest != null || pointZoomRequest != null
+    // A flag inserted by a drag from the trip line follows the finger before the trip is updated.
+    var lineDragFlag by remember { mutableStateOf<Pair<String, LatLng>?>(null) }
+    val lineDrag = remember {
+        TripLineDrag(
+            map = { mapRef.value },
+            density = density,
+            routes = { currentRoutes },
+            planner = { currentPlanner },
+            actions = { currentActions },
+            onFlagMoved = { id, at -> lineDragFlag = at?.let { id to it } },
+        )
+    }
 
-    MapLibreMapView(
-        modifier = modifier,
-        styleUrl = styleUrl,
-        onMapReady = { ready ->
-            ready.uiSettings.isRotateGesturesEnabled = false
-            ready.uiSettings.isTiltGesturesEnabled = false
-            // A pending deep-link focus takes precedence over the saved position.
-            if (!hasPendingFocus) {
-                ready.moveCamera(
-                    CameraUpdateFactory.newCameraPosition(
-                        CameraPosition.Builder()
-                            .target(LatLng(initialCamera.lat, initialCamera.lon))
-                            .zoom(initialCamera.zoom)
-                            .build()
+    Box(modifier) {
+        MapLibreMapView(
+            modifier = Modifier.fillMaxSize(),
+            styleUrl = styleUrl,
+            onMapReady = { ready ->
+                ready.uiSettings.isRotateGesturesEnabled = false
+                ready.uiSettings.isTiltGesturesEnabled = false
+                // A pending deep-link focus takes precedence over the saved position.
+                if (!hasPendingFocus) {
+                    ready.moveCamera(
+                        CameraUpdateFactory.newCameraPosition(
+                            CameraPosition.Builder()
+                                .target(LatLng(initialCamera.lat, initialCamera.lon))
+                                .zoom(initialCamera.zoom)
+                                .build()
+                        )
                     )
+                }
+                ready.addOnCameraMoveListener { cameraTick.intValue++ }
+                ready.addOnCameraIdleListener {
+                    cameraTick.intValue++
+                    OverlandingRouteLayers.logRenderedDots(ready)
+                    val c = ready.cameraPosition
+                    c.target?.let { currentOnCamera(OverlandingCamera(it.latitude, it.longitude, c.zoom)) }
+                }
+                ready.addOnMapClickListener { latLng ->
+                    handleTap(ready, latLng, density, currentRoutes, currentPlanner, currentActions, currentOnSelect)
+                    true
+                }
+                ready.addOnMapLongClickListener { latLng ->
+                    handleLongPress(ready, latLng, density, currentRoutes, currentPlanner, currentActions)
+                    true
+                }
+                mapRef.value = ready
+                map = ready
+            },
+            onTouch = lineDrag::onTouch,
+            onStyleLoaded = { _, loaded ->
+                // A fresh style has none of our layers yet.
+                layersRevision = -1 to -1
+                style = loaded
+            },
+        )
+
+        if (routes.highlightedTripId != null) {
+            val trip = planner.trips.firstOrNull { it.id == routes.highlightedTripId }
+            val points = if (trip?.isVisible == false) emptyList() else trip?.waypoints.orEmpty()
+            val flags = points.mapIndexed { index, point ->
+                PlanFlagItem(
+                    id = point.id,
+                    coordinate = lineDragFlag?.takeIf { it.first == point.id }?.second
+                        ?: LatLng(point.coordinate.latitude, point.coordinate.longitude),
+                    index = index,
+                    color = flagColor(index, points.size),
                 )
             }
-            ready.addOnCameraIdleListener {
-                val c = ready.cameraPosition
-                c.target?.let { currentOnCamera(OverlandingCamera(it.latitude, it.longitude, c.zoom)) }
-            }
-            ready.addOnMapClickListener { latLng ->
-                currentOnSelect(hitTest(ready, latLng))
-                true
-            }
-            map = ready
-        },
-        onStyleLoaded = { _, loaded ->
-            // A fresh style has none of our layers yet.
-            layersRevision = -1 to -1
-            style = loaded
-        },
-    )
+            PlanFlagsOverlay(
+                map = map,
+                cameraTick = cameraTick,
+                flags = flags,
+                editable = routes.planning,
+                onLongPress = { currentActions.onLongPressFlag(it.id) },
+                onDragChange = { flag, translation ->
+                    map?.let { m ->
+                        flagDropTarget(m, flag, translation, density)?.let { currentActions.onPreviewFlag(flag.id, it) }
+                    }
+                },
+                onDrop = { flag, translation ->
+                    val m = map
+                    val tap = m?.let { flagDropTarget(it, flag, translation, density) }
+                    if (tap != null) currentActions.onMoveFlag(flag.id, tap) else currentActions.onCancelPreview()
+                },
+            )
+        }
+    }
 
     // (Re)install the layers when the style loads or the tile archive changes.
     LaunchedEffect(style, dataRevision) {
@@ -172,7 +249,7 @@ fun OverlandingMap(
         val rev = dataRevision to s.hashCode()
         if (layersRevision == rev) return@LaunchedEffect
         removeOverlandLayers(s)
-        installOverlandLayers(s, showBorderPosts)
+        installOverlandLayers(s, currentShowPosts, currentRoutes, currentPlanner)
         updateSelectionLayer(s, selection)
         layersRevision = rev
     }
@@ -182,6 +259,21 @@ fun OverlandingMap(
     // The colour scheme decides which layers are shown and how the countries are filled.
     LaunchedEffect(style, scheme, showBorderPosts, climateKind, climateMonth, layersRevision) {
         style?.let { applyScheme(it, scheme, showBorderPosts, climateKind, climateMonth) }
+    }
+    LaunchedEffect(style, layersRevision, routes.showRoutes, routes.showTrips, routes.planning) {
+        style?.let { OverlandingRouteLayers.updateVisibility(it, routes) }
+    }
+    LaunchedEffect(style, layersRevision, routes.selectedSegmentId) {
+        style?.let { OverlandingRouteLayers.updateSelection(it, routes.selectedSegmentId) }
+    }
+    LaunchedEffect(style, layersRevision, routes.highlightedSegmentIds) {
+        style?.let { OverlandingRouteLayers.updateLegHighlight(it, routes.highlightedSegmentIds) }
+    }
+    LaunchedEffect(style, layersRevision, planner.trips, planner.displays, planner.previewDisplay, routes.highlightedTripId) {
+        style?.let { OverlandingRouteLayers.updateTrips(it, routes, planner) }
+        // Once the map has drawn the update: report the dots it shows (diagnostic).
+        kotlinx.coroutines.delay(1500)
+        map?.let { OverlandingRouteLayers.logRenderedDots(it) }
     }
     // Focus requests wait for the style, so one arriving while the tab is still building isn't lost.
     LaunchedEffect(map, style, zoomRequest) {
@@ -213,7 +305,12 @@ private fun colorMatch(property: String, stops: List<Pair<Int, String>>, other: 
     )
 }
 
-private fun installOverlandLayers(style: Style, showBorderPosts: Boolean) {
+private fun installOverlandLayers(
+    style: Style,
+    showBorderPosts: Boolean,
+    routes: OverlandingRoutes,
+    planner: TripPlannerState,
+) {
     val tileSet = TileSet(
         "2.1.0", "${LocalTileServer.baseUrl}/tiles/country-borders/{z}/{x}/{y}.mvt",
     ).apply {
@@ -253,6 +350,9 @@ private fun installOverlandLayers(style: Style, showBorderPosts: Boolean) {
         }
     )
 
+    // Routes: above countries and borders, below the border posts.
+    OverlandingRouteLayers.installRoutes(style, routes)
+
     style.addLayer(
         CircleLayer(OverlandLayers.POSTS, OverlandLayers.SOURCE).apply {
             sourceLayer = OverlandLayers.SL_POST
@@ -271,6 +371,11 @@ private fun installOverlandLayers(style: Style, showBorderPosts: Boolean) {
             )
         }
     )
+
+    // Trips stay above every other overlay.
+    OverlandingRouteLayers.installTrips(style, routes)
+    OverlandingRouteLayers.installLegHighlight(style, routes)
+    OverlandingRouteLayers.updateTrips(style, routes, planner)
     installClimateLayers(style)
 }
 
@@ -327,6 +432,7 @@ private fun applyScheme(style: Style, scheme: OverlandMapScheme, showBorderPosts
 }
 
 private fun removeOverlandLayers(style: Style) {
+    OverlandingRouteLayers.remove(style)
     listOf(
         OverlandLayers.SELECTION, OverlandLayers.POSTS, OverlandLayers.BORDERS,
         OverlandLayers.ZONES, OverlandLayers.COUNTRIES,
@@ -364,7 +470,9 @@ private fun updateSelectionLayer(style: Style, selection: OverlandingSelection?)
                 )
             }
     }
-    style.addLayer(layer)
+    // Above the border posts, below the trips.
+    if (style.getLayer(RouteLayerIds.TILE_HALO) != null) style.addLayerBelow(layer, RouteLayerIds.TILE_HALO)
+    else style.addLayer(layer)
 }
 
 /** Diagonal black hatching, 16 px, for the zones fill pattern. */
@@ -386,23 +494,141 @@ private fun Feature.string(vararg keys: String): String? = keys.firstNotNullOfOr
     properties()?.get(key)?.takeIf { it.isJsonPrimitive }?.asString
 }
 
+/** What a tap in normal mode landed on, besides the trips. */
+private sealed interface MapHit {
+    data object None : MapHit
+    data class Pick(val selection: OverlandingSelection) : MapHit
+    data class Segment(val segment: RouteSegmentSelection) : MapHit
+}
+
 /**
- * What a tap landed on. A 36 px box around the finger is queried, top-most layer first
- * (posts, borders, zones, countries); a miss clears the selection.
+ * What a tap landed on, after the trips (see [tripHit]). A 36 px box around the finger is queried
+ * and, when several things are under it, the first of these wins: border posts, borders, route
+ * segments (when shown), zones, countries. A miss clears the selection.
  */
-private fun hitTest(map: MapLibreMap, latLng: LatLng): OverlandingSelection? {
-    if (map.style?.getLayer(OverlandLayers.COUNTRIES) == null) return null
+private fun hitTest(map: MapLibreMap, latLng: LatLng, density: Float, showRoutes: Boolean): MapHit {
+    if (map.style?.getLayer(OverlandLayers.COUNTRIES) == null) return MapHit.None
     val point = map.projection.toScreenLocation(latLng)
     val box = RectF(point.x - 18f, point.y - 18f, point.x + 18f, point.y + 18f)
     fun hits(layer: String) = map.queryRenderedFeatures(box, layer)
 
     hits(OverlandLayers.POSTS).firstNotNullOfOrNull { it.string("id", "documentId") }
-        ?.let { return OverlandingSelection.OfBorderPost(it) }
+        ?.let { return MapHit.Pick(OverlandingSelection.OfBorderPost(it)) }
     hits(OverlandLayers.BORDERS).firstNotNullOfOrNull { it.string("id", "documentId") }
-        ?.let { return OverlandingSelection.OfBorder(it) }
+        ?.let { return MapHit.Pick(OverlandingSelection.OfBorder(it)) }
+    if (showRoutes) {
+        OverlandingRouteLayers.queryRoutes(map, point, 18f * density)
+            .firstNotNullOfOrNull { OverlandingRouteLayers.selection(it) }
+            ?.let { return MapHit.Segment(it) }
+    }
     hits(OverlandLayers.ZONES).firstNotNullOfOrNull { it.string("id", "documentId") }
-        ?.let { return OverlandingSelection.OfZone(it) }
+        ?.let { return MapHit.Pick(OverlandingSelection.OfZone(it)) }
     hits(OverlandLayers.COUNTRIES).firstNotNullOfOrNull { it.string("ADM0_A3", "id", "documentId") }
-        ?.let { return OverlandingSelection.OfCountry(it) }
+        ?.let { return MapHit.Pick(OverlandingSelection.OfCountry(it)) }
+    return MapHit.None
+}
+
+/** The trip drawn under [point], if any: its own line first, then the route tiles it highlights. Trips come before everything else. */
+private fun tripHit(
+    map: MapLibreMap,
+    point: PointF,
+    density: Float,
+    actions: OverlandingRouteActions,
+): String? {
+    val style = map.style ?: return null
+    val half = 18f * density
+    val box = RectF(point.x - half, point.y - half, point.x + half, point.y + half)
+    fun layers(vararg ids: String) = ids.filter { style.getLayer(it) != null }.toTypedArray()
+
+    val own = layers(RouteLayerIds.TRIP_LINE, RouteLayerIds.TRIP_POINTS)
+    if (own.isNotEmpty()) {
+        map.queryRenderedFeatures(box, *own).firstNotNullOfOrNull { it.getStringProperty("id") }
+            ?.takeIf { it.isNotEmpty() }?.let { return it }
+    }
+    val tiles = layers(RouteLayerIds.TILE_LINE, RouteLayerIds.TILE_POINTS)
+    if (tiles.isNotEmpty()) {
+        map.queryRenderedFeatures(box, *tiles).firstNotNullOfOrNull { it.getStringProperty("id") }
+            ?.let { segmentId -> actions.tripForSegment(segmentId) }
+            ?.let { return it }
+    }
     return null
+}
+
+/** A tap. In planning mode it places a flag; otherwise a trip wins over what lies under it. */
+private fun handleTap(
+    map: MapLibreMap,
+    latLng: LatLng,
+    density: Float,
+    routes: OverlandingRoutes,
+    planner: TripPlannerState,
+    actions: OverlandingRouteActions,
+    onSelect: (OverlandingSelection?) -> Unit,
+) {
+    // A tap while the keyboard is up only dismisses it.
+    if (actions.onMapTap()) return
+    val point = map.projection.toScreenLocation(latLng)
+    if (routes.planning) {
+        planTapAt(map, latLng, point, density, planner, actions)
+        return
+    }
+    if (routes.showTrips && planner.trips.any { it.isVisible && it.segmentIds.isNotEmpty() }) {
+        tripHit(map, point, density, actions)?.let { tripId ->
+            onSelect(null)
+            actions.onSelectTrip(tripId)
+            return
+        }
+    }
+    when (val hit = hitTest(map, latLng, density, routes.showRoutes)) {
+        is MapHit.Segment -> {
+            onSelect(null)
+            actions.onSelectSegment(hit.segment)
+        }
+        is MapHit.Pick -> onSelect(hit.selection)
+        MapHit.None -> onSelect(null)
+    }
+}
+
+/**
+ * A long press. In planning mode it acts as a tap; otherwise on a route it starts a new trip with
+ * its first flag there.
+ */
+private fun handleLongPress(
+    map: MapLibreMap,
+    latLng: LatLng,
+    density: Float,
+    routes: OverlandingRoutes,
+    planner: TripPlannerState,
+    actions: OverlandingRouteActions,
+) {
+    if (!routes.planning && !routes.showRoutes) return
+    val point = map.projection.toScreenLocation(latLng)
+    if (routes.planning) {
+        planTapAt(map, latLng, point, density, planner, actions)
+        return
+    }
+    val id = OverlandingRouteLayers.nearestSegment(map, point, density) ?: return
+    actions.onStartTrip(PlanTap(id, RoutePoint(latLng.longitude, latLng.latitude)))
+}
+
+/** A tap or long press in planning mode: on the trip's line it inserts a flag, elsewhere it appends one. */
+private fun planTapAt(
+    map: MapLibreMap,
+    latLng: LatLng,
+    point: PointF,
+    density: Float,
+    planner: TripPlannerState,
+    actions: OverlandingRouteActions,
+) {
+    val onTrip = planner.activeTrip?.let { OverlandingRouteLayers.tripSegmentAt(map, point, density, it) }
+    val id = onTrip ?: OverlandingRouteLayers.nearestSegment(map, point, density) ?: return
+    actions.onPlanTap(PlanTap(id, RoutePoint(latLng.longitude, latLng.latitude), onTrip = onTrip != null))
+}
+
+/** The segment under a dragged flag and the place it would be dropped at. */
+private fun flagDropTarget(map: MapLibreMap, flag: PlanFlagItem, translation: Offset, density: Float): PlanTap? {
+    val start = map.projection.toScreenLocation(flag.coordinate)
+    val end = PointF(start.x + translation.x, start.y + translation.y)
+    val dropped = map.projection.fromScreenLocation(end)
+    val id = OverlandingRouteLayers.nearestSegment(map, end, density) ?: return null
+    return PlanTap(id, RoutePoint(dropped.longitude, dropped.latitude))
 }

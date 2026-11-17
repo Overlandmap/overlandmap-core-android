@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
 import ch.overlandmap.map.OverlandApp
+import ch.overlandmap.map.data.GeneralAssetState
 import ch.overlandmap.map.data.PackAssetKind
 import ch.overlandmap.map.data.PlanetDemState
 import ch.overlandmap.map.data.PlanetMapState
@@ -49,11 +50,12 @@ data class PackDownloads(
 
 /**
  * The "general" (non-pack) assets every map needs: the world base map and
- * relief, and the fonts and sprite sheet the styles reference. Fetched at
+ * relief, the fonts and sprite sheet the styles reference, and the Overlanding
+ * route network (vector tiles and routing data). Fetched at
  * startup, but surfaced here so the user can see their status and retry a
  * failed one.
  */
-enum class GeneralAssetKind { WORLD_MAP, WORLD_RELIEF, FONTS, SPRITES }
+enum class GeneralAssetKind { WORLD_MAP, WORLD_RELIEF, FONTS, SPRITES, ROUTES, ROUTING_DATA }
 
 data class GeneralItem(
     val kind: GeneralAssetKind,
@@ -104,6 +106,8 @@ class DownloadsViewModel(private val app: OverlandApp) : ViewModel() {
     /** Declared sizes of the world map / relief assets, fetched once. */
     private var worldMapSize: Long = 0L
     private var worldReliefSize: Long = 0L
+    private var routesSize: Long = 0L
+    private var routingDataSize: Long = 0L
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun start() {
@@ -118,14 +122,19 @@ class DownloadsViewModel(private val app: OverlandApp) : ViewModel() {
             // Declared sizes come from Firestore; fetch once (best effort).
             worldMapSize = runCatching { app.planetMapManager.assetSizeBytes() }.getOrNull() ?: 0L
             worldReliefSize = runCatching { app.planetDemManager.assetSizeBytes() }.getOrNull() ?: 0L
+            routesSize = runCatching { shop.asset("routes-pmtiles")?.fileSizeBytes }.getOrNull() ?: 0L
+            routingDataSize = runCatching { shop.asset("routes-graph")?.fileSizeBytes }.getOrNull() ?: 0L
+            rebuildGeneral()
         }
         viewModelScope.launch {
             combine(
                 app.planetMapManager.state,
                 app.planetDemManager.state,
+                app.overlandDataManager.routeTiles.state,
+                app.overlandDataManager.routes.asset.state,
                 refresh,
-            ) { mapState, demState, _ -> mapState to demState }
-                .collect { (mapState, demState) -> rebuildGeneral(mapState, demState) }
+            ) { _, _, _, _, _ -> }
+                .collect { rebuildGeneral() }
         }
     }
 
@@ -145,14 +154,27 @@ class DownloadsViewModel(private val app: OverlandApp) : ViewModel() {
         )
     }
 
-    private fun rebuildGeneral(mapState: PlanetMapState, demState: PlanetDemState) {
+    private fun rebuildGeneral() {
+        val overland = app.overlandDataManager
         val items = listOf(
-            GeneralItem(GeneralAssetKind.WORLD_MAP, worldMapSize, planetStatus(mapState)),
-            GeneralItem(GeneralAssetKind.WORLD_RELIEF, worldReliefSize, demStatus(demState)),
+            GeneralItem(GeneralAssetKind.WORLD_MAP, worldMapSize, planetStatus(app.planetMapManager.state.value)),
+            GeneralItem(GeneralAssetKind.WORLD_RELIEF, worldReliefSize, demStatus(app.planetDemManager.state.value)),
             GeneralItem(GeneralAssetKind.FONTS, 0L, fontsStatus()),
             GeneralItem(GeneralAssetKind.SPRITES, 0L, spritesStatus()),
+            GeneralItem(GeneralAssetKind.ROUTES, routesSize, assetStatus(overland.routeTiles.state.value, overland.routeTiles.destination)),
+            GeneralItem(
+                GeneralAssetKind.ROUTING_DATA, routingDataSize,
+                assetStatus(overland.routes.asset.state.value, overland.routes.asset.destination),
+            ),
         )
         state.value = state.value.copy(loading = false, general = items)
+    }
+
+    private fun assetStatus(s: GeneralAssetState, file: File): DownloadStatus = when (s) {
+        is GeneralAssetState.Ready -> DownloadStatus.Downloaded(file.length())
+        is GeneralAssetState.Downloading -> DownloadStatus.Downloading(s.fraction)
+        is GeneralAssetState.Failed -> DownloadStatus.Failed(s.message)
+        is GeneralAssetState.Missing -> DownloadStatus.NotDownloaded
     }
 
     private fun planetStatus(s: PlanetMapState): DownloadStatus = when (s) {
@@ -183,6 +205,8 @@ class DownloadsViewModel(private val app: OverlandApp) : ViewModel() {
         when (kind) {
             GeneralAssetKind.WORLD_MAP -> app.planetMapManager.ensurePlanet()
             GeneralAssetKind.WORLD_RELIEF -> app.planetDemManager.ensurePlanetDem()
+            GeneralAssetKind.ROUTES -> app.overlandDataManager.routeTiles.ensure()
+            GeneralAssetKind.ROUTING_DATA -> app.overlandDataManager.routes.ensure()
             GeneralAssetKind.FONTS, GeneralAssetKind.SPRITES -> {
                 app.styleAssetsManager.retryMissing()
                 refresh.value++

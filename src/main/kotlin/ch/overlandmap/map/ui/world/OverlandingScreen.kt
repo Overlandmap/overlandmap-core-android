@@ -2,17 +2,21 @@ package ch.overlandmap.map.ui.world
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,7 +29,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
@@ -41,6 +50,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -61,21 +71,31 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.R
 import ch.overlandmap.map.data.GeneralAssetState
 import ch.overlandmap.map.model.ZoneType
+import ch.overlandmap.map.planning.BlockedCountryReason
+import ch.overlandmap.map.planning.RouteMode
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.VerticalSplit
@@ -86,6 +106,9 @@ import java.util.Date
  * The Overlanding tab (iOS `OverlandingScreen`): the country-borders map on top and, below it,
  * a detail pane that goes from the home screen to a country, a border and a border post while the
  * map stays visible. Free feature; works offline once its two assets are downloaded.
+ *
+ * The map also draws the route network and the planned trips; the toolbar's route button switches
+ * to planning mode, where taps on the map place flags and the pane becomes the trip planner.
  */
 @Composable
 fun OverlandingScreen(
@@ -103,15 +126,70 @@ fun OverlandingScreen(
     val zoomRequest by viewModel.zoomRequest.collectAsState()
     val pointZoomRequest by viewModel.pointZoomRequest.collectAsState()
     val tilesRevision by viewModel.tilesRevision.collectAsState()
+    val showRoutes by viewModel.showRoutes.collectAsState()
+    val showTrips by viewModel.showTrips.collectAsState()
+    val planning by viewModel.planning.collectAsState()
+    val routeSelection by viewModel.routeSelection.collectAsState()
+    val tripDetailId by viewModel.tripDetailId.collectAsState()
+    val highlightedLeg by viewModel.highlightedLeg.collectAsState()
+    val planningBoxExpanded by viewModel.planningBoxExpanded.collectAsState()
+    val plannerState by viewModel.plannerState.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
 
-    BackHandler(enabled = panePath.isNotEmpty()) { viewModel.popPane() }
+    var flagToDelete by remember { mutableStateOf<String?>(null) }
+    var confirmDeleteTrip by remember { mutableStateOf(false) }
+
+    val viewingLeg by viewModel.viewingLeg.collectAsState()
+    BackHandler(enabled = viewingLeg || planning || tripDetailId != null || routeSelection != null || panePath.isNotEmpty()) {
+        when {
+            viewingLeg -> viewModel.closeLeg()
+            planning -> viewModel.stopPlanning()
+            tripDetailId != null || routeSelection != null -> viewModel.clearRouteDetails()
+            else -> viewModel.popPane()
+        }
+    }
+
+    // The default name of a new trip is numbered and localized by the screen's own context.
+    val tripName = rememberUpdatedState { number: Int -> context.getString(R.string.plan_default_name, number) }
+    val routes = OverlandingRoutes(
+        showRoutes = showRoutes,
+        showTrips = showTrips,
+        planning = planning,
+        selectedSegmentId = routeSelection?.id,
+        highlightedSegmentIds = if (planning) highlightedLeg?.segmentIds.orEmpty() else emptyList(),
+        highlightedTripId = if (planning) plannerState.activeId else tripDetailId,
+    )
+    val routeActions = remember(viewModel) {
+        OverlandingRouteActions(
+            onSelectSegment = viewModel::selectSegment,
+            onSelectTrip = viewModel::selectTrip,
+            tripForSegment = viewModel.planner::tripIdForSegment,
+            onPlanTap = { viewModel.planTap(it) { n -> tripName.value(n) } },
+            onInsertFlag = { viewModel.insertFlag(it) { n -> tripName.value(n) } },
+            onMapTap = {
+                if (viewModel.textEditing.value) {
+                    focusManager.clearFocus()
+                    keyboard?.hide()
+                    true
+                } else {
+                    false
+                }
+            },
+            onStartTrip = { viewModel.startTrip(it) { n -> tripName.value(n) } },
+            onMoveFlag = { id, tap -> viewModel.moveFlag(id, tap) { n -> tripName.value(n) } },
+            onLongPressFlag = { flagToDelete = it },
+            onPreviewFlag = viewModel::previewFlag,
+            onCancelPreview = viewModel.planner::cancelPreview,
+        )
+    }
 
     VerticalSplit(
         splitKey = "overlanding",
         initialTopFraction = 0.55f,
         top = {
-            Box(Modifier.fillMaxSize()) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
                 OverlandingMap(
                     selection = selection,
                     showBorderPosts = showPosts,
@@ -126,6 +204,9 @@ fun OverlandingScreen(
                     onPointZoomHandled = viewModel::pointZoomHandled,
                     onCameraChanged = viewModel::saveCamera,
                     onSelect = viewModel::select,
+                    routes = routes,
+                    planner = plannerState,
+                    routeActions = routeActions,
                     modifier = Modifier.fillMaxSize(),
                 )
                 SchemeSwitch(
@@ -133,23 +214,47 @@ fun OverlandingScreen(
                     onScheme = viewModel::setScheme,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
                 )
-                OverlandingLegend(
-                    expanded = legendExpanded,
-                    onExpandedChange = viewModel::setLegendExpanded,
-                    scheme = scheme,
-                    showBorderPosts = showPosts,
-                    onShowBorderPosts = viewModel::setShowBorderPosts,
-                    climateKind = climateKind,
-                    onClimateKind = viewModel::setClimateKind,
-                    climateMonth = climateMonth,
-                    onClimateMonth = viewModel::setClimateMonth,
-                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, end = 8.dp, top = SCHEME_SWITCH_HEIGHT + 12.dp),
-                )
+                // Below the scheme switch, and scrollable when the map pane is short.
+                val legendModifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 8.dp, end = 8.dp, top = LegendTop)
+                    .heightIn(max = (maxHeight - LegendTop - 8.dp).coerceAtLeast(96.dp))
+                if (planning) {
+                    PlanningOptionsBox(
+                        restrictions = plannerState.restrictions,
+                        defaultKmPerDay = plannerState.defaultKmPerDay,
+                        expanded = planningBoxExpanded,
+                        onExpandedChange = viewModel::setPlanningBoxExpanded,
+                        onChange = viewModel.planner::setRestrictions,
+                        onDefaultKmPerDayChange = viewModel.planner::setDefaultKmPerDay,
+                        onTextEditingChange = viewModel::setTextEditing,
+                        modifier = legendModifier,
+                    )
+                } else {
+                    OverlandingLegend(
+                        expanded = legendExpanded,
+                        onExpandedChange = viewModel::setLegendExpanded,
+                        scheme = scheme,
+                        showBorderPosts = showPosts,
+                        onShowBorderPosts = viewModel::setShowBorderPosts,
+                        climateKind = climateKind,
+                        onClimateKind = viewModel::setClimateKind,
+                        climateMonth = climateMonth,
+                        onClimateMonth = viewModel::setClimateMonth,
+                        showRoutes = showRoutes,
+                        onShowRoutes = viewModel::setShowRoutes,
+                        showTrips = showTrips,
+                        onShowTrips = viewModel::setShowTrips,
+                        modifier = legendModifier,
+                    )
+                }
                 MapToolbar(
                     canGoBack = panePath.isNotEmpty(),
                     backTitle = panePath.lastOrNull()?.backTitle,
                     zoomTarget = viewModel.zoomTarget(data),
                     shareUrl = viewModel.shareUrl(data),
+                    planning = planning,
+                    canUndo = plannerState.canUndo,
                     onBack = { viewModel.popPane() },
                     onSearch = onOpenSearch,
                     onZoom = { target ->
@@ -169,13 +274,69 @@ fun OverlandingScreen(
                             )
                         )
                     },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(start = 8.dp, end = 8.dp, top = SCHEME_SWITCH_HEIGHT + 12.dp),
+                    onUndo = viewModel.planner::undo,
+                    onTogglePlanning = { if (planning) viewModel.stopPlanning() else viewModel.startPlanning() },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(start = 8.dp, end = 8.dp, top = LegendTop),
                 )
             }
         },
-        bottom = { DetailPane(viewModel) },
+        bottom = {
+            DetailPane(
+                viewModel,
+                onNewTrip = { viewModel.planner.newTrip(tripName.value(plannerState.trips.size + 1)) },
+                onDeleteTrip = { confirmDeleteTrip = true },
+            )
+        },
     )
+
+    flagToDelete?.let { id ->
+        AlertDialog(
+            onDismissRequest = { flagToDelete = null },
+            title = { Text(stringResource(R.string.plan_delete_waypoint)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.planner.removeWaypoint(id)
+                    flagToDelete = null
+                }) { Text(stringResource(R.string.plan_delete_waypoint), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { flagToDelete = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (confirmDeleteTrip) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteTrip = false },
+            title = { Text(stringResource(R.string.plan_delete_trip)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    plannerState.activeId?.let(viewModel.planner::deleteTrip)
+                    confirmDeleteTrip = false
+                }) { Text(stringResource(R.string.plan_delete_trip), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteTrip = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    plannerState.blocked?.let { reason ->
+        AlertDialog(
+            onDismissRequest = viewModel.planner::dismissBlocked,
+            title = {
+                Text(
+                    stringResource(
+                        when (reason) {
+                            BlockedCountryReason.FORBIDDEN -> R.string.plan_blocked_forbidden
+                            BlockedCountryReason.UNSAFE -> R.string.plan_blocked_unsafe
+                            BlockedCountryReason.RESTRICTED -> R.string.plan_blocked_restricted
+                        }
+                    )
+                )
+            },
+            confirmButton = { TextButton(onClick = { viewModel.planner.confirmBlocked() }) { Text(stringResource(R.string.plan_allow)) } },
+            dismissButton = { TextButton(onClick = viewModel.planner::dismissBlocked) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 }
+
+/** Distance from the top of the map pane to the legend, which sits under the toolbar. */
+private val LegendTop get() = SCHEME_SWITCH_HEIGHT + 12.dp
 
 @Composable
 private fun MapToolbar(
@@ -183,31 +344,55 @@ private fun MapToolbar(
     backTitle: String?,
     zoomTarget: OverlandingViewModel.ZoomTarget?,
     shareUrl: String?,
+    planning: Boolean,
+    canUndo: Boolean,
     onBack: () -> Unit,
     onSearch: () -> Unit,
     onZoom: (OverlandingViewModel.ZoomTarget) -> Unit,
     onShare: (String) -> Unit,
+    onUndo: () -> Unit,
+    onTogglePlanning: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (canGoBack) {
-            ToolbarButton(Icons.AutoMirrored.Filled.ArrowBack, backTitle ?: stringResource(R.string.close), onBack)
+        if (planning) {
+            ToolbarButton(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.plan_undo), onUndo, enabled = canUndo)
+        } else {
+            if (canGoBack) {
+                ToolbarButton(Icons.AutoMirrored.Filled.ArrowBack, backTitle ?: stringResource(R.string.close), onBack)
+            }
+            ToolbarButton(Icons.Filled.Search, stringResource(R.string.search), onSearch)
         }
-        ToolbarButton(Icons.Filled.Search, stringResource(R.string.search), onSearch)
+        ToolbarButton(
+            if (planning) Icons.Filled.Close else Icons.Filled.Route,
+            stringResource(if (planning) R.string.plan_done else R.string.plan_plan_trip),
+            onTogglePlanning,
+            tint = if (planning) Color(0xFFD32F2F) else null,
+        )
         if (zoomTarget != null) {
-            ToolbarButton(Icons.Filled.ZoomIn, stringResource(R.string.zoom)) { onZoom(zoomTarget) }
+            ToolbarButton(Icons.Filled.ZoomIn, stringResource(R.string.zoom), onClick = { onZoom(zoomTarget) })
         }
         if (shareUrl != null) {
-            ToolbarButton(Icons.Filled.Share, stringResource(R.string.share_link)) { onShare(shareUrl) }
+            ToolbarButton(Icons.Filled.Share, stringResource(R.string.share_link), onClick = { onShare(shareUrl) })
         }
     }
 }
 
 @Composable
-private fun ToolbarButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+private fun ToolbarButton(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    tint: Color? = null,
+) {
     Surface(shape = CircleShape, shadowElevation = 3.dp, color = MaterialTheme.colorScheme.surface) {
-        IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
-            Icon(icon, contentDescription = description)
+        IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(40.dp)) {
+            Icon(
+                icon,
+                contentDescription = description,
+                tint = tint ?: LocalContentColor.current.copy(alpha = if (enabled) 1f else 0.38f),
+            )
         }
     }
 }
@@ -249,6 +434,32 @@ private fun SchemeSwitch(scheme: OverlandMapScheme, onScheme: (OverlandMapScheme
 
 // ── Legend ──────────────────────────────────────────────────────────────────
 
+internal val LegendAccent = Color(0xFF3478C7)
+
+/** The frame of the map's legend and planning box: a bordered card that scrolls when too tall. */
+@Composable
+internal fun LegendCard(
+    expanded: Boolean,
+    modifier: Modifier = Modifier,
+    width: Dp = 176.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier
+            .then(if (expanded) Modifier.width(width) else Modifier)
+            .border(1.dp, LegendAccent.copy(alpha = 0.65f), RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+    ) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            content = content,
+        )
+    }
+}
+
 @Composable
 private fun OverlandingLegend(
     expanded: Boolean,
@@ -260,42 +471,59 @@ private fun OverlandingLegend(
     onClimateKind: (ClimateKind) -> Unit,
     climateMonth: Int,
     onClimateMonth: (Int) -> Unit,
+    showRoutes: Boolean,
+    onShowRoutes: (Boolean) -> Unit,
+    showTrips: Boolean,
+    onShowTrips: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier
-            .then(if (expanded) Modifier.width(if (scheme == OverlandMapScheme.CLIMATE) 248.dp else 176.dp) else Modifier)
-            .border(1.dp, Color(0xFF3478C7).copy(alpha = 0.65f), RoundedCornerShape(12.dp)),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.dp,
-    ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onExpandedChange(!expanded) },
-            ) {
-                Text(stringResource(R.string.legend), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-                Icon(
-                    if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = null,
-                    tint = Color(0xFF3478C7),
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            if (expanded) {
-                when (scheme) {
-                    OverlandMapScheme.OVERLANDING -> OverlandingLegendBody(showBorderPosts, onShowBorderPosts)
-                    OverlandMapScheme.CARNET -> {
-                        LegendSwatch(CountryCarnet.NOT_REQUIRED.label(), Color(0xFF9CA3AF))
-                        LegendSwatch(CountryCarnet.REQUIRED_IN_SOME_SITUATIONS.label(), Color(0xFFEC05F8))
-                        LegendSwatch(CountryCarnet.MANDATORY.label(), Color(0xFF0732E2))
-                        LegendSwatch(CountryCarnet.ACCESS_FORBIDDEN.label(), Color(0xFF000000))
-                    }
-                    OverlandMapScheme.CLIMATE -> ClimateLegendBody(climateKind, onClimateKind, climateMonth, onClimateMonth)
-                }
-            }
+    LegendCard(expanded = expanded, modifier = modifier, width = if (scheme == OverlandMapScheme.CLIMATE) 248.dp else 176.dp) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable { onExpandedChange(!expanded) },
+        ) {
+            Text(stringResource(R.string.legend), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = LegendAccent,
+                modifier = Modifier.size(18.dp),
+            )
         }
+        if (expanded) {
+            when (scheme) {
+                OverlandMapScheme.OVERLANDING -> OverlandingLegendBody(showBorderPosts, onShowBorderPosts)
+                OverlandMapScheme.CARNET -> {
+                    LegendSwatch(CountryCarnet.NOT_REQUIRED.label(), Color(0xFF9CA3AF))
+                    LegendSwatch(CountryCarnet.REQUIRED_IN_SOME_SITUATIONS.label(), Color(0xFFEC05F8))
+                    LegendSwatch(CountryCarnet.MANDATORY.label(), Color(0xFF0732E2))
+                    LegendSwatch(CountryCarnet.ACCESS_FORBIDDEN.label(), Color(0xFF000000))
+                }
+                OverlandMapScheme.CLIMATE -> ClimateLegendBody(climateKind, onClimateKind, climateMonth, onClimateMonth)
+            }
+            // The routes and the trips are drawn whatever the colour scheme.
+            RoutesLegendRows(showRoutes, onShowRoutes, showTrips, onShowTrips)
+        }
+    }
+}
+
+@Composable
+private fun RoutesLegendRows(
+    showRoutes: Boolean,
+    onShowRoutes: (Boolean) -> Unit,
+    showTrips: Boolean,
+    onShowTrips: (Boolean) -> Unit,
+) {
+    LegendSwitch(stringResource(R.string.plan_routes), showRoutes, onShowRoutes)
+    if (showRoutes) {
+        RouteSample(RouteMode.LAND, stringResource(R.string.route_land))
+        RouteSample(RouteMode.FERRY, stringResource(R.string.route_ferry))
+        RouteSample(RouteMode.SHIPPING, stringResource(R.string.route_shipping))
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(width = 28.dp, height = 5.dp).clip(CircleShape).background(Color.Red))
+        Text(stringResource(R.string.plan_trips), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = showTrips, onCheckedChange = onShowTrips, modifier = Modifier.height(28.dp))
     }
 }
 
@@ -391,6 +619,42 @@ private fun ClimateLegendBody(
 }
 
 @Composable
+private fun LegendSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.height(28.dp))
+    }
+}
+
+/** A short sample of how a kind of route is drawn on the map. */
+@Composable
+private fun RouteSample(mode: RouteMode, label: String) {
+    val blue = Color(0xFF2563EB)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Canvas(Modifier.size(width = 28.dp, height = 8.dp)) {
+            val y = size.height / 2
+            val from = Offset(1.dp.toPx(), y)
+            val to = Offset(size.width - 1.dp.toPx(), y)
+            when (mode) {
+                RouteMode.LAND -> {
+                    drawLine(Color.Black, from, to, strokeWidth = 7.dp.toPx() * 0.7f, cap = StrokeCap.Round)
+                    drawLine(Color.White, from, to, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+                }
+                RouteMode.FERRY -> drawLine(
+                    blue, from, to, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Butt,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(9.dp.toPx(), 6.dp.toPx())),
+                )
+                RouteMode.SHIPPING -> drawLine(
+                    blue, from, to, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.6.dp.toPx(), 6.dp.toPx())),
+                )
+            }
+        }
+        Text(label, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
 private fun ClimateChip(label: String, selected: Boolean, color: Color, onClick: () -> Unit) {
     Text(
         label,
@@ -423,7 +687,7 @@ private fun LegendLine(label: String, color: Color) {
 // ── Detail pane ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun DetailPane(vm: OverlandingViewModel) {
+private fun DetailPane(vm: OverlandingViewModel, onNewTrip: () -> Unit, onDeleteTrip: () -> Unit) {
     val data by vm.data.collectAsState()
     val selection by vm.selection.collectAsState()
     val panePath by vm.panePath.collectAsState()
@@ -435,9 +699,35 @@ private fun DetailPane(vm: OverlandingViewModel) {
 
     fun tab(key: String) = tabs[key] ?: 0
 
+    val planning by vm.planning.collectAsState()
+    val viewingLeg by vm.viewingLeg.collectAsState()
+    val routeSelection by vm.routeSelection.collectAsState()
+    val tripDetailId by vm.tripDetailId.collectAsState()
+    val highlightedLeg by vm.highlightedLeg.collectAsState()
+
     Surface(Modifier.fillMaxSize()) {
+      Column(Modifier.fillMaxSize()) {
+        if (viewingLeg) LegBackBar(onClick = vm::closeLeg)
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         val top = panePath.lastOrNull()
         when {
+            planning && !viewingLeg -> TripPlannerPanel(
+                vm = vm, data = data, lang = lang,
+                selectedLegId = highlightedLeg?.id, onSelectLeg = vm::selectLeg,
+                onNewTrip = onNewTrip,
+                onDeleteTrip = onDeleteTrip,
+            )
+            tripDetailId != null && !viewingLeg -> key(tripDetailId) {
+                TripDetail(
+                    tripId = tripDetailId.orEmpty(), vm = vm, data = data, lang = lang,
+                    onClose = vm::clearRouteDetails,
+                    onEdit = vm::startPlanning,
+                    onOpenBorderPost = vm::openBorderPostOfTrip,
+                )
+            }
+            routeSelection != null -> key(routeSelection?.id) {
+                RouteSegmentDetail(segment = routeSelection!!, data = data, lang = lang)
+            }
             top is PaneDestination.Border -> {
                 val border = data.border(top.borderId)
                 if (border == null) UnavailableSelection(unavailable)
@@ -496,7 +786,23 @@ private fun DetailPane(vm: OverlandingViewModel) {
                 }
             }
         }
+        }
+      }
     }
+}
+
+/** The way back from a leg's pane to the planner or the trip. */
+@Composable
+private fun LegBackBar(onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = LegendAccent)
+        Text(stringResource(R.string.plan_back_to_trip), color = LegendAccent, fontWeight = FontWeight.SemiBold)
+    }
+    HorizontalDivider()
 }
 
 // ── Home ────────────────────────────────────────────────────────────────────

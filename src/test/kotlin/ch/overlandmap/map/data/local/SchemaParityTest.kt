@@ -86,6 +86,11 @@ class SchemaParityTest {
             "localPath TEXT", "sessionTaskId INTEGER", "updatedAt INTEGER",
         ),
         "schema_meta" to cols("name TEXT", "value TEXT"),
+        // iOS migration `v6_trip`: planned trips (json is the whole PlannedTrip).
+        "trip" to cols(
+            "id TEXT", "name TEXT", "color TEXT", "visible INTEGER", "distanceMeters REAL",
+            "createdAt REAL", "updatedAt REAL", "json TEXT",
+        ),
     )
 
     private val iosIndexes = setOf(

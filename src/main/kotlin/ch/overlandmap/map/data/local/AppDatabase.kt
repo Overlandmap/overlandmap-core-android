@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
@@ -21,9 +22,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PackAssetRow::class, CountryRow::class, CountryBorderRow::class, BorderPostRow::class,
         ContributedWaypointRow::class, CheckInRow::class, VoteRow::class,
         ClimateRow::class, DiscussionRow::class, SyncStateRow::class, ZoneRow::class,
-        SettingRow::class, SchemaMetaRow::class, DownloadItemRow::class,
+        SettingRow::class, SchemaMetaRow::class, DownloadItemRow::class, TripRow::class,
     ],
-    version = 15,
+    version = 16,
     // The schema JSON (core/schemas) is what the golden-schema test compares with iOS.
     exportSchema = true,
 )
@@ -32,19 +33,36 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun worldDao(): WorldDao
     abstract fun nearbyDao(): NearbyDao
     abstract fun socialDao(): SocialDao
+    abstract fun tripDao(): TripDao
 
     companion object {
         @Volatile
         private var instance: AppDatabase? = null
 
         /** The current schema version this build of the app expects. */
-        const val CURRENT_VERSION = 15
+        const val CURRENT_VERSION = 16
 
         /**
          * The minimum on-disk version we can migrate from without data loss.
          * Databases older than this require a destructive reset (user consent).
+         * Version 16 only added the `trip` table ([MIGRATION_15_16]), so 15 is still compatible.
          */
         const val MIN_COMPATIBLE_VERSION = 15
+
+        /**
+         * Adds the `trip` table for the trips planned on the Overlanding map. Additive, like iOS's
+         * `v6_trip`: the downloaded packs and the cached world data are kept.
+         */
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `trip` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`color` TEXT NOT NULL, `visible` INTEGER NOT NULL, `distanceMeters` REAL, " +
+                        "`createdAt` REAL NOT NULL, `updatedAt` REAL NOT NULL, `json` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`id`))"
+                )
+            }
+        }
 
         /** Database file name, shared with [onDiskVersion]. */
         private const val DB_NAME = "overlandmap.db"
@@ -90,9 +108,12 @@ abstract class AppDatabase : RoomDatabase() {
             instance ?: synchronized(this) {
                 instance ?: Room
                     .databaseBuilder(context.applicationContext, AppDatabase::class.java, "overlandmap.db")
+                    // Version 15 -> 16 only adds a table and is migrated in place.
+                    .addMigrations(MIGRATION_15_16)
                     // The column+json schema is a clean break from the old
-                    // per-field columns; there is no upgrade path, so a stale
-                    // database (any older version) is dropped and re-downloaded.
+                    // per-field columns; there is no other upgrade path, so a
+                    // stale database (any older version) is dropped and
+                    // re-downloaded.
                     // `dropAllTables = true` is required in Room 2.7+: the
                     // deprecated no-arg form doesn't reliably fire on upgrades
                     // (e.g. an OPPO device carrying a v12 db crashed with

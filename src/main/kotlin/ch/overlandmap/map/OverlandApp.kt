@@ -168,6 +168,28 @@ class OverlandApp : Application() {
     val overlandDataManager by lazy {
         OverlandDataManager(this, appScope, shopRepository, database.worldDao(), ftsIndex)
     }
+    // ── Route network and trip planning (Overlanding map) ───────────────────
+
+    /** The route-planning graph asset (`routes-graph`), downloaded with the other Overlanding assets. */
+    val routeDataManager by lazy { overlandDataManager.routes }
+    val networkMonitor by lazy { ch.overlandmap.map.data.routes.NetworkMonitor(this) }
+    val routeGeometryStore by lazy {
+        ch.overlandmap.map.data.routes.RouteGeometryStore(authRepository, java.io.File(filesDir, "routes-geometry"))
+    }
+    val routeSegmentRepository by lazy { ch.overlandmap.map.data.routes.RouteSegmentRepository(authRepository) }
+    val tripPlanner by lazy {
+        ch.overlandmap.map.data.routes.TripPlanner(
+            dao = database.tripDao(),
+            world = database.worldDao(),
+            data = routeDataManager,
+            geometry = routeGeometryStore,
+            // The planner is confined to the main thread, like iOS's @MainActor.
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            defaultKmPerDay = userPreferences.overlandingStringNow("defaultKmPerDay")?.toDoubleOrNull()?.takeIf { it > 0 }
+                ?: ch.overlandmap.map.planning.PlannedTrip.DEFAULT_KM_PER_DAY,
+            saveDefaultKmPerDay = { km -> appScope.launch { userPreferences.setOverlandingString("defaultKmPerDay", km.toString()) } },
+        )
+    }
     val nearbySearchRepository by lazy { ch.overlandmap.map.data.NearbySearchRepository(database.nearbyDao(), imported = { prefixes ->
         downloadLibrary.nearby(prefixes).mapNotNull { point ->
             val track = trackRecorder.track(point.trackId) ?: return@mapNotNull null
@@ -277,8 +299,9 @@ class OverlandApp : Application() {
         // The world relief (Terrain-RGB DEM) the styles' hillshade and
         // elevation-colour layers read; fetched once, like the world base map.
         planetDemManager.ensurePlanetDem()
-        // The Overlanding assets (country borders tiles + the countries dump) and the advisory
-        // URL templates, like iOS fetched at launch; an offline start keeps the cached copies.
+        // The Overlanding assets (country borders tiles, the countries dump and the route-planning
+        // graph) and the advisory URL templates, like iOS fetched at launch; an offline start keeps
+        // the cached copies.
         overlandDataManager.ensure()
         appScope.launch { globalSettingsRepository.refreshAdvisoryUrlTemplates() }
         // Cache track pack names from Firestore for debug tools.

@@ -181,7 +181,7 @@ fun FieldDiscussionButton(
 /** Views the discussions about a field and files a new correction (reason `correction`, topic = field). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FieldDiscussionSheet(
+internal fun FieldDiscussionSheet(
     discussions: ObjectDiscussions,
     fieldName: String,
     fieldTitle: String,
@@ -277,7 +277,7 @@ fun EmptyTabContent(discussions: ObjectDiscussions, modifier: Modifier = Modifie
 /** Free input about the object with a chosen reason (topic = reason). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddInputSheet(discussions: ObjectDiscussions, onDismiss: () -> Unit) {
+internal fun AddInputSheet(discussions: ObjectDiscussions, onDismiss: () -> Unit) {
     val lang = currentLanguage()
     val scope = rememberCoroutineScope()
     var reason by remember { mutableStateOf(DiscussionReason.GENERAL) }

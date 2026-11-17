@@ -26,6 +26,9 @@ data class UserPurchase(
     /** A purchase with this id marks the user as a beta tester (matched case-insensitively). */
     val isBeta: Boolean get() = documentId.equals(BETA_ID, ignoreCase = true)
 
+    /** A purchase with this id gives access to the Debug menu in Settings (matched case-insensitively). */
+    val isDebug: Boolean get() = documentId.equals(DEBUG_ID, ignoreCase = true)
+
     /** True for an owned track pack or a pro entitlement still running. */
     val isActive: Boolean
         get() = purchased && (!isPro || (validityEnd ?: 0L) > System.currentTimeMillis())
@@ -37,6 +40,7 @@ data class UserPurchase(
         const val PRO_ID = "pro"
         const val ADMIN_ID = "admin"
         const val BETA_ID = "beta"
+        const val DEBUG_ID = "debug"
 
         fun fromFirestore(documentId: String, data: Map<String, Any?>) = UserPurchase(
             documentId = documentId,
@@ -66,6 +70,9 @@ data class Entitlements(val purchases: List<UserPurchase> = emptyList()) {
     /** Admins and beta testers see the packs that are not published yet (iOS `fetchCatalog(includeUnpublished:)`). */
     val canSeeUnpublished: Boolean get() = hasAdmin || hasBeta
     val hasBeta: Boolean get() = purchases.any { it.isBeta }
+
+    /** Shows the Debug menu in Settings. */
+    val hasDebug: Boolean get() = purchases.any { it.isDebug }
 
     /** Whether the user owns [packId] through an active purchase of it. */
     fun owns(packId: String): Boolean = purchases.any { it.covers(packId) }

@@ -81,7 +81,7 @@ class SettingsViewModel(private val app: OverlandApp) : ViewModel() {
     /** Display names of the purchased packs, by pack id (local copy first, then the online pack). */
     val packNames: StateFlow<Map<String, String>> = purchases.map { list ->
         val lang = java.util.Locale.getDefault().language
-        list.filter { !it.isPro && !it.isAdmin && !it.isBeta }.mapNotNull { p ->
+        list.filter { !it.isPro && !it.isAdmin && !it.isBeta && !it.isDebug }.mapNotNull { p ->
             val pack = runCatching { app.libraryRepository.trackPack(p.documentId) }.getOrNull()
                 ?: runCatching { app.shopRepository.trackPack(p.documentId) }.getOrNull()
             pack?.let { p.documentId to it.name(lang) }

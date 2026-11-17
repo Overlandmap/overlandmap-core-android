@@ -394,7 +394,7 @@ fun ProfileScreen(
         MessageText(message)
 
         // Purchases: packs counted and named; pro / admin / beta labelled, pro last.
-        val packPurchases = purchases.filter { !it.isPro && !it.isAdmin && !it.isBeta }
+        val packPurchases = purchases.filter { !it.isPro && !it.isAdmin && !it.isBeta && !it.isDebug }
         Text(
             stringResource(R.string.purchases) + " (${packPurchases.size})",
             style = MaterialTheme.typography.titleMedium,
