@@ -40,6 +40,9 @@ import org.maplibre.android.style.layers.Layer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.rasterOpacity
+import org.maplibre.android.style.layers.RasterLayer
+import org.maplibre.android.style.sources.RasterSource
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
@@ -65,6 +68,11 @@ internal object OverlandLayers {
     const val SELECTION = "om-overlanding-selection"
     const val HATCH = "om-zone-hatch"
 
+    /** Raster climate tiles, one source and layer per month: `climate-temp-01` … `climate-precip-12`. */
+    const val CLIMATE_TILES = "https://pmtiles-cloudflare.overlandmap.workers.dev"
+    fun climateId(kind: ClimateKind, month: Int) =
+        "om-climate-${if (kind == ClimateKind.TEMPERATURE) "temp" else "precip"}-${month.toString().padStart(2, '0')}"
+
     /** Source layers inside the country-borders archive. */
     const val SL_COUNTRY = "country"
     const val SL_ZONES = "zones"
@@ -73,6 +81,10 @@ internal object OverlandLayers {
 
     val countryColors = listOf(0 to "#252525", 1 to "#D64545", 2 to "#E7B844", 3 to "#45A866")
     const val COUNTRY_OTHER = "#9A9A9A"
+
+    /** Carnet requirement of a country (`-1` access forbidden, `0` none, `1` in some situations, `2` mandatory). */
+    val carnetColors = listOf(-1 to "#000000", 0 to "#9CA3AF", 1 to "#EC05F8", 2 to "#0732E2")
+    const val CARNET_OTHER = "#9CA3AF"
     val borderColors = listOf(0 to "#D64545", 1 to "#3478C7", 2 to "#45A866", 3 to "#E7A43D")
     const val BORDER_OTHER = "#777777"
     const val POST_TEMP_CLOSED = "#8E3B3B"
@@ -97,6 +109,9 @@ internal object OverlandLayers {
 fun OverlandingMap(
     selection: OverlandingSelection?,
     showBorderPosts: Boolean,
+    scheme: OverlandMapScheme,
+    climateKind: ClimateKind,
+    climateMonth: Int,
     dataRevision: Int,
     initialCamera: OverlandingCamera,
     zoomRequest: GeoBounds?,
@@ -164,10 +179,9 @@ fun OverlandingMap(
     LaunchedEffect(style, selection, layersRevision) {
         style?.let { updateSelectionLayer(it, selection) }
     }
-    LaunchedEffect(style, showBorderPosts, layersRevision) {
-        style?.getLayer(OverlandLayers.POSTS)?.setProperties(
-            visibility(if (showBorderPosts) Property.VISIBLE else Property.NONE)
-        )
+    // The colour scheme decides which layers are shown and how the countries are filled.
+    LaunchedEffect(style, scheme, showBorderPosts, climateKind, climateMonth, layersRevision) {
+        style?.let { applyScheme(it, scheme, showBorderPosts, climateKind, climateMonth) }
     }
     // Focus requests wait for the style, so one arriving while the tab is still building isn't lost.
     LaunchedEffect(map, style, zoomRequest) {
@@ -257,6 +271,59 @@ private fun installOverlandLayers(style: Style, showBorderPosts: Boolean) {
             )
         }
     )
+    installClimateLayers(style)
+}
+
+/**
+ * One raster source and (hidden) layer per month for the temperature and the precipitation, under
+ * the base map's water so the sea and the labels stay readable (Flutter `_addClimateSources/Layers`).
+ */
+private fun installClimateLayers(style: Style) {
+    val below = if (style.getLayer("water") != null) "water" else OverlandLayers.COUNTRIES
+    for (kind in ClimateKind.entries) {
+        val path = if (kind == ClimateKind.TEMPERATURE) "temp" else "pr"
+        for (month in 1..12) {
+            val id = OverlandLayers.climateId(kind, month)
+            val tiles = TileSet("2.1.0", "${OverlandLayers.CLIMATE_TILES}/$path/${month.toString().padStart(2, '0')}/{z}/{x}/{y}.webp")
+            style.addSource(RasterSource(id, tiles, 512))
+            style.addLayerBelow(
+                RasterLayer(id, id).withProperties(visibility(Property.NONE), rasterOpacity(1f)),
+                below,
+            )
+        }
+    }
+}
+
+private fun removeClimateLayers(style: Style) {
+    for (kind in ClimateKind.entries) for (month in 1..12) {
+        val id = OverlandLayers.climateId(kind, month)
+        style.removeLayer(id)
+        style.removeSource(id)
+    }
+}
+
+/**
+ * Applies the colour scheme: overlanding fills the countries by status and shows the zones, the
+ * borders and (when asked) the border posts; carnet fills them by carnet requirement with the
+ * borders only; climate hides all of that and shows the raster of the chosen month.
+ */
+private fun applyScheme(style: Style, scheme: OverlandMapScheme, showBorderPosts: Boolean, kind: ClimateKind, month: Int) {
+    fun show(visible: Boolean) = visibility(if (visible) Property.VISIBLE else Property.NONE)
+    style.getLayer(OverlandLayers.COUNTRIES)?.setProperties(
+        fillColor(
+            if (scheme == OverlandMapScheme.CARNET) colorMatch("carnet", OverlandLayers.carnetColors, OverlandLayers.CARNET_OTHER)
+            else colorMatch("overlanding", OverlandLayers.countryColors, OverlandLayers.COUNTRY_OTHER)
+        ),
+        fillOpacity(if (scheme == OverlandMapScheme.CARNET) 0.8f else 0.62f),
+        show(scheme != OverlandMapScheme.CLIMATE),
+    )
+    style.getLayer(OverlandLayers.ZONES)?.setProperties(show(scheme == OverlandMapScheme.OVERLANDING))
+    style.getLayer(OverlandLayers.BORDERS)?.setProperties(show(scheme != OverlandMapScheme.CLIMATE))
+    style.getLayer(OverlandLayers.POSTS)?.setProperties(show(scheme == OverlandMapScheme.OVERLANDING && showBorderPosts))
+    for (k in ClimateKind.entries) for (m in 1..12) {
+        style.getLayer(OverlandLayers.climateId(k, m))
+            ?.setProperties(show(scheme == OverlandMapScheme.CLIMATE && k == kind && m == month))
+    }
 }
 
 private fun removeOverlandLayers(style: Style) {
@@ -264,6 +331,7 @@ private fun removeOverlandLayers(style: Style) {
         OverlandLayers.SELECTION, OverlandLayers.POSTS, OverlandLayers.BORDERS,
         OverlandLayers.ZONES, OverlandLayers.COUNTRIES,
     ).forEach { style.removeLayer(it) }
+    removeClimateLayers(style)
     style.removeSource(OverlandLayers.SOURCE)
 }
 

@@ -511,4 +511,9 @@
     <string name="crash_report_share">Condividi rapporto</string>
     <string name="crash_report_discard">Elimina rapporto</string>
     <string name="itinerary_permit_sidebar">Vedi %1$s per maggiori informazioni</string>
+    <string name="overlanding">Overlanding</string>
+    <string name="precipitation">Precipitazione</string>
+    <string name="precipitation_scale">Scala precipitazione</string>
+    <string name="temperature">Temperatura</string>
+    <string name="temperature_scale">Scala temperatura</string>
 </resources>

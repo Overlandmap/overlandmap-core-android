@@ -513,4 +513,9 @@
     <string name="crash_report_share">Поделиться отчётом</string>
     <string name="crash_report_discard">Удалить отчёт</string>
     <string name="itinerary_permit_sidebar">Подробнее см. %1$s</string>
+    <string name="overlanding">Оверлендинг</string>
+    <string name="precipitation">Осадки</string>
+    <string name="precipitation_scale">Шкала осадков</string>
+    <string name="temperature">Температура</string>
+    <string name="temperature_scale">Шкала температуры</string>
 </resources>

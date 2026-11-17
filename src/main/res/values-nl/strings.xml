@@ -513,4 +513,9 @@
     <string name="crash_report_share">Crashrapport delen</string>
     <string name="crash_report_discard">Rapport verwijderen</string>
     <string name="itinerary_permit_sidebar">Zie %1$s voor meer informatie</string>
+    <string name="overlanding">Overlanding</string>
+    <string name="precipitation">Neerslag</string>
+    <string name="precipitation_scale">Neerslagschaal</string>
+    <string name="temperature">Temperatuur</string>
+    <string name="temperature_scale">Temperatuurschaal</string>
 </resources>

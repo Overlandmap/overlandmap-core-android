@@ -623,4 +623,9 @@
     <string name="navigation_last_step">Last step (reverse)</string>
     <string name="navigation_nearest_point">Nearest point</string>
     <string name="navigation_direction_reverse">Reverse</string>
+    <string name="overlanding">Overlanding</string>
+    <string name="precipitation">Precipitation</string>
+    <string name="precipitation_scale">Precipitation Scale</string>
+    <string name="temperature">Temperature</string>
+    <string name="temperature_scale">Temperature Scale</string>
 </resources>

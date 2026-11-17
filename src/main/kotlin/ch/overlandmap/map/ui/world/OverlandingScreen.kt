@@ -49,6 +49,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import ch.overlandmap.map.ui.rememberUnitFormatter
+import ch.overlandmap.map.model.CountryCarnet
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +97,9 @@ fun OverlandingScreen(
     val panePath by viewModel.panePath.collectAsState()
     val showPosts by viewModel.showBorderPosts.collectAsState()
     val legendExpanded by viewModel.legendExpanded.collectAsState()
+    val scheme by viewModel.scheme.collectAsState()
+    val climateKind by viewModel.climateKind.collectAsState()
+    val climateMonth by viewModel.climateMonth.collectAsState()
     val zoomRequest by viewModel.zoomRequest.collectAsState()
     val pointZoomRequest by viewModel.pointZoomRequest.collectAsState()
     val tilesRevision by viewModel.tilesRevision.collectAsState()
@@ -103,6 +115,9 @@ fun OverlandingScreen(
                 OverlandingMap(
                     selection = selection,
                     showBorderPosts = showPosts,
+                    scheme = scheme,
+                    climateKind = climateKind,
+                    climateMonth = climateMonth,
                     dataRevision = tilesRevision,
                     initialCamera = viewModel.initialCamera,
                     zoomRequest = zoomRequest,
@@ -113,12 +128,22 @@ fun OverlandingScreen(
                     onSelect = viewModel::select,
                     modifier = Modifier.fillMaxSize(),
                 )
+                SchemeSwitch(
+                    scheme = scheme,
+                    onScheme = viewModel::setScheme,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                )
                 OverlandingLegend(
                     expanded = legendExpanded,
                     onExpandedChange = viewModel::setLegendExpanded,
+                    scheme = scheme,
                     showBorderPosts = showPosts,
                     onShowBorderPosts = viewModel::setShowBorderPosts,
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                    climateKind = climateKind,
+                    onClimateKind = viewModel::setClimateKind,
+                    climateMonth = climateMonth,
+                    onClimateMonth = viewModel::setClimateMonth,
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, end = 8.dp, top = SCHEME_SWITCH_HEIGHT + 12.dp),
                 )
                 MapToolbar(
                     canGoBack = panePath.isNotEmpty(),
@@ -144,7 +169,7 @@ fun OverlandingScreen(
                             )
                         )
                     },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(start = 8.dp, end = 8.dp, top = SCHEME_SWITCH_HEIGHT + 12.dp),
                 )
             }
         },
@@ -187,19 +212,59 @@ private fun ToolbarButton(icon: ImageVector, description: String, onClick: () ->
     }
 }
 
+// ── Colour scheme ───────────────────────────────────────────────────────────
+
+private val SCHEME_SWITCH_HEIGHT = 36.dp
+
+/** The Overlanding / Carnet / Climate switch over the top of the map (Flutter `SegmentedButton<CountryColorScheme>`). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SchemeSwitch(scheme: OverlandMapScheme, onScheme: (OverlandMapScheme) -> Unit, modifier: Modifier = Modifier) {
+    val entries = listOf(
+        OverlandMapScheme.OVERLANDING to R.string.overlanding,
+        OverlandMapScheme.CARNET to R.string.carnet,
+        OverlandMapScheme.CLIMATE to R.string.climate,
+    )
+    SingleChoiceSegmentedButtonRow(modifier.height(SCHEME_SWITCH_HEIGHT)) {
+        entries.forEachIndexed { index, (value, label) ->
+            SegmentedButton(
+                selected = scheme == value,
+                onClick = { onScheme(value) },
+                shape = SegmentedButtonDefaults.itemShape(index, entries.size, RoundedCornerShape(8.dp)),
+                icon = {},
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = Color(0xFF2196F3),
+                    activeContentColor = Color.White,
+                    activeBorderColor = Color(0xFF3F51B5),
+                    inactiveContainerColor = Color.White,
+                    inactiveContentColor = Color.Black,
+                    inactiveBorderColor = Color(0xFF3F51B5),
+                ),
+            ) {
+                Text(stringResource(label), fontSize = 12.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
 // ── Legend ──────────────────────────────────────────────────────────────────
 
 @Composable
 private fun OverlandingLegend(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
+    scheme: OverlandMapScheme,
     showBorderPosts: Boolean,
     onShowBorderPosts: (Boolean) -> Unit,
+    climateKind: ClimateKind,
+    onClimateKind: (ClimateKind) -> Unit,
+    climateMonth: Int,
+    onClimateMonth: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier
-            .then(if (expanded) Modifier.width(176.dp) else Modifier)
+            .then(if (expanded) Modifier.width(if (scheme == OverlandMapScheme.CLIMATE) 248.dp else 176.dp) else Modifier)
             .border(1.dp, Color(0xFF3478C7).copy(alpha = 0.65f), RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -219,27 +284,124 @@ private fun OverlandingLegend(
                 )
             }
             if (expanded) {
-                LegendSwatch(stringResource(R.string.open), Color(0xFF45A866))
-                LegendSwatch(stringResource(R.string.restricted), Color(0xFFE7B844))
-                LegendSwatch(stringResource(R.string.overlanding_unsafe), Color(0xFFD64545))
-                LegendSwatch(stringResource(R.string.overlanding_forbidden), Color(0xFF252525))
-                Text(
-                    stringResource(R.string.overland_borders_heading),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-                LegendLine(stringResource(R.string.border_open), Color(0xFF45A866))
-                LegendLine(stringResource(R.string.border_bilateral), Color(0xFF3478C7))
-                LegendLine(stringResource(R.string.restricted), Color(0xFFE7A43D))
-                LegendLine(stringResource(R.string.border_closed), Color(0xFFD64545))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.border_posts), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Switch(checked = showBorderPosts, onCheckedChange = onShowBorderPosts, modifier = Modifier.height(28.dp))
+                when (scheme) {
+                    OverlandMapScheme.OVERLANDING -> OverlandingLegendBody(showBorderPosts, onShowBorderPosts)
+                    OverlandMapScheme.CARNET -> {
+                        LegendSwatch(CountryCarnet.NOT_REQUIRED.label(), Color(0xFF9CA3AF))
+                        LegendSwatch(CountryCarnet.REQUIRED_IN_SOME_SITUATIONS.label(), Color(0xFFEC05F8))
+                        LegendSwatch(CountryCarnet.MANDATORY.label(), Color(0xFF0732E2))
+                        LegendSwatch(CountryCarnet.ACCESS_FORBIDDEN.label(), Color(0xFF000000))
+                    }
+                    OverlandMapScheme.CLIMATE -> ClimateLegendBody(climateKind, onClimateKind, climateMonth, onClimateMonth)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun OverlandingLegendBody(showBorderPosts: Boolean, onShowBorderPosts: (Boolean) -> Unit) {
+    LegendSwatch(stringResource(R.string.open), Color(0xFF45A866))
+    LegendSwatch(stringResource(R.string.restricted), Color(0xFFE7B844))
+    LegendSwatch(stringResource(R.string.overlanding_unsafe), Color(0xFFD64545))
+    LegendSwatch(stringResource(R.string.overlanding_forbidden), Color(0xFF252525))
+    Text(
+        stringResource(R.string.overland_borders_heading),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 2.dp),
+    )
+    LegendLine(stringResource(R.string.border_open), Color(0xFF45A866))
+    LegendLine(stringResource(R.string.border_bilateral), Color(0xFF3478C7))
+    LegendLine(stringResource(R.string.restricted), Color(0xFFE7A43D))
+    LegendLine(stringResource(R.string.border_closed), Color(0xFFD64545))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(R.string.border_posts), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = showBorderPosts, onCheckedChange = onShowBorderPosts, modifier = Modifier.height(28.dp))
+    }
+}
+
+private val TEMPERATURE_GRADIENT = listOf(
+    Color(16, 39, 69), Color(111, 159, 205), Color(189, 222, 236), Color(243, 246, 212),
+    Color(254, 227, 149), Color(250, 153, 87), Color(215, 48, 39), Color(115, 27, 21),
+)
+private val PRECIPITATION_GRADIENT = listOf(
+    Color(255, 255, 204), Color(199, 233, 180), Color(65, 182, 196), Color(37, 52, 148),
+    Color(197, 27, 125), Color(247, 247, 247), Color(128, 0, 38),
+)
+
+/** Temperature or precipitation, the month, and the colour scale of the raster on the map. */
+@Composable
+private fun ClimateLegendBody(
+    kind: ClimateKind,
+    onKind: (ClimateKind) -> Unit,
+    month: Int,
+    onMonth: (Int) -> Unit,
+) {
+    val format = rememberUnitFormatter().format
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ClimateChip(stringResource(R.string.temperature), kind == ClimateKind.TEMPERATURE, Color(0xFFFF8C00)) { onKind(ClimateKind.TEMPERATURE) }
+        ClimateChip(stringResource(R.string.precipitation), kind == ClimateKind.PRECIPITATION, Color(0xFF8A2BE2)) { onKind(ClimateKind.PRECIPITATION) }
+    }
+    val months = remember { java.text.DateFormatSymbols.getInstance(java.util.Locale.getDefault()).shortMonths }
+    for (row in 0..1) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (i in 0 until 6) {
+                val m = row * 6 + i + 1
+                val selected = m == month
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (selected) Color(0xFF4CAF50) else Color(0xFFEEEEEE))
+                        .border(1.dp, if (selected) Color(0xFF4CAF50) else Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
+                        .clickable { onMonth(m) }
+                        .padding(vertical = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        months[m - 1].trimEnd('.'),
+                        fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                        color = if (selected) Color.White else Color(0xDD000000),
+                    )
+                }
+            }
+        }
+    }
+    val temperature = kind == ClimateKind.TEMPERATURE
+    Text(
+        stringResource(if (temperature) R.string.temperature_scale else R.string.precipitation_scale),
+        fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp),
+    )
+    Box(
+        Modifier
+            .width(120.dp).height(12.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Brush.horizontalGradient(if (temperature) TEMPERATURE_GRADIENT else PRECIPITATION_GRADIENT)),
+    )
+    val labels = when {
+        temperature && format.temperatureCelsius -> listOf("-45°C", "0°C", "45°C")
+        temperature -> listOf("-50°F", "32°F", "110°F")
+        format.distanceMetric -> listOf("0", if (java.util.Locale.getDefault().language == "ru") "400 мм" else "400 mm", if (java.util.Locale.getDefault().language == "ru") "2000 мм" else "2000 mm")
+        else -> listOf("0", "15 in", "80 in")
+    }
+    Row(Modifier.width(if (temperature) 130.dp else 140.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        labels.forEach { Text(it, fontSize = 9.sp) }
+    }
+}
+
+@Composable
+private fun ClimateChip(label: String, selected: Boolean, color: Color, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+        color = if (selected) Color.White else Color.Black,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) color else Color(0xFFE0E0E0))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable

@@ -66,6 +66,12 @@ sealed interface PaneDestination {
 
 enum class OverlandResultKind { COUNTRY, BORDER, BORDER_POST, ZONE }
 
+/** What the Overlanding map colours (Flutter `CountryColorScheme`): the overlanding status, the carnet requirement, or the climate. */
+enum class OverlandMapScheme { OVERLANDING, CARNET, CLIMATE }
+
+/** The climate data shown by [OverlandMapScheme.CLIMATE] (Flutter `ClimateScheme`). */
+enum class ClimateKind { TEMPERATURE, PRECIPITATION }
+
 /** One row of the home pane's search. */
 data class OverlandSearchResult(
     val id: String,

@@ -64,6 +64,13 @@ class OverlandingViewModel(private val app: OverlandApp) : ViewModel() {
     private val _legendExpanded = MutableStateFlow(prefs.overlandingBooleanNow("legendExpanded", true))
     val legendExpanded: StateFlow<Boolean> = _legendExpanded.asStateFlow()
 
+    // The map's colour scheme and the climate choices are not remembered between launches (as in Flutter).
+    private val _scheme = MutableStateFlow(OverlandMapScheme.OVERLANDING)
+    val scheme: StateFlow<OverlandMapScheme> = _scheme.asStateFlow()
+    private val _climateKind = MutableStateFlow(ClimateKind.TEMPERATURE)
+    val climateKind: StateFlow<ClimateKind> = _climateKind.asStateFlow()
+    private val _climateMonth = MutableStateFlow(1)
+    val climateMonth: StateFlow<Int> = _climateMonth.asStateFlow()
     /** A box the pane asked the map to frame; the map clears it once framed. */
     private val _zoomRequest = MutableStateFlow<GeoBounds?>(null)
     val zoomRequest: StateFlow<GeoBounds?> = _zoomRequest.asStateFlow()
@@ -169,6 +176,9 @@ class OverlandingViewModel(private val app: OverlandApp) : ViewModel() {
         if (!visible && _selection.value is OverlandingSelection.OfBorderPost) select(null)
     }
 
+    fun setScheme(scheme: OverlandMapScheme) { _scheme.value = scheme }
+    fun setClimateKind(kind: ClimateKind) { _climateKind.value = kind }
+    fun setClimateMonth(month: Int) { _climateMonth.value = month.coerceIn(1, 12) }
     fun setLegendExpanded(expanded: Boolean) {
         _legendExpanded.value = expanded
         viewModelScope.launch { prefs.setOverlandingBoolean("legendExpanded", expanded) }
