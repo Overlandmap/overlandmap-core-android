@@ -526,4 +526,16 @@
     <string name="precipitation_scale">Échelle de précipitation</string>
     <string name="temperature">Température</string>
     <string name="temperature_scale">Échelle de température</string>
+    <string name="bluetooth_gps_no_track">Aucune trace sélectionnée</string>
+    <string name="bluetooth_gps_points">%1$d points</string>
+    <string name="bluetooth_gps_visible_as">Visible sous : %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Diffuse la trace sélectionnée sous forme de positions GPS aux appareils connectés.</string>
+    <string name="bluetooth_gps_pause">Pause</string>
+    <string name="bluetooth_gps_resume">Reprendre</string>
+    <string name="bluetooth_gps_skip_step">Aller à une étape</string>
+    <string name="bluetooth_gps_finished">Lecture terminée</string>
+    <string name="bluetooth_gps_connected_devices">Appareils connectés : %1$d</string>
+    <string name="debug_checkin_sync_reset">Réinitialiser les dates de synchronisation des validations pour tous les trackpacks</string>
+    <string name="debug_checkin_sync_reset_done">Dates de synchronisation des validations fixées à il y a deux jours.</string>
+    <string name="debug_checkin_sync_reset_failed">Impossible de réinitialiser les dates de synchronisation des validations.</string>
 </resources>

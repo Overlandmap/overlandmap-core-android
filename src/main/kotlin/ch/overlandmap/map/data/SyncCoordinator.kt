@@ -72,20 +72,24 @@ class SyncPolicy(private val ttlMillis: Map<SyncKind, Long>) {
 /** Where synced data comes from. Firestore implements this; tests use a fake. */
 interface SocialDataSource {
     suspend fun fetchComments(trackPackId: String): List<Comment>
-    suspend fun fetchCheckIns(trackPackId: String): List<CheckIn>
+    suspend fun fetchCheckIns(trackPackId: String): CheckInBatch
     suspend fun fetchVotes(trackPackId: String): List<Vote>
 
     /** Only rows with `active == true`; moderated-out waypoints are never cached. */
     suspend fun fetchContributedWaypoints(trackPackId: String): List<ContributedWaypoint>
 }
 
+/** The queried locations and their results, including locations with no check-ins. */
+data class CheckInBatch(val geohashes: Set<String>, val checkIns: List<CheckIn>)
+
 /** The local store the coordinator writes to; each `replace…` is one transaction. */
 interface SocialCache {
     suspend fun lastSync(trackPackId: String, kind: SyncKind): Long?
     suspend fun setLastSync(trackPackId: String, kind: SyncKind, time: Long)
     suspend fun clearLastSync(trackPackId: String, kind: SyncKind)
+    suspend fun backdateAllCheckIns(time: Long)
     suspend fun replaceComments(trackPackId: String, comments: List<Comment>)
-    suspend fun replaceCheckIns(trackPackId: String, checkIns: List<CheckIn>)
+    suspend fun replaceCheckIns(trackPackId: String, batch: CheckInBatch)
     suspend fun replaceVotes(trackPackId: String, votes: List<Vote>)
     suspend fun replaceContributedWaypoints(trackPackId: String, waypoints: List<ContributedWaypoint>)
 }
@@ -107,6 +111,7 @@ class SyncCoordinator(
 ) {
     /** Guards against two overlapping syncs of the same pack and kind. */
     private val inFlightLock = Mutex()
+    private val checkInSyncLock = Mutex()
     private val inFlight = HashSet<String>()
 
     suspend fun needsSync(trackPackId: String, kind: SyncKind): Boolean =
@@ -122,6 +127,11 @@ class SyncCoordinator(
     suspend fun invalidate(trackPackId: String, kind: SyncKind) =
         cache.clearLastSync(trackPackId, kind)
 
+    /** Backdates every pack's check-in sync after any in-flight check-in fetch finishes. */
+    suspend fun backdateAllCheckIns(time: Long) = checkInSyncLock.withLock {
+        cache.backdateAllCheckIns(time)
+    }
+
     /** Syncs [kind] when its cache is missing or stale. Returns whether a sync ran. */
     suspend fun syncIfNeeded(trackPackId: String, kind: SyncKind): Boolean =
         if (needsSync(trackPackId, kind)) sync(trackPackId, kind) else false
@@ -131,24 +141,28 @@ class SyncCoordinator(
         val token = "$trackPackId/${kind.raw}"
         if (!inFlightLock.withLock { inFlight.add(token) }) return false
         try {
-            when (kind) {
-                SyncKind.COMMENTS ->
-                    cache.replaceComments(trackPackId, source.fetchComments(trackPackId))
-                SyncKind.CHECK_INS ->
-                    cache.replaceCheckIns(trackPackId, source.fetchCheckIns(trackPackId))
-                SyncKind.VOTES ->
-                    cache.replaceVotes(trackPackId, source.fetchVotes(trackPackId))
-                SyncKind.CONTRIBUTED_WAYPOINTS ->
-                    cache.replaceContributedWaypoints(
-                        trackPackId,
-                        // Moderated-out waypoints are never cached, whatever the source returned.
-                        source.fetchContributedWaypoints(trackPackId).filter { it.isActive },
-                    )
-                // Handled by their own repositories; the timestamp is still recorded here
-                // so the policy lives in one place.
-                SyncKind.TRACK_PACK_VERSION, SyncKind.OVERLAND_DATA -> Unit
+            suspend fun fetchAndStamp() {
+                when (kind) {
+                    SyncKind.COMMENTS ->
+                        cache.replaceComments(trackPackId, source.fetchComments(trackPackId))
+                    SyncKind.CHECK_INS ->
+                        cache.replaceCheckIns(trackPackId, source.fetchCheckIns(trackPackId))
+                    SyncKind.VOTES ->
+                        cache.replaceVotes(trackPackId, source.fetchVotes(trackPackId))
+                    SyncKind.CONTRIBUTED_WAYPOINTS ->
+                        cache.replaceContributedWaypoints(
+                            trackPackId,
+                            // Moderated-out waypoints are never cached, whatever the source returned.
+                            source.fetchContributedWaypoints(trackPackId).filter { it.isActive },
+                        )
+                    // Handled by their own repositories; the timestamp is still recorded here
+                    // so the policy lives in one place.
+                    SyncKind.TRACK_PACK_VERSION, SyncKind.OVERLAND_DATA -> Unit
+                }
+                markSynced(trackPackId, kind)
             }
-            markSynced(trackPackId, kind)
+            if (kind == SyncKind.CHECK_INS) checkInSyncLock.withLock { fetchAndStamp() }
+            else fetchAndStamp()
             return true
         } finally {
             inFlightLock.withLock { inFlight.remove(token) }
@@ -173,7 +187,7 @@ class SyncCoordinator(
 
     companion object {
         val SOCIAL_KINDS = listOf(
-            SyncKind.COMMENTS, SyncKind.CHECK_INS, SyncKind.VOTES, SyncKind.CONTRIBUTED_WAYPOINTS,
+            SyncKind.COMMENTS, SyncKind.CONTRIBUTED_WAYPOINTS, SyncKind.CHECK_INS, SyncKind.VOTES,
         )
     }
 }

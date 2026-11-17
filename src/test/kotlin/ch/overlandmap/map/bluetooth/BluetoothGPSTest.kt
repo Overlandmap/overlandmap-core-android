@@ -57,4 +57,37 @@ class BluetoothGPSTest {
     @Test(expected = IllegalArgumentException::class) fun invalidPlayback() {
         TrackPlayback(listOf(Coordinate(0.0, 0.0), Coordinate(0.0, 0.0)), false)
     }
+    @Test fun seekingUsesOriginalTrackDistanceInEitherDirection() {
+        val start = Coordinate(0.0, 0.0)
+        val end = Coordinate(0.0, 0.01)
+        val distance = start.distanceMeters(end)
+        val forward = TrackPlayback(listOf(start, end), false)
+        val reverse = TrackPlayback(listOf(start, end), true)
+        forward.seekToOriginalDistance(distance * 0.25)
+        reverse.seekToOriginalDistance(distance * 0.25)
+        val a = forward.advance(0.0, 1)
+        val b = reverse.advance(0.0, 1)
+        assertEquals(a.coordinate.longitude, b.coordinate.longitude, 1e-8)
+        assertEquals(0.25, a.progress, 1e-6)
+        assertEquals(0.75, b.progress, 1e-6)
+        reverse.seekToOriginalDistance(0.0)
+        assertTrue(reverse.finished)
+    }
+    @Test fun playbackInterpolatesAltitudeAndPreservesMissingValues() {
+        val a = Coordinate(0.0, 0.0)
+        val b = Coordinate(0.0, 0.01)
+        val half = a.distanceMeters(b) / 2
+        for (reverse in listOf(false, true)) {
+            val playback = TrackPlayback(listOf(a, b), reverse, listOf(100.0, 300.0))
+            playback.seekToOriginalDistance(half)
+            val sample = playback.advance(0.0, 1)
+            assertEquals(200.0, sample.altitude!!, 0.001)
+            val packet = GPSFixPacket(LocationFix(sample.coordinate.latitude, sample.coordinate.longitude, sample.altitude, 0)).encoded()
+            assertEquals(200.0, GPSFixPacket.decode(packet, 0)!!.fix.altitude!!, 0.0)
+        }
+        val missing = TrackPlayback(listOf(a, b), false, listOf(100.0, null))
+        missing.seekToOriginalDistance(half)
+        assertNull(missing.advance(0.0, 1).altitude)
+        assertNull(GPSFixPacket.decode(GPSFixPacket(LocationFix(0.0, 0.0, timeMs = 0)).encoded(), 0)!!.fix.altitude)
+    }
 }

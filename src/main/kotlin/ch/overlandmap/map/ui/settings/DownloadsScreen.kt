@@ -44,6 +44,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ch.overlandmap.map.OverlandApp
 import ch.overlandmap.map.R
 import ch.overlandmap.map.data.SatelliteDownloadProgress
+import ch.overlandmap.map.data.PackAssetKind
+import ch.overlandmap.map.data.labelRes
 import ch.overlandmap.map.ui.overlandApp
 
 /**
@@ -431,12 +433,12 @@ private fun restartApp(context: android.content.Context) {
 }
 
 private fun assetLabel(kind: DownloadKind): Int = when (kind) {
-    DownloadKind.ITINERARIES -> R.string.itineraries
-    DownloadKind.OFFLINE_MAP -> R.string.offline_map
-    DownloadKind.HILLSHADE -> R.string.hillshade_map
-    DownloadKind.DEM -> R.string.relief_map
-    DownloadKind.CONTOUR -> R.string.contour_map
-}
+    DownloadKind.ITINERARIES -> PackAssetKind.FREE_ITINERARY
+    DownloadKind.OFFLINE_MAP -> PackAssetKind.OFFLINE_MAP
+    DownloadKind.HILLSHADE -> PackAssetKind.HILLSHADE
+    DownloadKind.DEM -> PackAssetKind.DEM
+    DownloadKind.CONTOUR -> PackAssetKind.CONTOUR
+}.labelRes()
 
 private fun generalLabel(kind: GeneralAssetKind): Int = when (kind) {
     GeneralAssetKind.WORLD_MAP -> R.string.world_map

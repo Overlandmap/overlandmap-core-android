@@ -47,6 +47,7 @@ import ch.overlandmap.map.model.Waypoint
 import ch.overlandmap.map.ui.WaypointMarkers
 import ch.overlandmap.map.ui.currentLanguage
 import ch.overlandmap.map.ui.social.socialTarget
+import ch.overlandmap.map.ui.social.SocialTarget
 import ch.overlandmap.map.ui.rememberUnitFormatter
 
 private val CheckInGreen = Color(0xFF2E7D32)
@@ -65,6 +66,7 @@ fun WaypointBottomSheet(
     waypoint: Waypoint,
     onDismiss: () -> Unit,
     onZoom: () -> Unit,
+    socialTarget: SocialTarget = waypoint.socialTarget(),
 ) {
     val lang = currentLanguage()
     val context = LocalContext.current
@@ -141,9 +143,9 @@ fun WaypointBottomSheet(
                     Icon(Icons.Filled.ZoomIn, contentDescription = stringResource(R.string.zoom_in))
                 }
                 Spacer(Modifier.weight(1f))
-                CheckInButton(waypoint.socialTarget())
+                CheckInButton(socialTarget)
                 Spacer(Modifier.weight(1f))
-                CorrectionButton(waypoint.socialTarget())
+                CorrectionButton(socialTarget)
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { showShareDialog = true }) {
                     Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.share))

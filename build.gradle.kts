@@ -37,6 +37,9 @@ ksp {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20180813")
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.0")
     // Compose — exposed (api) so the thin app shells (MainActivity, navigation)
     // can build against it without re-declaring.
     api(platform("androidx.compose:compose-bom:2024.12.01"))
@@ -59,6 +62,8 @@ dependencies {
     // Local library database
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
+    implementation("androidx.room:room-sqlite-wrapper:2.8.4")
+    implementation("androidx.sqlite:sqlite-bundled:2.6.2")
     ksp("androidx.room:room-compiler:2.8.4")
 
     // Firebase (config resources come from each app's google-services.json)
@@ -78,7 +83,8 @@ dependencies {
     implementation("com.android.billingclient:billing-ktx:8.0.0")
 
     // Background downloads that survive the app being suspended or killed
-    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    // 2.10.5 fixes a foreground-service start/stop race that crashes on Android 12.
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
 
     // Map rendering (Mapbox GL fork; reads the MBTiles served by LocalTileServer)
     implementation("org.maplibre.gl:android-sdk:11.7.1")

@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
+import android.util.Log
 import ch.overlandmap.map.tracking.*
 import ch.overlandmap.map.geo.Coordinate
 import kotlinx.coroutines.*
@@ -18,9 +19,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 @Suppress("DEPRECATION")
 class BluetoothGPS(private val context: Context) {
     data class Peer(val address: String, val name: String, val seen: Long)
+    data class SimulationStep(val id: String, val title: String, val distance: Double)
+    data class Simulation(val title: String = "", val running: Boolean = false, val paused: Boolean = false,
+        val finished: Boolean = false, val progress: Double = 0.0, val multiplier: Int = 1,
+        val backwards: Boolean = false, val steps: List<SimulationStep> = emptyList())
+    val simulation = MutableStateFlow(Simulation())
+    val subscriberCount = MutableStateFlow(0)
     data class Status(val client: Boolean = false,
         val scanning: Boolean = false, val connected: Boolean = false, val server: Boolean = false, val startingServer: Boolean = false, val connecting: Boolean = false,
-        val peers: List<Peer> = emptyList(), val error: String? = null, val simulation: Boolean = false)
+        val peers: List<Peer> = emptyList(), val error: String? = null, val simulation: Boolean = false,
+        val connectedName: String? = null, val reconnecting: Boolean = false)
     val state = MutableStateFlow(Status())
     val remoteFix = MutableStateFlow<LocationFix?>(null)
     val hasHardware = context.packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)
@@ -43,6 +51,7 @@ class BluetoothGPS(private val context: Context) {
             "client" -> {
                 reconnectAddress = preferences.getString("address", null)
                 reconnectName = preferences.getString("name", null)
+                change { it.copy(reconnecting = reconnectAddress != null || reconnectName != null) }
                 scan()
             }
         }
@@ -53,6 +62,24 @@ class BluetoothGPS(private val context: Context) {
     private val manager = context.getSystemService(BluetoothManager::class.java)
     private val adapter get() = manager?.adapter
     private var gatt: BluetoothGatt? = null
+    private var gpsCharacteristics = emptyList<BluetoothGattCharacteristic>()
+    private var gpsCharacteristicIndex = 0
+    private var activeGpsCharacteristic: BluetoothGattCharacteristic? = null
+    private var healthReadFailures = 0
+    private val healthReadTimeout = Runnable {
+        // A stalled GATT operation cannot safely be followed by another read.
+        if (state.value.connected) retryConnection()
+    }
+    private val healthCheck = object : Runnable {
+        override fun run() {
+            val connection = gatt ?: return
+            val characteristic = activeGpsCharacteristic ?: return
+            if (!state.value.connected) return
+            val started = try { connection.readCharacteristic(characteristic) } catch (_: SecurityException) { false }
+            if (started) handler.postDelayed(healthReadTimeout, 10_000)
+            else handler.postDelayed(this, 5_000)
+        }
+    }
     private var server: BluetoothGattServer? = null
     private var serverGeneration = 0
     private var advertising: AdvertiseCallback? = null
@@ -63,7 +90,7 @@ class BluetoothGPS(private val context: Context) {
     }
     private val connectionTimeout = Runnable {
         if (gatt != null && !state.value.connected) {
-            disconnect(); change { it.copy(error = "GPS server connection timed out") }
+            if (state.value.reconnecting) retryConnection() else { disconnect(); change { it.copy(error = "GPS server connection timed out") } }
         }
     }
     private var characteristic: BluetoothGattCharacteristic? = null
@@ -72,6 +99,10 @@ class BluetoothGPS(private val context: Context) {
     var hardwareServer = false
         private set
     private var playback: Job? = null
+    private var simulationTrack: TrackPlayback? = null
+    private var simulationPoints: List<Coordinate> = emptyList()
+    private var simulationElevations: List<Double?> = emptyList()
+    private var serverStartedBySimulation = false
     private var sequence = 0
     private var latest = ByteArray(0)
     private fun main(block: () -> Unit) { handler.post(block) }
@@ -99,67 +130,141 @@ class BluetoothGPS(private val context: Context) {
             if (!state.value.scanning) return@main
             val name = result.scanRecord?.deviceName ?: result.device.name ?: "OverlandMap"
             val peer = Peer(result.device.address, if (name.endsWith(" GPS")) name else "$name GPS", System.currentTimeMillis())
-            change { it.copy(peers = (it.peers.filter { p -> p.address != peer.address } + peer)) }
-            if (peer.address == reconnectAddress || peer.name == reconnectName) { reconnectAddress = null; reconnectName = null; connect(peer) }
+            change { status ->
+                val previous = status.peers.firstOrNull { it.address == peer.address }
+                val updated = previous?.copy(seen = peer.seen) ?: peer
+                status.copy(peers = (status.peers.filter { it.address != peer.address } + updated)
+                    .sortedWith(compareBy<Peer, String>(String.CASE_INSENSITIVE_ORDER) { it.name }.thenBy { it.address }))
+            }
+            if (peer.address == reconnectAddress || peer.name == reconnectName) connect(peer, reconnecting = true)
         }
-        override fun onScanFailed(code: Int) = main { change { it.copy(scanning = false, error = "Bluetooth scan failed ($code)") } }
+        override fun onScanFailed(code: Int) = main {
+            handler.removeCallbacks(stopScanTask)
+            change { it.copy(scanning = false, error = "Bluetooth scan failed ($code)") }
+            if (state.value.reconnecting) handler.postDelayed(retryScanTask, 5_000)
+        }
     }
-    fun scan() = attempt(onFailure = { stopScan() }) {
+    fun scan(): Unit = attempt(onFailure = { stopScan() }) {
         requireBluetooth(); stopServer(); disconnect()
         change { it.copy(client = true, peers = emptyList(), scanning = true) }
         adapter!!.bluetoothLeScanner.startScan(listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(BluetoothGPSProtocol.service)).build()),
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scan)
         handler.removeCallbacks(stopScanTask); handler.postDelayed(stopScanTask, 15000)
     }
-    private val stopScanTask = Runnable { stopScan() }
+    private val retryScanTask = Runnable { if (state.value.reconnecting) scan() }
+    private val stopScanTask = Runnable {
+        stopScan()
+        if (state.value.reconnecting) handler.postDelayed(retryScanTask, 5_000)
+    }
     fun stopScan() { handler.removeCallbacks(stopScanTask); attempt { adapter?.bluetoothLeScanner?.stopScan(scan) }; change { it.copy(scanning = false) } }
     fun disableClient() {
         reconnectAddress = null; reconnectName = null
+        handler.removeCallbacks(retryScanTask)
         if (preferences.getString("role", null) == "client") rememberRole(null)
-        stopScan(); disconnect(); change { it.copy(client = false) }
+        stopScan(); disconnect(); change { it.copy(client = false, reconnecting = false, connectedName = null) }
     }
-    fun disconnect() { val old = gatt; gatt = null; remoteFix.value = null;
+    fun disconnect() { val old = gatt; gatt = null; gpsCharacteristics = emptyList(); activeGpsCharacteristic = null; healthReadFailures = 0;
+        handler.removeCallbacks(healthCheck); handler.removeCallbacks(healthReadTimeout); remoteFix.value = null;
         attempt { try { old?.disconnect() } finally { old?.close() } }; handler.removeCallbacks(connectionTimeout); change { it.copy(connected = false, connecting = false) } }
-    fun connect(peer: Peer) = attempt(onFailure = { disconnect() }) {
+    private fun retryConnection() {
+        val peer = connectingPeer
+        disconnect()
+        if (peer != null) {
+            reconnectAddress = peer.address; reconnectName = peer.name
+            change { it.copy(reconnecting = true, connectedName = null, error = null) }
+            handler.removeCallbacks(retryScanTask)
+            handler.postDelayed(retryScanTask, 1_000)
+        }
+    }
+    fun connect(peer: Peer, reconnecting: Boolean = false): Unit = attempt(onFailure = { if (reconnecting) retryConnection() else disconnect() }) {
         requireBluetooth(); stopServer(); stopScan(); disconnect(); connectingPeer = peer
-        change { it.copy(client = true, connecting = true) }
+        if (!reconnecting) { reconnectAddress = null; reconnectName = null; handler.removeCallbacks(retryScanTask) }
+        change { it.copy(client = true, connecting = true, reconnecting = reconnecting, connectedName = null) }
         gatt = adapter!!.getRemoteDevice(peer.address).connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
         check(gatt != null) { "Cannot connect to GPS server." }
         handler.postDelayed(connectionTimeout, 20000)
     }
     private fun receive(g: BluetoothGatt, bytes: ByteArray) = main {
-        if (g === gatt) GPSFixPacket.decode(bytes)?.let { remoteFix.value = it.fix }
+        if (g === gatt) {
+            val packet = GPSFixPacket.decode(bytes)
+            Log.d("BluetoothGPS", "GPS packet: bytes=${bytes.size}, valid=${packet != null}")
+            packet?.let { remoteFix.value = it.fix }
+        }
+    }
+    private fun subscribeNext(g: BluetoothGatt) {
+        if (g !== gatt) return
+        while (gpsCharacteristicIndex < gpsCharacteristics.size) {
+            val c = gpsCharacteristics[gpsCharacteristicIndex++]
+            val d = c.getDescriptor(BluetoothGPSProtocol.cccd) ?: continue
+            if (!g.setCharacteristicNotification(c, true)) continue
+            d.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            if (g.writeDescriptor(d)) return
+            g.setCharacteristicNotification(c, false)
+        }
+        if (state.value.reconnecting) retryConnection()
+        else { disconnect(); change { it.copy(error = "GPS server is unavailable. Please try again.") } }
+    }
+    private fun confirmConnection(g: BluetoothGatt, c: BluetoothGattCharacteristic) {
+        if (g !== gatt || state.value.connected) return
+        handler.removeCallbacks(connectionTimeout)
+        connectingPeer?.let { preferences.edit().putString("role", "client").putString("address", it.address).putString("name", it.name).apply() }
+        reconnectAddress = null; reconnectName = null
+        activeGpsCharacteristic = c
+        healthReadFailures = 0
+        change { it.copy(connected = true, connecting = false, reconnecting = false, connectedName = connectingPeer?.name) }
+        attempt { BluetoothGPSForegroundService.start(context) }
+        handler.postDelayed(healthCheck, 5_000)
     }
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) = main {
             if (g !== gatt) { g.close(); return@main }
-            if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) { if (!g.discoverServices()) { disconnect(); change { it.copy(error = "Cannot discover GPS service") } } }
+            if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) { if (!g.discoverServices()) { if (state.value.reconnecting) retryConnection() else { disconnect(); change { it.copy(error = "Cannot discover GPS service") } } } }
+            else if (state.value.connected || state.value.reconnecting) retryConnection()
             else { disconnect(); change { it.copy(error = "GPS not available — server disconnected") } }
         }
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) = main {
             if (g !== gatt) return@main
-            val c = g.getService(BluetoothGPSProtocol.service)?.getCharacteristic(BluetoothGPSProtocol.characteristic)
-            val d = c?.getDescriptor(BluetoothGPSProtocol.cccd)
-            if (status != BluetoothGatt.GATT_SUCCESS || c == null || d == null || !g.setCharacteristicNotification(c, true)) {
-                disconnect(); change { it.copy(error = "Incompatible GPS server") }; return@main
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                if (state.value.reconnecting) retryConnection() else { disconnect(); change { it.copy(error = "Incompatible GPS server") } }; return@main
             }
-            d.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            if (!g.writeDescriptor(d)) disconnect()
+            gpsCharacteristics = g.services.filter { it.uuid == BluetoothGPSProtocol.service }
+                .mapNotNull { it.getCharacteristic(BluetoothGPSProtocol.characteristic) }
+            gpsCharacteristicIndex = 0
+            subscribeNext(g)
         }
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) = main {
             if (g !== gatt) return@main
-            if (status != BluetoothGatt.GATT_SUCCESS) { disconnect(); return@main }
-            handler.removeCallbacks(connectionTimeout)
-            connectingPeer?.let { preferences.edit().putString("role", "client").putString("address", it.address).putString("name", it.name).apply() }
-            change { it.copy(connected = true, connecting = false) }; attempt { BluetoothGPSForegroundService.start(context) }; g.readCharacteristic(d.characteristic)
+            Log.d("BluetoothGPS", "GPS subscription status=$status")
+            if (status != BluetoothGatt.GATT_SUCCESS || !g.readCharacteristic(d.characteristic)) { subscribeNext(g); return@main }
         }
         override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic) { receive(g, c.value ?: return) }
         override fun onCharacteristicChanged(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray) { receive(g, value) }
         override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
-            if (status == BluetoothGatt.GATT_SUCCESS) receive(g, c.value ?: return)
+            Log.d("BluetoothGPS", "GPS read status=$status")
+            handleInitialRead(g, c, c.value, status)
         }
         override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
-            if (status == BluetoothGatt.GATT_SUCCESS) receive(g, value)
+            Log.d("BluetoothGPS", "GPS read status=$status")
+            handleInitialRead(g, c, value, status)
+        }
+    }
+    private fun handleInitialRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray?, status: Int) = main {
+        if (g !== gatt) return@main
+        if (state.value.connected) {
+            if (c !== activeGpsCharacteristic) return@main
+            handler.removeCallbacks(healthReadTimeout)
+            if (status == BluetoothGatt.GATT_SUCCESS) healthReadFailures = 0 else healthReadFailures++
+            if (healthReadFailures >= 2) retryConnection()
+            else handler.postDelayed(healthCheck, 5_000)
+            // Reads may return the server's old cached fix; only notifications refresh it.
+            return@main
+        }
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            confirmConnection(g, c)
+            if (value != null) receive(g, value)
+        } else {
+            g.setCharacteristicNotification(c, false)
+            subscribeNext(g)
         }
     }
     private fun serverMain(generation: Int, block: () -> Unit) = main {
@@ -184,7 +289,7 @@ class BluetoothGPS(private val context: Context) {
             }
         }
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) = serverMain(generation) {
-            if (newState != BluetoothProfile.STATE_CONNECTED) subscribers.remove(device)
+            if (newState != BluetoothProfile.STATE_CONNECTED) { subscribers.remove(device); subscriberCount.value = subscribers.size }
         }
         override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, c: BluetoothGattCharacteristic) = serverMain(generation) {
             val valid = offset in 0..latest.size
@@ -200,7 +305,7 @@ class BluetoothGPS(private val context: Context) {
         override fun onDescriptorWriteRequest(device: BluetoothDevice, requestId: Int, d: BluetoothGattDescriptor, preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray) = serverMain(generation) {
             val valid = !preparedWrite && offset == 0 && d.uuid == BluetoothGPSProtocol.cccd &&
                 (value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) || value.contentEquals(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE))
-            if (valid) { if (value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)) subscribers.add(device) else subscribers.remove(device) }
+            if (valid) { if (value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)) subscribers.add(device) else subscribers.remove(device); subscriberCount.value = subscribers.size }
             if (responseNeeded) server?.sendResponse(device, requestId, if (valid) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null)
         }
     }
@@ -221,14 +326,14 @@ class BluetoothGPS(private val context: Context) {
         change { it.copy(startingServer = true) }
         handler.postDelayed(serverTimeout, 10000)
         BluetoothGPSForegroundService.start(context)
-        if (!simulationOnly) hardware.start(0f) { if (it.accuracyM >= 0) broadcast(it) }
+        if (!simulationOnly) hardware.start(0f) { if (it.accuracyM >= 0 && simulationTrack == null) broadcast(it) }
     }
     fun stopServer(clearPreference: Boolean = true) {
         if (clearPreference && preferences.getString("role", null) == "server") rememberRole(null)
         serverGeneration++; handler.removeCallbacks(serverTimeout)
-        playback?.cancel(); playback = null; hardware.stop(); hardwareServer = false
+        playback?.cancel(); playback = null; simulationTrack = null; simulationPoints = emptyList(); simulationElevations = emptyList(); simulation.value = Simulation(); serverStartedBySimulation = false; hardware.stop(); hardwareServer = false
         attempt { try { advertising?.let { adapter?.bluetoothLeAdvertiser?.stopAdvertising(it) } } finally { server?.close() } }
-        server = null; advertising = null; characteristic = null; subscribers.clear(); latest = ByteArray(0)
+        server = null; advertising = null; characteristic = null; subscribers.clear(); subscriberCount.value = 0; latest = ByteArray(0)
         change { it.copy(server = false, startingServer = false, simulation = false) }
     }
     private fun broadcast(fix: LocationFix, simulated: Boolean = false) {
@@ -237,21 +342,55 @@ class BluetoothGPS(private val context: Context) {
         c.value = latest
         subscribers.toList().forEach { device -> attempt { server?.notifyCharacteristicChanged(device, c, false) } }
     }
-    fun simulate(points: List<Coordinate>, backwards: Boolean, multiplier: Int) = attempt {
+    fun simulate(title: String, points: List<Coordinate>, backwards: Boolean, multiplier: Int, steps: List<SimulationStep> = emptyList(), elevations: List<Double?> = emptyList()) = attempt {
         check((context.applicationContext as ch.overlandmap.map.OverlandApp).isAdmin) { "Administrator access required." }
-        val track = TrackPlayback(points, backwards)
-        startServer(true); if (server == null) return@attempt
+        val track = TrackPlayback(points, backwards, elevations)
+        if (server == null) { startServer(true); if (server == null) return@attempt; serverStartedBySimulation = true }
+        playback?.cancel()
+        simulationPoints = points
+        simulationElevations = elevations
+        simulationTrack = track
+        simulation.value = Simulation(title, running = true, multiplier = multiplier, backwards = backwards, steps = steps)
         change { it.copy(simulation = true) }
+        runSimulation()
+    }
+    private fun runSimulation() {
+        playback?.cancel()
         playback = scope.launch {
             var last = android.os.SystemClock.elapsedRealtime()
             while (isActive) {
                 val now = android.os.SystemClock.elapsedRealtime()
-                val sample = track.advance((now - last) / 1000.0, multiplier); last = now
-                broadcast(LocationFix(sample.coordinate.latitude, sample.coordinate.longitude,
-                    timeMs = System.currentTimeMillis(), courseDeg = sample.course, speedMps = sample.speed), true)
-                if (track.finished) { change { it.copy(simulation = false) }; break }
+                val state = simulation.value
+                val track = simulationTrack ?: break
+                val sample = track.advance(if (state.paused) 0.0 else (now - last) / 1000.0, state.multiplier); last = now
+                broadcast(LocationFix(sample.coordinate.latitude, sample.coordinate.longitude, altitude = sample.altitude,
+                    timeMs = System.currentTimeMillis(), courseDeg = sample.course, speedMps = if (state.paused) 0f else sample.speed), true)
+                simulation.value = state.copy(progress = sample.progress, running = !track.finished, finished = track.finished)
+                if (track.finished) break
                 delay(1000)
             }
         }
+    }
+    fun setSimulationSpeed(multiplier: Int) { if (multiplier in listOf(1, 5, 50)) simulation.value = simulation.value.copy(multiplier = multiplier) }
+    fun setSimulationPaused(paused: Boolean) { if (simulation.value.running) simulation.value = simulation.value.copy(paused = paused) }
+    fun setSimulationDirection(backwards: Boolean) {
+        val state = simulation.value
+        if (simulationTrack != null && state.backwards != backwards) simulate(state.title, simulationPoints, backwards, state.multiplier, state.steps, simulationElevations)
+    }
+    fun seekSimulation(step: SimulationStep) {
+        val track = simulationTrack ?: return
+        track.seekToOriginalDistance(step.distance)
+        val sample = track.advance(0.0, simulation.value.multiplier)
+        val wasFinished = simulation.value.finished
+        simulation.value = simulation.value.copy(progress = sample.progress, finished = track.finished,
+            running = if (wasFinished && !track.finished) true else simulation.value.running, paused = if (wasFinished) false else simulation.value.paused)
+        broadcast(LocationFix(sample.coordinate.latitude, sample.coordinate.longitude, altitude = sample.altitude, timeMs = System.currentTimeMillis(), courseDeg = sample.course, speedMps = 0f), true)
+        if (wasFinished && !track.finished) runSimulation()
+    }
+    fun stopSimulation() {
+        if (simulationTrack == null) return
+        playback?.cancel(); playback = null; simulationTrack = null; simulationPoints = emptyList(); simulationElevations = emptyList(); simulation.value = Simulation()
+        change { it.copy(simulation = false) }
+        if (serverStartedBySimulation) stopServer()
     }
 }

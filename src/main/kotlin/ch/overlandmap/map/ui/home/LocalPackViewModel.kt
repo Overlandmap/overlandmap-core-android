@@ -106,6 +106,11 @@ class LocalPackViewModel(
         viewModelScope.launch {
             runCatching { library.refreshComments(packId) }
         }
+        // A pack can be downloaded after the app's startup sync. Refresh its
+        // social cache when the pack opens, including check-ins and corrections.
+        viewModelScope.launch {
+            app.socialRepository.syncTrackPackSocialData(packId)
+        }
         // Follow an update's re-download: toast + reload on success, and clear
         // the "updating" flag on success or failure.
         viewModelScope.launch {

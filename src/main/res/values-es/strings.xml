@@ -516,4 +516,16 @@
     <string name="precipitation_scale">Escala de precipitación</string>
     <string name="temperature">Temperatura</string>
     <string name="temperature_scale">Escala de temperatura</string>
+    <string name="bluetooth_gps_no_track">Ninguna ruta seleccionada</string>
+    <string name="bluetooth_gps_points">%1$d puntos</string>
+    <string name="bluetooth_gps_visible_as">Visible como: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Transmite la ruta seleccionada como posiciones GPS a los dispositivos conectados.</string>
+    <string name="bluetooth_gps_pause">Pausar</string>
+    <string name="bluetooth_gps_resume">Reanudar</string>
+    <string name="bluetooth_gps_skip_step">Ir a una etapa</string>
+    <string name="bluetooth_gps_finished">Reproducción finalizada</string>
+    <string name="bluetooth_gps_connected_devices">Dispositivos conectados: %1$d</string>
+    <string name="debug_checkin_sync_reset">Restablecer las fechas de sincronización de registros de todos los trackpacks</string>
+    <string name="debug_checkin_sync_reset_done">Fechas de sincronización de registros establecidas hace dos días.</string>
+    <string name="debug_checkin_sync_reset_failed">No se pudieron restablecer las fechas de sincronización de registros.</string>
 </resources>

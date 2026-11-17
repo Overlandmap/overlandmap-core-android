@@ -5,6 +5,9 @@ import ch.overlandmap.map.model.Comment
 import ch.overlandmap.map.model.ContributedWaypoint
 import ch.overlandmap.map.model.Vote
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -17,6 +20,7 @@ class SyncCoordinatorTest {
     private val day = 24 * hour
 
     private class FakeCache : SocialCache {
+        val localPacks = mutableSetOf<String>()
         val stamps = HashMap<Pair<String, SyncKind>, Long>()
         val comments = HashMap<String, List<Comment>>()
         val checkIns = HashMap<String, List<CheckIn>>()
@@ -29,11 +33,15 @@ class SyncCoordinatorTest {
         override suspend fun clearLastSync(trackPackId: String, kind: SyncKind) {
             stamps.remove(trackPackId to kind)
         }
+        override suspend fun backdateAllCheckIns(time: Long) {
+            val packs = localPacks + stamps.keys.filter { it.second == SyncKind.CHECK_INS }.map { it.first }
+            packs.forEach { stamps[it to SyncKind.CHECK_INS] = time }
+        }
         override suspend fun replaceComments(trackPackId: String, comments: List<Comment>) {
             this.comments[trackPackId] = comments
         }
-        override suspend fun replaceCheckIns(trackPackId: String, checkIns: List<CheckIn>) {
-            this.checkIns[trackPackId] = checkIns
+        override suspend fun replaceCheckIns(trackPackId: String, batch: CheckInBatch) {
+            this.checkIns[trackPackId] = batch.checkIns
         }
         override suspend fun replaceVotes(trackPackId: String, votes: List<Vote>) {
             this.votes[trackPackId] = votes
@@ -55,7 +63,7 @@ class SyncCoordinatorTest {
         override suspend fun fetchComments(trackPackId: String) =
             guard(SyncKind.COMMENTS, listOf(Comment.fromFirestore("c", mapOf("objectId" to trackPackId))))
         override suspend fun fetchCheckIns(trackPackId: String) =
-            guard(SyncKind.CHECK_INS, listOfNotNull(CheckIn.fromFirestore("k", mapOf("objectId" to "o"))))
+            guard(SyncKind.CHECK_INS, CheckInBatch(setOf("u0"), listOfNotNull(CheckIn.fromFirestore("k", mapOf("geohash" to "u0")))))
         override suspend fun fetchVotes(trackPackId: String) =
             guard(SyncKind.VOTES, listOf(Vote.fromFirestore("v", emptyMap())))
         override suspend fun fetchContributedWaypoints(trackPackId: String) =
@@ -68,7 +76,7 @@ class SyncCoordinatorTest {
             )
     }
 
-    private fun coordinator(cache: FakeCache, source: FakeSource, policy: SyncPolicy, clock: () -> Long) =
+    private fun coordinator(cache: FakeCache, source: SocialDataSource, policy: SyncPolicy, clock: () -> Long) =
         SyncCoordinator(cache, source, policy, clock)
 
     @Test
@@ -177,5 +185,51 @@ class SyncCoordinatorTest {
         assertTrue(source.calls.isEmpty())
         c.syncTrackPackSocialData("p", force = true)
         assertEquals(4, source.calls.size)
+    }
+
+    @Test
+    fun backdatingCheckInsMakesEveryPackStaleWithoutClearingItsCache() = runBlocking {
+        val cache = FakeCache().apply { localPacks += listOf("p1", "p2") }
+        val source = FakeSource()
+        val now = 10 * day
+        val c = coordinator(cache, source, SyncPolicy.RELEASE) { now }
+        c.sync("p1", SyncKind.CHECK_INS)
+        c.sync("p1", SyncKind.COMMENTS)
+        val cached = cache.checkIns["p1"]
+
+        c.backdateAllCheckIns(now - 2 * day)
+
+        assertEquals(now - 2 * day, cache.stamps["p1" to SyncKind.CHECK_INS])
+        assertEquals(now - 2 * day, cache.stamps["p2" to SyncKind.CHECK_INS])
+        assertEquals(now, cache.stamps["p1" to SyncKind.COMMENTS])
+        assertEquals(cached, cache.checkIns["p1"])
+        assertTrue(c.needsSync("p1", SyncKind.CHECK_INS))
+        assertTrue(c.needsSync("p2", SyncKind.CHECK_INS))
+        assertTrue(c.syncIfNeeded("p2", SyncKind.CHECK_INS))
+    }
+
+    @Test
+    fun backdatingWaitsForAnInFlightCheckInSync() = runBlocking {
+        val cache = FakeCache().apply { localPacks += "p1" }
+        val started = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val source = object : SocialDataSource by FakeSource() {
+            override suspend fun fetchCheckIns(trackPackId: String): CheckInBatch {
+                started.complete(Unit)
+                finish.await()
+                return CheckInBatch(emptySet(), emptyList())
+            }
+        }
+        val now = 10 * day
+        val c = coordinator(cache, source, SyncPolicy.RELEASE) { now }
+        val sync = async { c.sync("p1", SyncKind.CHECK_INS) }
+        started.await()
+        val reset = async { c.backdateAllCheckIns(now - 2 * day) }
+        yield()
+        assertFalse(reset.isCompleted)
+        finish.complete(Unit)
+        sync.await()
+        reset.await()
+        assertTrue(c.needsSync("p1", SyncKind.CHECK_INS))
     }
 }

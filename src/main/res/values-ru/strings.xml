@@ -518,4 +518,16 @@
     <string name="precipitation_scale">Шкала осадков</string>
     <string name="temperature">Температура</string>
     <string name="temperature_scale">Шкала температуры</string>
+    <string name="bluetooth_gps_no_track">Трек не выбран</string>
+    <string name="bluetooth_gps_points">%1$d точек</string>
+    <string name="bluetooth_gps_visible_as">Отображается как: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Передавать выбранный трек как GPS-координаты подключённым устройствам.</string>
+    <string name="bluetooth_gps_pause">Пауза</string>
+    <string name="bluetooth_gps_resume">Продолжить</string>
+    <string name="bluetooth_gps_skip_step">Перейти к этапу</string>
+    <string name="bluetooth_gps_finished">Воспроизведение завершено</string>
+    <string name="bluetooth_gps_connected_devices">Подключённые устройства: %1$d</string>
+    <string name="debug_checkin_sync_reset">Сбросить даты синхронизации отметок для всех трекпаков</string>
+    <string name="debug_checkin_sync_reset_done">Даты синхронизации отметок установлены на два дня назад.</string>
+    <string name="debug_checkin_sync_reset_failed">Не удалось сбросить даты синхронизации отметок.</string>
 </resources>

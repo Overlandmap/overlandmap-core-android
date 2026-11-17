@@ -60,9 +60,7 @@ import ch.overlandmap.map.R
 import ch.overlandmap.map.data.SearchResult
 import ch.overlandmap.map.data.local.FtsIndex
 import ch.overlandmap.map.model.Waypoint
-import ch.overlandmap.map.ui.MapObjectPopup
-import ch.overlandmap.map.ui.MapPopupKind
-import ch.overlandmap.map.ui.MapPopupState
+import ch.overlandmap.map.ui.home.WaypointBottomSheet
 import ch.overlandmap.map.ui.overlandApp
 import ch.overlandmap.map.ui.world.OverlandingSelection
 import kotlinx.coroutines.launch
@@ -117,11 +115,10 @@ fun SearchScreen(
             wp.itineraryId?.let { onOpenItinerary(it, null) }
             Unit
         }
-        MapObjectPopup(
-            state = MapPopupState(position = null, kind = MapPopupKind.OfWaypoint(wp)),
+        WaypointBottomSheet(
+            waypoint = wp,
             onDismiss = { waypoint = null },
             onZoom = { openItinerary() },
-            onOpen = { openItinerary() },
         )
     }
 }

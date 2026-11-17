@@ -84,9 +84,14 @@ import ch.overlandmap.map.data.UserPreferences
 import ch.overlandmap.map.ui.markup.MarkupText
 import ch.overlandmap.map.ui.overlandApp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import coil.compose.AsyncImage
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.DateFormat
 import java.util.Date
+import java.util.Locale
 
 /**
  * Settings tab root: the signed-in user on top (photo, name, sign in/out),
@@ -732,9 +737,7 @@ fun TextSizeScreen(
 }
 
 /**
- * Debug tools submenu (only reachable from a debuggable build). Currently a
- * single toggle for the itinerary map's zoom-level overlay; add further debug
- * switches here.
+ * Debug tools submenu (only reachable from a debuggable build).
  */
 @Composable
 fun DebugScreen(
@@ -743,6 +746,32 @@ fun DebugScreen(
 ) {
     val app = LocalContext.current.applicationContext as OverlandApp
     val scope = rememberCoroutineScope()
+    var resetResult by remember { mutableStateOf<Int?>(null) }
+    var resettingCheckIns by remember { mutableStateOf(false) }
+    var ipCountry by remember { mutableStateOf<String?>(null) }
+    var ipCountryLoading by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        ipCountry = withContext(Dispatchers.IO) {
+            try {
+                val connection = URL("https://www.cloudflare.com/cdn-cgi/trace")
+                    .openConnection() as HttpURLConnection
+                try {
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    if (connection.responseCode != HttpURLConnection.HTTP_OK) null
+                    else connection.inputStream.bufferedReader().useLines { lines ->
+                        lines.firstOrNull { it.startsWith("loc=") }?.substringAfter('=')
+                            ?.takeIf { it in Locale.getISOCountries() }
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (_: java.io.IOException) {
+                null
+            }
+        }
+        ipCountryLoading = false
+    }
     val showZoom by app.userPreferences.debugShowZoom.collectAsState(
         initial = app.userPreferences.debugShowZoomNow(),
     )
@@ -751,6 +780,14 @@ fun DebugScreen(
         initial = app.userPreferences.debugShowPhotoSourceNow(),
     )
     SettingsSubScreen(title = stringResource(R.string.debug), onBack = onBack) {
+        val country = ipCountry
+        val countryValue = when {
+            ipCountryLoading -> stringResource(R.string.debug_ip_country_loading)
+            country == null -> stringResource(R.string.debug_ip_country_unavailable)
+            else -> "${Locale("", country).getDisplayCountry(Locale.getDefault())} ($country)"
+        }
+        Text(stringResource(R.string.debug_ip_country, countryValue), modifier = Modifier.padding(vertical = 12.dp))
+        HorizontalDivider()
         SwitchRow(
             label = stringResource(R.string.debug_show_zoom),
             checked = showZoom,
@@ -774,6 +811,28 @@ fun DebugScreen(
             label = stringResource(R.string.debug_latest_check_ins),
             onClick = onOpenLatestCheckIns,
         )
+        HorizontalDivider()
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    resettingCheckIns = true
+                    resetResult = null
+                    try {
+                        app.socialRepository.backdateAllCheckInSyncs()
+                        resetResult = R.string.debug_checkin_sync_reset_done
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        resetResult = R.string.debug_checkin_sync_reset_failed
+                    } finally {
+                        resettingCheckIns = false
+                    }
+                }
+            },
+            enabled = !resettingCheckIns,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        ) { Text(stringResource(R.string.debug_checkin_sync_reset)) }
+        resetResult?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall) }
     }
 }
 

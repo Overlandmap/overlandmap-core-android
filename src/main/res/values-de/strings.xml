@@ -516,4 +516,16 @@
     <string name="precipitation_scale">Niederschlagsskala</string>
     <string name="temperature">Temperatur</string>
     <string name="temperature_scale">Temperaturskala</string>
+    <string name="bluetooth_gps_no_track">Keine Strecke ausgewählt</string>
+    <string name="bluetooth_gps_points">%1$d Punkte</string>
+    <string name="bluetooth_gps_visible_as">Sichtbar als: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Überträgt die ausgewählte Strecke als GPS-Positionen an verbundene Geräte.</string>
+    <string name="bluetooth_gps_pause">Pause</string>
+    <string name="bluetooth_gps_resume">Fortsetzen</string>
+    <string name="bluetooth_gps_skip_step">Zu Schritt springen</string>
+    <string name="bluetooth_gps_finished">Wiedergabe beendet</string>
+    <string name="bluetooth_gps_connected_devices">Verbundene Geräte: %1$d</string>
+    <string name="debug_checkin_sync_reset">Check-in-Synchronisierung für alle Trackpacks zurücksetzen</string>
+    <string name="debug_checkin_sync_reset_done">Check-in-Synchronisierungsdaten auf vor zwei Tagen gesetzt.</string>
+    <string name="debug_checkin_sync_reset_failed">Check-in-Synchronisierungsdaten konnten nicht zurückgesetzt werden.</string>
 </resources>

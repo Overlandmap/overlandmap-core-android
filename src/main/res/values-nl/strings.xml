@@ -518,4 +518,16 @@
     <string name="precipitation_scale">Neerslagschaal</string>
     <string name="temperature">Temperatuur</string>
     <string name="temperature_scale">Temperatuurschaal</string>
+    <string name="bluetooth_gps_no_track">Geen route geselecteerd</string>
+    <string name="bluetooth_gps_points">%1$d punten</string>
+    <string name="bluetooth_gps_visible_as">Zichtbaar als: %1$s</string>
+    <string name="bluetooth_gps_simulation_description">Zend de geselecteerde route als GPS-posities naar verbonden apparaten.</string>
+    <string name="bluetooth_gps_pause">Pauzeren</string>
+    <string name="bluetooth_gps_resume">Hervatten</string>
+    <string name="bluetooth_gps_skip_step">Ga naar stap</string>
+    <string name="bluetooth_gps_finished">Afspelen voltooid</string>
+    <string name="bluetooth_gps_connected_devices">Verbonden apparaten: %1$d</string>
+    <string name="debug_checkin_sync_reset">Synchronisatiedatums voor check-ins van alle trackpacks terugzetten</string>
+    <string name="debug_checkin_sync_reset_done">Synchronisatiedatums voor check-ins op twee dagen geleden gezet.</string>
+    <string name="debug_checkin_sync_reset_failed">Synchronisatiedatums voor check-ins konden niet worden teruggezet.</string>
 </resources>
